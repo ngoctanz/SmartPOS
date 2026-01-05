@@ -38,7 +38,6 @@ const branchSchema = new mongoose.Schema(
   }
 );
 
-branchSchema.index({ branchName: 1 });
 branchSchema.index({ createdAt: -1 });
 
 // Instance method

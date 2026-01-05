@@ -74,7 +74,6 @@ const receiptSchema = new mongoose.Schema(
   }
 );
 
-receiptSchema.index({ code: 1 });
 receiptSchema.index({ branchId: 1 });
 receiptSchema.index({ createdBy: 1 });
 receiptSchema.index({ status: 1 });

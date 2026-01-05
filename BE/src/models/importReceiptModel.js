@@ -86,7 +86,6 @@ const importReceiptSchema = new mongoose.Schema(
   }
 );
 
-importReceiptSchema.index({ code: 1 });
 importReceiptSchema.index({ branchId: 1 });
 importReceiptSchema.index({ createdBy: 1 });
 importReceiptSchema.index({ status: 1 });
