@@ -1,0 +1,173 @@
+version: "3.8"
+
+services:
+  # Backend Service
+  backend:
+    build:
+      context: ./BE
+      dockerfile: Dockerfile
+    container_name: shopacvn-backend
+    restart: unless-stopped
+    env_file:
+      - ./BE/.env
+    environment:
+      - NODE_ENV=production
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8081
+    ports:
+      - "8081:8081"
+    expose:
+      - "8081"
+    volumes:
+      - backend-logs:/app/logs
+    networks:
+      - shopacvn-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:8081/v1/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
+  # Frontend Service
+  frontend:
+    build:
+      context: ./FE
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=https://api.shopacvn.com/v1
+    container_name: shopacvn-frontend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=https://api.shopacvn.com/v1
+    ports:
+      - "3000:3000"
+    expose:
+      - "3000"
+    networks:
+      - shopacvn-network
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:3000",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 512M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: shopacvn-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+      - nginx-logs:/var/log/nginx
+    networks:
+      - shopacvn-network
+    depends_on:
+      - backend
+      - frontend
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://localhost:80/health",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  # MongoDB Service (Local VPS)
+  mongodb:
+    image: mongo:7.0
+    container_name: shopacvn-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: shopacvn_secure_password
+      MONGO_INITDB_DATABASE: shopacvn_db
+    # Uncomment below for external access (only for development/debugging)
+    # ports:
+    #   - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+      - mongodb-config:/data/configdb
+    networks:
+      - shopacvn-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+        reservations:
+          cpus: "1"
+          memory: 1G
+
+volumes:
+  mongodb-data:
+    driver: local
+  mongodb-config:
+    driver: local
+  backend-logs:
+    driver: local
+  nginx-logs:
+    driver: local
+
+networks:
+  shopacvn-network:
+    driver: bridge
