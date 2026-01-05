@@ -126,23 +126,24 @@ services:
           cpus: "0.5"
           memory: 256M
 
-  # MongoDB Service (Local VPS)
+  # MongoDB Service (Shared Database for Team)
   mongodb:
     image: mongo:7.0
     container_name: shopacvn-mongodb
     restart: unless-stopped
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: shopacvn_secure_password
-      MONGO_INITDB_DATABASE: shopacvn_db
-    # Uncomment below for external access (only for development/debugging)
-    # ports:
-    #   - "27017:27017"
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: rootpass
+      MONGO_INITDB_DATABASE: SmartPOS
+    ports:
+      - "27017:27017" # Exposed for team access
     volumes:
+      - ./mongodb-dev/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
       - mongodb-data:/data/db
       - mongodb-config:/data/configdb
     networks:
       - shopacvn-network
+    command: mongod --auth
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 30s

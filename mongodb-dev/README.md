@@ -4,10 +4,21 @@ MongoDB database cho team development của dự án SmartPOS - Hệ thống qu�
 
 ## 🚀 Khởi động MongoDB (Chỉ cần 1 lệnh!)
 
+### Chạy standalone (Development)
+
 ```bash
 cd mongodb-dev
 docker-compose up -d
 ```
+
+### Chạy cùng toàn bộ dự án SmartPOS (Production)
+
+```bash
+# Từ thư mục root dự án
+docker-compose up -d
+```
+
+MongoDB sẽ tự động chạy cùng backend và frontend, sử dụng cùng 1 database SmartPOS.
 
 ## 📋 Thông tin truy cập
 
