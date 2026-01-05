@@ -27,9 +27,9 @@ const getByProduct = async (productId) => {
   }
 };
 
-const getStockInfo = async (branchId, productId) => {
+const getStock = async (branchId, productId) => {
   try {
-    return await BranchProduct.getStockInfo(branchId, productId);
+    return await BranchProduct.getStock(branchId, productId);
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -59,7 +59,7 @@ const getLowStock = async (branchId) => {
 
 const checkStockAvailability = async (branchId, productId, quantity) => {
   try {
-    const { stock } = await BranchProduct.getStockInfo(branchId, productId);
+    const stock = await BranchProduct.getStock(branchId, productId);
     return {
       available: stock >= quantity,
       currentStock: stock,
@@ -74,7 +74,7 @@ const checkStockAvailability = async (branchId, productId, quantity) => {
 export const branchProductService = {
   getByBranch,
   getByProduct,
-  getStockInfo,
+  getStock,
   setMinStock,
   getLowStock,
   checkStockAvailability,

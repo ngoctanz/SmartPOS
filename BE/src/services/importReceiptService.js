@@ -45,10 +45,6 @@ const create = async (data, userId) => {
   }
 };
 
-/**
- * Confirm import receipt
- * - Update stock với giá vốn trung bình mới
- */
 const confirm = async (id) => {
   try {
     const receipt = await ImportReceipt.findImportReceiptById(id);
@@ -62,14 +58,9 @@ const confirm = async (id) => {
 
     const branchId = receipt.branchId._id || receipt.branchId;
 
-    // Update stock cho từng sản phẩm với giá vốn TB mới
+    // Increase stock for each product
     for (const item of receipt.listProduct) {
-      await BranchProduct.importStock(
-        branchId,
-        item.productId,
-        item.quantity,
-        item.importPrice
-      );
+      await BranchProduct.increaseStock(branchId, item.productId, item.quantity);
     }
 
     return await ImportReceipt.updateStatus(id, "completed");
@@ -150,11 +141,7 @@ const getByDateRange = async (startDate, endDate, branchId = null) => {
 const getTotalImport = async (period, branchId = null) => {
   try {
     const { startDate, endDate } = getDateRange(period);
-    return await ImportReceipt.getTotalImportByDateRange(
-      startDate,
-      endDate,
-      branchId
-    );
+    return await ImportReceipt.getTotalImportByDateRange(startDate, endDate, branchId);
   } catch (error) {
     throw new Error(error.message || error);
   }

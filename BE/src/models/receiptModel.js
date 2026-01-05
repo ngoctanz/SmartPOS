@@ -21,15 +21,6 @@ const receiptProductSchema = new mongoose.Schema(
       required: true,
       min: [0, "Sale price cannot be negative"],
     },
-    costPrice: {
-      type: Number,
-      required: true,
-      min: [0, "Cost price cannot be negative"],
-    },
-    profit: {
-      type: Number,
-      required: true,
-    },
   },
   { _id: false }
 );
@@ -65,15 +56,6 @@ const receiptSchema = new mongoose.Schema(
       type: Number,
       required: true,
       min: [0, "Total amount cannot be negative"],
-    },
-    totalCost: {
-      type: Number,
-      required: true,
-      min: [0, "Total cost cannot be negative"],
-    },
-    totalProfit: {
-      type: Number,
-      required: true,
     },
     paymentMethod: {
       type: String,
@@ -183,12 +165,11 @@ receiptSchema.statics = {
         $group: {
           _id: null,
           totalRevenue: { $sum: "$totalAmount" },
-          totalProfit: { $sum: "$totalProfit" },
           count: { $sum: 1 },
         },
       },
     ]);
-    return result[0] || { totalRevenue: 0, totalProfit: 0, count: 0 };
+    return result[0] || { totalRevenue: 0, count: 0 };
   },
 
   async getDailyRevenue(startDate, endDate, branchId = null) {
@@ -204,7 +185,6 @@ receiptSchema.statics = {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
           revenue: { $sum: "$totalAmount" },
-          profit: { $sum: "$totalProfit" },
           orders: { $sum: 1 },
         },
       },
@@ -230,7 +210,6 @@ receiptSchema.statics = {
           totalRevenue: {
             $sum: { $multiply: ["$listProduct.salePrice", "$listProduct.quantity"] },
           },
-          totalProfit: { $sum: "$listProduct.profit" },
         },
       },
       { $sort: { totalQuantity: -1 } },

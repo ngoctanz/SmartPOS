@@ -61,83 +61,29 @@ branchProductSchema.statics = {
       .lean();
   },
 
-  async getStockInfo(branchId, productId) {
+  async getStock(branchId, productId) {
     const record = await this.findOne({ branchId, productId });
-    return record
-      ? { stock: record.stock, avgImportPrice: record.avgImportPrice }
-      : { stock: 0, avgImportPrice: 0 };
+    return record ? record.stock : 0;
   },
 
-  /**
-   * Nhập hàng - Tính giá vốn trung bình mới
-   * newAvg = (oldQty × oldAvg + importQty × importPrice) / (oldQty + importQty)
-   */
-  async importStock(branchId, productId, quantity, importPrice) {
+  async increaseStock(branchId, productId, quantity) {
     let record = await this.findOne({ branchId, productId });
-
     if (!record) {
-      // Chưa có record → tạo mới
-      record = new this({
-        branchId,
-        productId,
-        stock: quantity,
-        avgImportPrice: importPrice,
-      });
+      record = new this({ branchId, productId, stock: quantity });
     } else {
-      // Tính giá vốn trung bình mới
-      const oldQty = record.stock;
-      const oldAvg = record.avgImportPrice;
-      const newQty = oldQty + quantity;
-      const newAvg = (oldQty * oldAvg + quantity * importPrice) / newQty;
-
-      record.stock = newQty;
-      record.avgImportPrice = Math.round(newAvg); // Làm tròn
+      record.stock += quantity;
     }
-
     await record.save();
     return record;
   },
 
-  /**
-   * Bán hàng - Trừ tồn kho
-   * Trả về avgImportPrice để tính cost
-   */
-  async sellStock(branchId, productId, quantity) {
+  async decreaseStock(branchId, productId, quantity) {
     const record = await this.findOne({ branchId, productId });
-
     if (!record || record.stock < quantity) {
       throw new Error("Insufficient stock");
     }
-
-    const avgImportPrice = record.avgImportPrice;
     record.stock -= quantity;
-    // avgImportPrice giữ nguyên khi bán
     await record.save();
-
-    return { avgImportPrice, remainingStock: record.stock };
-  },
-
-  /**
-   * Hoàn trả stock khi hủy đơn
-   */
-  async restoreStock(branchId, productId, quantity, costPrice) {
-    const record = await this.findOne({ branchId, productId });
-
-    if (!record) {
-      throw new Error("Stock record not found");
-    }
-
-    // Tính lại avg khi hoàn trả
-    const oldQty = record.stock;
-    const oldAvg = record.avgImportPrice;
-    const restoreAvg = costPrice / quantity; // Giá vốn lúc bán
-    const newQty = oldQty + quantity;
-    const newAvg = (oldQty * oldAvg + quantity * restoreAvg) / newQty;
-
-    record.stock = newQty;
-    record.avgImportPrice = Math.round(newAvg);
-    await record.save();
-
     return record;
   },
 
@@ -167,7 +113,6 @@ branchProductSchema.statics = {
           productId: 1,
           stock: 1,
           minStock: 1,
-          avgImportPrice: 1,
           "product.name": 1,
           "product.barcode": 1,
           "product.unit": 1,

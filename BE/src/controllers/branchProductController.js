@@ -29,14 +29,14 @@ const getByProduct = async (req, res, next) => {
   }
 };
 
-const getStockInfo = async (req, res, next) => {
+const getStock = async (req, res, next) => {
   try {
     const { branchId, productId } = req.params;
-    const stockInfo = await branchProductService.getStockInfo(branchId, productId);
+    const stock = await branchProductService.getStock(branchId, productId);
     res.status(StatusCodes.OK).json({
       success: true,
-      message: "Get stock info successfully",
-      data: { branchId, productId, ...stockInfo },
+      message: "Get stock successfully",
+      data: { branchId, productId, stock },
     });
   } catch (error) {
     next(error);
@@ -47,11 +47,7 @@ const setMinStock = async (req, res, next) => {
   try {
     const { branchId, productId } = req.params;
     const { minStock } = req.body;
-    const result = await branchProductService.setMinStock(
-      branchId,
-      productId,
-      minStock
-    );
+    const result = await branchProductService.setMinStock(branchId, productId, minStock);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Min stock updated successfully!",
@@ -64,9 +60,7 @@ const setMinStock = async (req, res, next) => {
 
 const getLowStock = async (req, res, next) => {
   try {
-    const lowStockProducts = await branchProductService.getLowStock(
-      req.params.branchId
-    );
+    const lowStockProducts = await branchProductService.getLowStock(req.params.branchId);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get low stock products successfully",
@@ -100,7 +94,7 @@ const checkAvailability = async (req, res, next) => {
 export const branchProductController = {
   getByBranch,
   getByProduct,
-  getStockInfo,
+  getStock,
   setMinStock,
   getLowStock,
   checkAvailability,
