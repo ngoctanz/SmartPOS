@@ -117,7 +117,7 @@ const updateSalePrice = async (req, res, next) => {
 
 const remove = async (req, res, next) => {
   try {
-    await productService.softDelete(req.params.id);
+    await productService.remove(req.params.id);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Product deleted successfully!",
@@ -130,7 +130,7 @@ const remove = async (req, res, next) => {
 const removeMany = async (req, res, next) => {
   try {
     const { ids } = req.body;
-    await productService.softDeleteMany(ids);
+    await productService.removeMany(ids);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Products deleted successfully!",

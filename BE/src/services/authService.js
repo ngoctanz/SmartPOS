@@ -31,6 +31,7 @@ const login = async (reqBody) => {
       userName: user.userName,
       email: user.email,
       role: user.role,
+      branchId: user.branchId, // Thêm branchId vào token
     };
     const access_token = jwtConfig.generateAccessToken(payload);
     const refresh_token = jwtConfig.generateRefreshToken(payload);
@@ -116,6 +117,7 @@ const refreshToken = async (currentRefreshToken) => {
         userName: currentDecoded.userName,
         email: currentDecoded.email,
         role: currentDecoded.role,
+        branchId: currentDecoded.branchId, // Thêm branchId vào token
       };
       const access_token = jwtConfig.generateAccessToken(payload);
 
@@ -141,6 +143,7 @@ const refreshToken = async (currentRefreshToken) => {
       userName: user.userName,
       email: user.email,
       role: user.role,
+      branchId: user.branchId, // Thêm branchId vào token
     };
     const newAccess_token = jwtConfig.generateAccessToken(payload);
     const newRefresh_token = jwtConfig.generateRefreshToken(payload);

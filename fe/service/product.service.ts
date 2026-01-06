@@ -8,6 +8,7 @@ export interface Product {
   categoryId: string | { _id: string; name: string };
   unit: string;
   currentSalePrice: number;
+  status: "active" | "inactive";
   desc?: string;
   image?: string;
   createdAt: string;
@@ -20,6 +21,7 @@ export interface CreateProductRequest {
   categoryId: string;
   unit: string;
   currentSalePrice: number;
+  status?: "active" | "inactive";
   desc?: string;
   image?: string;
 }
@@ -30,6 +32,7 @@ export interface UpdateProductRequest {
   categoryId?: string;
   unit?: string;
   currentSalePrice?: number;
+  status?: "active" | "inactive";
   desc?: string;
   image?: string;
 }

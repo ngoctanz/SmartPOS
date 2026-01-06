@@ -46,9 +46,15 @@ const productSchema = z.object({
     .string()
     .min(1, "Tên sản phẩm là bắt buộc")
     .max(200, "Tên sản phẩm tối đa 200 ký tự"),
+  barcode: z
+    .string()
+    .max(50, "Mã vạch tối đa 50 ký tự")
+    .optional()
+    .or(z.literal("")),
   categoryId: z.string().min(1, "Vui lòng chọn loại sản phẩm"),
   unit: z.string().min(1, "Đơn vị là bắt buộc"),
   currentSalePrice: z.coerce.number().min(0, "Giá bán không được âm"),
+  status: z.enum(["active", "inactive"]),
   desc: z.string().max(1000, "Mô tả tối đa 1000 ký tự").optional(),
   image: z.string().optional(),
 });
@@ -100,9 +106,11 @@ export function ProductFormModal({
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: "",
+      barcode: "",
       categoryId: "",
       unit: "cái",
       currentSalePrice: 0,
+      status: "active",
       desc: "",
       image: "",
     },
@@ -114,18 +122,22 @@ export function ProductFormModal({
       if (product) {
         form.reset({
           name: product.name || "",
+          barcode: product.barcode || "",
           categoryId: getCategoryId(product.categoryId),
           unit: product.unit || "cái",
           currentSalePrice: product.currentSalePrice || 0,
+          status: product.status || "active",
           desc: product.desc || "",
           image: product.image || "",
         });
       } else {
         form.reset({
           name: "",
+          barcode: "",
           categoryId: "",
           unit: "cái",
           currentSalePrice: 0,
+          status: "active",
           desc: "",
           image: "",
         });
@@ -137,6 +149,7 @@ export function ProductFormModal({
     // Clean up empty optional fields
     const cleanData = {
       ...values,
+      barcode: values.barcode || undefined,
       desc: values.desc || undefined,
       image: values.image || undefined,
     };
@@ -236,6 +249,29 @@ export function ProductFormModal({
                         )}
                       </div>
 
+                      {/* Barcode Field */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="barcode" className="text-xs font-medium">
+                          Mã vạch (Barcode)
+                        </Label>
+                        <Input
+                          id="barcode"
+                          {...form.register("barcode")}
+                          placeholder="Quét hoặc nhập mã vạch sản phẩm..."
+                          className={cn(
+                            "h-10 text-sm font-mono transition-all focus:ring-2 focus:ring-primary/20",
+                            form.formState.errors.barcode &&
+                              "border-destructive focus:ring-destructive/20"
+                          )}
+                        />
+                        {form.formState.errors.barcode && (
+                          <p className="text-[11px] font-medium text-destructive mt-1 flex items-center gap-1">
+                            <Info className="w-2.5 h-2.5" />
+                            {form.formState.errors.barcode.message}
+                          </p>
+                        )}
+                      </div>
+
                       <div className="grid grid-cols-[70%_1fr] gap-1.5">
                         {/* Category Field */}
                         <div className="space-y-1.5">
@@ -305,6 +341,30 @@ export function ProductFormModal({
                             </SelectContent>
                           </Select>
                         </div>
+                      </div>
+
+                      {/* Status Field */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="status" className="text-xs font-medium">
+                          Trạng thái
+                        </Label>
+                        <Select
+                          value={form.watch("status")}
+                          onValueChange={(value: "active" | "inactive") =>
+                            form.setValue("status", value)
+                          }
+                        >
+                          <SelectTrigger
+                            id="status"
+                            className="w-full h-10 text-sm transition-all focus:ring-2 focus:ring-primary/20"
+                          >
+                            <SelectValue placeholder="Chọn trạng thái" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">Đang bán</SelectItem>
+                            <SelectItem value="inactive">Ngừng bán</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
                   </div>

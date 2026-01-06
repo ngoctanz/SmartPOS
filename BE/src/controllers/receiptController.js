@@ -3,6 +3,7 @@ import { receiptService } from "../services/receiptService.js";
 
 const create = async (req, res, next) => {
   try {
+    // branchId đã được inject từ middleware hoặc từ request body (admin)
     const receipt = await receiptService.create(req.body, req.user.userId);
     res.status(StatusCodes.CREATED).json({
       success: true,
@@ -31,6 +32,7 @@ const getAll = async (req, res, next) => {
   try {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
+    // branchId đã được inject từ middleware cho staff
     if (req.query.branchId) filter.branchId = req.query.branchId;
     if (req.query.paymentMethod) filter.paymentMethod = req.query.paymentMethod;
 

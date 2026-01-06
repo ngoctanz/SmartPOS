@@ -43,14 +43,10 @@ const productSchema = new mongoose.Schema(
       min: [0, "Sale price cannot be negative"],
       default: 0,
     },
-    isDeleted: {
-      type: Boolean,
-      default: false,
-      select: false,
-    },
-    deletedAt: {
-      type: Date,
-      select: false,
+    status: {
+      type: Schema.Types.String,
+      enum: ["active", "inactive"],
+      default: "active",
     },
   },
   {
@@ -61,25 +57,7 @@ const productSchema = new mongoose.Schema(
 
 productSchema.index({ categoryId: 1 });
 productSchema.index({ createdAt: -1 });
-
-// Instance method
-productSchema.methods.toJSON = function () {
-  const obj = this.toObject();
-  delete obj.isDeleted;
-  delete obj.deletedAt;
-  return obj;
-};
-
-// Pre-save to auto-generate barcode
-productSchema.pre("save", async function (next) {
-  if (!this.barcode) {
-    // Format: 893 + 9 digits from timestamp (reversed or sliced) + 1 random
-    const suffix = Date.now().toString().slice(-9);
-    const random = Math.floor(Math.random() * 10);
-    this.barcode = `893${suffix}${random}`;
-  }
-  next();
-});
+productSchema.index({ status: 1 });
 
 // Static methods
 productSchema.statics = {
@@ -90,14 +68,14 @@ productSchema.statics = {
   },
 
   async findAllProducts(filter = {}) {
-    return this.find({ isDeleted: false, ...filter })
+    return this.find({ status: "active", ...filter })
       .populate("categoryId", "name")
       .sort({ createdAt: -1 })
       .lean();
   },
 
   async findProductById(id) {
-    const product = await this.findOne({ _id: id, isDeleted: false })
+    const product = await this.findOne({ _id: id })
       .populate("categoryId", "name")
       .lean();
     if (!product) throw new Error("Product not found");
@@ -105,7 +83,7 @@ productSchema.statics = {
   },
 
   async findProductByBarcode(barcode) {
-    const product = await this.findOne({ barcode, isDeleted: false })
+    const product = await this.findOne({ barcode, status: "active" })
       .populate("categoryId", "name")
       .lean();
     return product;
@@ -117,22 +95,22 @@ productSchema.statics = {
         { name: new RegExp(searchTerm, "i") },
         { barcode: new RegExp(searchTerm, "i") },
       ],
-      isDeleted: false,
+      status: "active",
     })
       .populate("categoryId", "name")
-      .limit(20) // Limit results for search suggestions
+      .limit(20)
       .lean();
   },
 
   async findProductsByCategory(categoryId) {
-    return this.find({ categoryId, isDeleted: false })
+    return this.find({ categoryId, status: "active" })
       .populate("categoryId", "name")
       .lean();
   },
 
   async updateProduct(id, data) {
     const product = await this.findOneAndUpdate(
-      { _id: id, isDeleted: false },
+      { _id: id },
       data,
       { new: true, runValidators: true }
     ).populate("categoryId", "name");
@@ -142,31 +120,20 @@ productSchema.statics = {
 
   async updateSalePrice(id, salePrice) {
     return this.findOneAndUpdate(
-      { _id: id, isDeleted: false },
+      { _id: id },
       { currentSalePrice: salePrice },
       { new: true }
     );
   },
 
-  async softDeleteProduct(id) {
-    const product = await this.findOneAndUpdate(
-      { _id: id, isDeleted: false },
-      { isDeleted: true, deletedAt: new Date() },
-      { new: true }
-    );
+  async deleteProduct(id) {
+    const product = await this.findByIdAndDelete(id);
     if (!product) throw new Error("Product not found");
     return product;
   },
 
-  async softDeleteManyProducts(ids) {
-    return this.updateMany(
-      { _id: { $in: ids }, isDeleted: false },
-      { isDeleted: true, deletedAt: new Date() }
-    );
-  },
-
-  async deleteProduct(id) {
-    return this.findByIdAndDelete(id);
+  async deleteManyProducts(ids) {
+    return this.deleteMany({ _id: { $in: ids } });
   },
 };
 

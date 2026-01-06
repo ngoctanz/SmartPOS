@@ -23,8 +23,6 @@ export function UserMenu() {
     switch (role) {
       case "admin":
         return "Admin";
-      case "manager":
-        return "Quản lý";
       case "staff":
         return "Nhân viên";
       default:

@@ -14,34 +14,34 @@ Router.get("/barcode/:barcode", productController.getByBarcode);
 Router.get("/category/:categoryId", productController.getByCategory);
 Router.get("/:id", productController.getById);
 
-// Admin/Manager only
+// Admin only
 Router.post(
   "/",
-  authorize("admin", "manager"),
+  authorize("admin"),
   productValidation.create,
   productController.create
 );
 
 Router.put(
   "/:id",
-  authorize("admin", "manager"),
+  authorize("admin"),
   productValidation.update,
   productController.update
 );
 
 Router.patch(
   "/:id/price",
-  authorize("admin", "manager"),
+  authorize("admin"),
   productValidation.updatePrice,
   productController.updateSalePrice
 );
 
 Router.delete(
   "/bulk",
-  authorize("admin", "manager"),
+  authorize("admin"),
   productController.removeMany
 );
 
-Router.delete("/:id", authorize("admin", "manager"), productController.remove);
+Router.delete("/:id", authorize("admin"), productController.remove);
 
 export const productRouter = Router;

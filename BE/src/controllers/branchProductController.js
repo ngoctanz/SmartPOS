@@ -91,20 +91,14 @@ const checkAvailability = async (req, res, next) => {
   }
 };
 
-import { User } from "../models/userModel.js";
-
 const getAll = async (req, res, next) => {
   try {
-    // If manager/staff, only show their branch stock?
-    // User said: "role admin chỉ get dữ liệu xem thôi".
-    // Manager reports.
-    // If I restrict getAll to branchId for manager/staff:
     let filter = {};
-    if (req.user.role !== 'admin') {
-         const user = await User.findById(req.user.userId).lean();
-         if (user && user.branchId) {
-             filter.branchId = user.branchId;
-         }
+    
+    // Admin có thể xem tất cả hoặc filter theo branchId từ query
+    // Staff: branchId đã được inject từ middleware vào query
+    if (req.query.branchId) {
+      filter.branchId = req.query.branchId;
     }
     
     const list = await branchProductService.getAll(filter);
@@ -120,17 +114,9 @@ const getAll = async (req, res, next) => {
 
 const create = async (req, res, next) => {
   try {
-    let { branchId, items } = req.body;
-    
-    if (req.user.role !== 'admin') {
-        const user = await User.findById(req.user.userId).lean();
-        if (!user || !user.branchId) {
-             throw new Error("User does not belong to any branch!");
-        }
-        branchId = user.branchId;
-    }
-
-    const data = await branchProductService.create({ ...req.body, branchId });
+    // branchId đã được inject từ middleware cho staff
+    // Admin có thể chỉ định branchId trong body
+    const data = await branchProductService.create(req.body);
     res.status(StatusCodes.CREATED).json({
       success: true,
       message: "Stock report created successfully",

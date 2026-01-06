@@ -42,7 +42,7 @@ export const registerSchema = z
     confirmPassword: z
       .string({ required_error: "Vui lòng xác nhận mật khẩu" })
       .min(1, "Vui lòng xác nhận mật khẩu"),
-    role: z.enum(["admin", "manager", "staff"], {
+    role: z.enum(["admin", "staff"], {
       required_error: "Vui lòng chọn vai trò",
     }),
     branchId: z.string().optional(),
@@ -54,7 +54,7 @@ export const registerSchema = z
   .refine(
     (data) => {
       // If role is staff, branchId is required
-      if (data.role === "staff" || data.role === "manager") {
+      if (data.role === "staff") {
         return !!data.branchId;
       }
       return true;

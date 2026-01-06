@@ -7,7 +7,6 @@ export { useAuth, useLogin, useLogout } from "@/hooks/useAuth";
 export {
   useUser,
   useIsAdmin,
-  useIsManager,
   useIsStaff,
   useHasRole,
   useCanManage,

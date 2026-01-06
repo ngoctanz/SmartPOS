@@ -4,6 +4,7 @@ import { dashboardService } from "../services/dashboardService.js";
 const getSummary = async (req, res, next) => {
   try {
     const { period, branchId } = req.query;
+    // branchId đã được inject từ middleware cho staff
     const result = await dashboardService.getSummary(
       period || "month",
       branchId || null
@@ -21,6 +22,7 @@ const getSummary = async (req, res, next) => {
 const getDailyStats = async (req, res, next) => {
   try {
     const { period, branchId } = req.query;
+    // branchId đã được inject từ middleware cho staff
     const result = await dashboardService.getDailyStats(
       period || "month",
       branchId || null
@@ -38,6 +40,7 @@ const getDailyStats = async (req, res, next) => {
 const getTopProducts = async (req, res, next) => {
   try {
     const { period, branchId, limit } = req.query;
+    // branchId đã được inject từ middleware cho staff
     const result = await dashboardService.getTopProducts(
       period || "month",
       branchId || null,
@@ -56,6 +59,7 @@ const getTopProducts = async (req, res, next) => {
 const getPaymentStats = async (req, res, next) => {
   try {
     const { period, branchId } = req.query;
+    // branchId đã được inject từ middleware cho staff
     const result = await dashboardService.getPaymentMethodStats(
       period || "month",
       branchId || null
@@ -72,7 +76,14 @@ const getPaymentStats = async (req, res, next) => {
 
 const getLowStockAlert = async (req, res, next) => {
   try {
-    const { branchId } = req.params;
+    // Ưu tiên branchId từ params, nếu không có thì lấy từ query (đã inject)
+    const branchId = req.params.branchId || req.query.branchId;
+    if (!branchId) {
+      return res.status(400).json({
+        success: false,
+        message: "branchId is required",
+      });
+    }
     const result = await dashboardService.getLowStockAlert(branchId);
     res.status(StatusCodes.OK).json({
       success: true,
@@ -88,6 +99,7 @@ const getLowStockAlert = async (req, res, next) => {
 const getFullDashboard = async (req, res, next) => {
   try {
     const { period, branchId } = req.query;
+    // branchId đã được inject từ middleware cho staff
     const result = await dashboardService.getFullDashboard(
       period || "month",
       branchId || null

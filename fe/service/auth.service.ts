@@ -12,7 +12,7 @@ export interface User {
   _id: string;
   userName: string;
   name?: string;
-  role: "admin" | "manager" | "staff";
+  role: "admin" | "staff";
   branchId?: string;
   isActive: boolean;
 }

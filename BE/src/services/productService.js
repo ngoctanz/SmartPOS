@@ -70,12 +70,11 @@ const getByCategory = async (categoryId) => {
 
 const update = async (id, data) => {
   try {
-    const { isDeleted, deletedAt, ...safeData } = data;
     // Validate category if updating
-    if (safeData.categoryId) {
-      await Category.findCategoryById(safeData.categoryId);
+    if (data.categoryId) {
+      await Category.findCategoryById(data.categoryId);
     }
-    return await Product.updateProduct(id, safeData);
+    return await Product.updateProduct(id, data);
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -92,28 +91,20 @@ const updateSalePrice = async (id, salePrice) => {
   }
 };
 
-const softDelete = async (id) => {
+const remove = async (id) => {
   try {
-    return await Product.softDeleteProduct(id);
+    return await Product.deleteProduct(id);
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
-const softDeleteMany = async (ids) => {
+const removeMany = async (ids) => {
   try {
     if (!Array.isArray(ids) || ids.length === 0) {
       throw new ApiError(400, "Product IDs are required!");
     }
-    return await Product.softDeleteManyProducts(ids);
-  } catch (error) {
-    throw new Error(error.message || error);
-  }
-};
-
-const hardDelete = async (id) => {
-  try {
-    return await Product.deleteProduct(id);
+    return await Product.deleteManyProducts(ids);
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -128,7 +119,6 @@ export const productService = {
   getByCategory,
   update,
   updateSalePrice,
-  softDelete,
-  softDeleteMany,
-  hardDelete,
+  remove,
+  removeMany,
 };

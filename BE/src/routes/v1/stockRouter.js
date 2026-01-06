@@ -1,10 +1,12 @@
 import express from "express";
 import { branchProductController } from "../../controllers/branchProductController.js";
 import { authMiddleware, authorize } from "../../middlewares/authMiddleware.js";
+import { injectUserBranch } from "../../middlewares/branchMiddleware.js";
 
 const Router = express.Router();
 
 Router.use(authMiddleware);
+Router.use(injectUserBranch); 
 
 // Get stock info
 Router.get("/branch/:branchId", branchProductController.getByBranch);
@@ -16,21 +18,21 @@ Router.get(
   branchProductController.checkAvailability
 );
 
-// Admin/Manager only - Update min stock
+// Admin only - Update min stock
 Router.patch(
   "/branch/:branchId/product/:productId/min-stock",
-  authorize("admin", "manager"),
+  authorize("admin"),
   branchProductController.setMinStock
 );
 
-// Get all stock (admin to view reports, others might need it too)
-Router.get("/", authorize("admin", "manager", "staff"), branchProductController.getAll);
+// Get all stock
+Router.get("/", authorize("admin", "staff"), branchProductController.getAll);
 
-// Create stock report (Manager/Staff)
-Router.post("/", authorize("manager", "staff"), branchProductController.create);
+// Create stock report (Staff)
+Router.post("/", authorize("staff"), branchProductController.create);
 
-// Update stock (Manager/Staff)
-Router.put("/:id", authorize("manager", "staff"), branchProductController.update);
+// Update stock (Staff)
+Router.put("/:id", authorize("staff"), branchProductController.update);
 
 // Delete stock (Admin)
 Router.delete("/:id", authorize("admin"), branchProductController.remove);

@@ -155,7 +155,8 @@ export function ImportReceiptFormModal({
     if (!validate()) return;
 
     const data: CreateImportReceiptRequest = {
-      branchId: isAdmin ? branchId : userBranchId || "",
+      // Chỉ gửi branchId nếu là admin, staff để backend tự inject từ token
+      ...(isAdmin && { branchId }),
       listProduct: products.map((p) => ({
         productId: p.productId,
         barcode: p.barcode,
@@ -166,7 +167,7 @@ export function ImportReceiptFormModal({
       })),
       supplierName: supplierName || undefined,
       note: note || undefined,
-    };
+    } as CreateImportReceiptRequest;
 
     await onSubmit(data);
   };

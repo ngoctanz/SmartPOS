@@ -14,13 +14,14 @@ import { ProductFormModal } from "@/components/forms/product-form-modal";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Loader2, Plus, Package } from "lucide-react";
+import { Loader2, Plus, Package, Barcode as BarcodeIcon } from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import productService, {
   CreateProductRequest,
   UpdateProductRequest,
 } from "@/service/product.service";
 import categoryService from "@/service/category.service";
+import Barcode from "react-barcode";
 
 // Helper để lấy tên category từ populated field
 const getCategoryName = (categoryId: Product["categoryId"]): string => {
@@ -200,6 +201,29 @@ export default function Page() {
         size: 60,
       },
       {
+        accessorKey: "barcode",
+        header: "Mã vạch",
+        cell: ({ row }) => {
+          const barcode = row.getValue("barcode") as string;
+          if (!barcode) {
+            return <span className="text-xs text-muted-foreground">---</span>;
+          }
+          return (
+            <div className="flex items-center">
+              <Barcode
+                value={barcode}
+                width={1}
+                height={30}
+                fontSize={10}
+                margin={0}
+                displayValue={true}
+              />
+            </div>
+          );
+        },
+        size: 150,
+      },
+      {
         accessorKey: "name",
         header: "Tên sản phẩm",
         cell: ({ row }) => (
@@ -229,6 +253,18 @@ export default function Page() {
             {formatCurrency(row.getValue("currentSalePrice"))}
           </span>
         ),
+      },
+      {
+        accessorKey: "status",
+        header: "Trạng thái",
+        cell: ({ row }) => {
+          const status = row.getValue("status") as string;
+          return (
+            <Badge variant={status === "active" ? "default" : "secondary"}>
+              {status === "active" ? "Đang bán" : "Ngừng bán"}
+            </Badge>
+          );
+        },
       },
       {
         accessorKey: "createdAt",
@@ -338,6 +374,24 @@ export default function Page() {
                   </div>
                 )}
               </div>
+
+              {/* Barcode Section */}
+              {selectedItem.barcode && (
+                <div className="flex flex-col items-center gap-3 p-4 rounded-lg border bg-white">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <BarcodeIcon className="h-4 w-4" />
+                    <span>Mã vạch sản phẩm</span>
+                  </div>
+                  <Barcode
+                    value={selectedItem.barcode}
+                    width={2}
+                    height={60}
+                    fontSize={14}
+                    margin={5}
+                    displayValue={true}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Right Column: Info */}
@@ -371,11 +425,13 @@ export default function Page() {
                 </div>
                 <div className="space-y-1">
                   <span className="text-xs font-medium uppercase text-muted-foreground">
-                    Tình trạng
+                    Trạng thái
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="flex h-2 w-2 rounded-full bg-green-500" />
-                    <span className="font-medium">Đang kinh doanh</span>
+                    <span className={`flex h-2 w-2 rounded-full ${selectedItem.status === "active" ? "bg-green-500" : "bg-gray-400"}`} />
+                    <span className="font-medium">
+                      {selectedItem.status === "active" ? "Đang bán" : "Ngừng bán"}
+                    </span>
                   </div>
                 </div>
               </div>

@@ -56,6 +56,5 @@ export const APP_CONFIG = {
  */
 export const USER_ROLES = {
   ADMIN: "admin",
-  MANAGER: "manager",
   STAFF: "staff",
 } as const;
