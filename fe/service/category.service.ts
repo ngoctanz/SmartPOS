@@ -26,13 +26,23 @@ export interface SearchCategoryParams {
   isActive?: boolean;
 }
 
+
+export interface PaginationParams {
+  page?: number;
+  limit?: number;
+}
+
 const categoryService = {
   /**
    * Lấy tất cả loại sản phẩm
    * GET /api/v1/category
    */
-  getAll: async (): Promise<ApiResponse<Category[]>> => {
-    return apiGet<Category[]>("/category");
+  getAll: async (params?: PaginationParams): Promise<ApiResponse<Category[]>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append("page", String(params.page));
+    if (params?.limit) queryParams.append("limit", String(params.limit));
+    
+    return apiGet<Category[]>(`/category?${queryParams.toString()}`);
   },
 
   /**
@@ -40,12 +50,14 @@ const categoryService = {
    * GET /api/v1/category/search
    */
   search: async (
-    params: SearchCategoryParams
+    params: SearchCategoryParams & PaginationParams
   ): Promise<ApiResponse<Category[]>> => {
     const queryParams = new URLSearchParams();
     if (params.keyword) queryParams.append("keyword", params.keyword);
     if (params.isActive !== undefined)
       queryParams.append("isActive", String(params.isActive));
+    if (params.page) queryParams.append("page", String(params.page));
+    if (params.limit) queryParams.append("limit", String(params.limit));
 
     return apiGet<Category[]>(`/category/search?${queryParams.toString()}`);
   },

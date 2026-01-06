@@ -46,9 +46,9 @@ export function LoginForm({
     clearErrors,
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    mode: "onBlur", // Validate on blur
+    mode: "onBlur",
     defaultValues: {
-      email: "",
+      userName: "",
       password: "",
     },
   });

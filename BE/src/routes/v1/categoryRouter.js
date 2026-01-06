@@ -12,24 +12,23 @@ Router.get("/", categoryController.getAll);
 Router.get("/search", categoryController.search);
 Router.get("/:id", categoryController.getById);
 
-// Admin/Manager only
 Router.post(
   "/",
-  authorize("admin", "manager"),
+  authorize("admin", "user"),
   categoryValidation.create,
   categoryController.create
 );
 
 Router.put(
   "/:id",
-  authorize("admin", "manager"),
+  authorize("admin", "user"),
   categoryValidation.update,
   categoryController.update
 );
 
 Router.delete(
   "/:id",
-  authorize("admin", "manager"),
+  authorize("admin", "user"),
   categoryController.remove
 );
 
