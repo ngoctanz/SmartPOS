@@ -3,7 +3,10 @@ import { importReceiptService } from "../services/importReceiptService.js";
 
 const create = async (req, res, next) => {
   try {
-    const receipt = await importReceiptService.create(req.body, req.user.userId);
+    const receipt = await importReceiptService.create(
+      req.body,
+      req.user.userId
+    );
     res.status(StatusCodes.CREATED).json({
       success: true,
       message: "Import receipt created successfully!",
@@ -84,6 +87,19 @@ const getByCode = async (req, res, next) => {
   }
 };
 
+const getByBarcode = async (req, res, next) => {
+  try {
+    const receipt = await importReceiptService.getByBarcode(req.params.barcode);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get import receipt by barcode successfully",
+      data: receipt,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getByBranch = async (req, res, next) => {
   try {
     const filter = {};
@@ -147,6 +163,7 @@ export const importReceiptController = {
   getAll,
   getById,
   getByCode,
+  getByBarcode,
   getByBranch,
   getByDateRange,
   getTotalImport,

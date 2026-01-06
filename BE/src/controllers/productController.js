@@ -127,6 +127,19 @@ const remove = async (req, res, next) => {
   }
 };
 
+const removeMany = async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    await productService.softDeleteMany(ids);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Products deleted successfully!",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const productController = {
   create,
   getAll,
@@ -137,4 +150,5 @@ export const productController = {
   update,
   updateSalePrice,
   remove,
+  removeMany,
 };

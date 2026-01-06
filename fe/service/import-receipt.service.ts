@@ -3,44 +3,39 @@ import { ApiResponse } from "./api.config";
 
 export interface ImportReceiptItem {
   productId: string;
-  productName?: string;
+  barcode: string;
+  productName: string;
   quantity: number;
   importPrice: number;
-  totalPrice: number;
+  subtotal: number;
 }
 
 export interface ImportReceipt {
   _id: string;
   code: string;
-  branchId: string;
-  branchName?: string;
-  createdBy: string;
-  createdByName?: string;
-  items: ImportReceiptItem[];
+  barcode: string;
+  branchId: string | { _id: string; branchName: string };
+  createdBy: string | { _id: string; userName: string; name?: string };
+  listProduct: ImportReceiptItem[];
   totalAmount: number;
-  status: "pending" | "confirmed" | "cancelled";
+  status: "pending" | "completed" | "cancelled";
   supplierName?: string;
-  supplierPhone?: string;
   note?: string;
-  confirmedBy?: string;
-  confirmedAt?: string;
-  cancelledBy?: string;
-  cancelReason?: string;
-  cancelledAt?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateImportReceiptRequest {
   branchId: string;
-  items: {
+  listProduct: {
     productId: string;
+    barcode: string;
+    productName: string;
     quantity: number;
     importPrice: number;
+    subtotal: number;
   }[];
-  totalAmount: number;
   supplierName?: string;
-  supplierPhone?: string;
   note?: string;
 }
 
@@ -123,6 +118,16 @@ const importReceiptService = {
    */
   getByCode: async (code: string): Promise<ApiResponse<ImportReceipt>> => {
     return apiGet<ImportReceipt>(`/import-receipt/code/${code}`);
+  },
+
+  /**
+   * Lấy phiếu nhập theo barcode
+   * GET /api/v1/import-receipt/barcode/:barcode
+   */
+  getByBarcode: async (
+    barcode: string
+  ): Promise<ApiResponse<ImportReceipt>> => {
+    return apiGet<ImportReceipt>(`/import-receipt/barcode/${barcode}`);
   },
 
   /**

@@ -64,7 +64,7 @@ export type UpdateUserFormData = z.infer<typeof updateUserSchema>;
 
 interface Branch {
   _id: string;
-  name: string;
+  branchName: string;
 }
 
 interface UserFormModalProps {
@@ -303,7 +303,7 @@ export function UserFormModal({
                 <SelectItem value="none">Không có</SelectItem>
                 {branches.map((branch) => (
                   <SelectItem key={branch._id} value={branch._id}>
-                    {branch.name}
+                    {branch.branchName}
                   </SelectItem>
                 ))}
               </SelectContent>

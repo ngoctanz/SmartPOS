@@ -70,6 +70,17 @@ productSchema.methods.toJSON = function () {
   return obj;
 };
 
+// Pre-save to auto-generate barcode
+productSchema.pre("save", async function (next) {
+  if (!this.barcode) {
+    // Format: 893 + 9 digits from timestamp (reversed or sliced) + 1 random
+    const suffix = Date.now().toString().slice(-9);
+    const random = Math.floor(Math.random() * 10);
+    this.barcode = `893${suffix}${random}`;
+  }
+  next();
+});
+
 // Static methods
 productSchema.statics = {
   async createProduct(data) {
@@ -100,12 +111,16 @@ productSchema.statics = {
     return product;
   },
 
-  async findProductsByName(name) {
+  async findProductsByName(searchTerm) {
     return this.find({
-      name: new RegExp(name, "i"),
+      $or: [
+        { name: new RegExp(searchTerm, "i") },
+        { barcode: new RegExp(searchTerm, "i") },
+      ],
       isDeleted: false,
     })
       .populate("categoryId", "name")
+      .limit(20) // Limit results for search suggestions
       .lean();
   },
 
@@ -141,6 +156,13 @@ productSchema.statics = {
     );
     if (!product) throw new Error("Product not found");
     return product;
+  },
+
+  async softDeleteManyProducts(ids) {
+    return this.updateMany(
+      { _id: { $in: ids }, isDeleted: false },
+      { isDeleted: true, deletedAt: new Date() }
+    );
   },
 
   async deleteProduct(id) {

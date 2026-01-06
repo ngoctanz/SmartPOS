@@ -36,6 +36,7 @@ interface CommonTableProps<TData, TValue> {
   canSelectRow?: (row: TData) => boolean;
   bulkActionLabel?: string;
   bulkActionIcon?: "trash" | "lock";
+  onSelectionChange?: (selectedRows: TData[]) => void;
 }
 
 export function CommonTable<TData, TValue>({
@@ -47,6 +48,7 @@ export function CommonTable<TData, TValue>({
   canSelectRow,
   bulkActionLabel,
   bulkActionIcon,
+  onSelectionChange,
 }: CommonTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -98,10 +100,12 @@ export function CommonTable<TData, TValue>({
 
   React.useEffect(() => {
     if (onSelectionChange) {
-      const selected = table.getFilteredSelectedRowModel().rows.map(row => row.original)
-      onSelectionChange(selected)
+      const selected = table
+        .getFilteredSelectedRowModel()
+        .rows.map((row) => row.original);
+      onSelectionChange(selected);
     }
-  }, [rowSelection]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rowSelection]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="w-full">
