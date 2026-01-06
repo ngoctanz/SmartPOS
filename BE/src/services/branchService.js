@@ -41,24 +41,23 @@ const getByName = async (name) => {
 
 const update = async (id, data) => {
   try {
-    const { isDeleted, deletedAt, ...safeData } = data;
-    return await Branch.updateBranch(id, safeData);
+    return await Branch.updateBranch(id, data);
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
-const softDelete = async (id) => {
-  try {
-    return await Branch.softDeleteBranch(id);
-  } catch (error) {
-    throw new Error(error.message || error);
-  }
-};
-
-const hardDelete = async (id) => {
+const deleteBranch = async (id) => {
   try {
     return await Branch.deleteBranch(id);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+const deleteMany = async (ids) => {
+  try {
+    return await Branch.deleteManyBranches(ids);
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -70,6 +69,6 @@ export const branchService = {
   getById,
   getByName,
   update,
-  softDelete,
-  hardDelete,
+  deleteBranch,
+  deleteMany,
 };

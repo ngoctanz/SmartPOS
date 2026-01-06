@@ -1,14 +1,14 @@
-import { apiGet, apiPatch } from "./api.service";
+import { apiGet, apiPatch, apiPost, apiPut, apiDelete } from "./api.service";
 import { ApiResponse } from "./api.config";
 
 export interface BranchProduct {
   _id: string;
-  branchId: string;
-  branchName?: string;
-  productId: string;
-  productName?: string;
-  quantity: number;
+  branchId: any; // Populated object or string
+  productId: any; // Populated object or string
+  stock: number;
   minStock: number;
+  avgImportPrice: number;
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -19,6 +19,38 @@ export interface StockAvailability {
 }
 
 const stockService = {
+  /**
+   * Get all stock
+   * GET /api/v1/stock
+   */
+  getAll: async (): Promise<ApiResponse<BranchProduct[]>> => {
+    return apiGet<BranchProduct[]>("/stock");
+  },
+
+  /**
+   * Create stock report (Bulk)
+   * POST /api/v1/stock
+   */
+  create: async (data: { branchId?: string; items: { productId: string; stock: number; minStock?: number }[] }): Promise<ApiResponse<BranchProduct>> => {
+    return apiPost<BranchProduct>("/stock", data);
+  },
+
+  /**
+   * Update stock
+   * PUT /api/v1/stock/:id
+   */
+  update: async (id: string, data: { stock?: number; minStock?: number }): Promise<ApiResponse<BranchProduct>> => {
+    return apiPut<BranchProduct>(`/stock/${id}`, data);
+  },
+
+  /**
+   * Delete stock
+   * DELETE /api/v1/stock/:id
+   */
+  delete: async (id: string): Promise<ApiResponse> => {
+    return apiDelete(`/stock/${id}`);
+  },
+
   /**
    * Lấy tồn kho theo chi nhánh
    * GET /api/v1/stock/branch/:branchId

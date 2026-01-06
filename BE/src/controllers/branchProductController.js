@@ -91,11 +91,90 @@ const checkAvailability = async (req, res, next) => {
   }
 };
 
+import { User } from "../models/userModel.js";
+
+const getAll = async (req, res, next) => {
+  try {
+    // If manager/staff, only show their branch stock?
+    // User said: "role admin chỉ get dữ liệu xem thôi".
+    // Manager reports.
+    // If I restrict getAll to branchId for manager/staff:
+    let filter = {};
+    if (req.user.role !== 'admin') {
+         const user = await User.findById(req.user.userId).lean();
+         if (user && user.branchId) {
+             filter.branchId = user.branchId;
+         }
+    }
+    
+    const list = await branchProductService.getAll(filter);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get all stock successfully",
+      data: list,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const create = async (req, res, next) => {
+  try {
+    let { branchId, items } = req.body;
+    
+    if (req.user.role !== 'admin') {
+        const user = await User.findById(req.user.userId).lean();
+        if (!user || !user.branchId) {
+             throw new Error("User does not belong to any branch!");
+        }
+        branchId = user.branchId;
+    }
+
+    const data = await branchProductService.create({ ...req.body, branchId });
+    res.status(StatusCodes.CREATED).json({
+      success: true,
+      message: "Stock report created successfully",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const update = async (req, res, next) => {
+  try {
+    const data = await branchProductService.update(req.params.id, req.body);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Stock updated successfully",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const remove = async (req, res, next) => {
+  try {
+    await branchProductService.deleteStock(req.params.id);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Stock deleted successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const branchProductController = {
+  getAll,
   getByBranch,
   getByProduct,
   getStock,
   setMinStock,
   getLowStock,
   checkAvailability,
+  create,
+  update,
+  remove
 };

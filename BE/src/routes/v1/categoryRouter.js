@@ -32,4 +32,10 @@ Router.delete(
   categoryController.remove
 );
 
+Router.post(
+  "/delete-many",
+  authorize("admin", "user"),
+  categoryController.deleteMany
+);
+
 export const categoryRouter = Router;

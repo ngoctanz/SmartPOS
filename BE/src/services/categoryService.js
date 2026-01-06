@@ -41,16 +41,23 @@ const getByName = async (name) => {
 
 const update = async (id, data) => {
   try {
-    const { isDeleted, deletedAt, ...safeData } = data;
-    return await Category.updateCategory(id, safeData);
+    return await Category.updateCategory(id, data);
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
-const softDelete = async (id) => {
+const deleteCategory = async (id) => {
   try {
-    return await Category.softDeleteCategory(id);
+    return await Category.deleteCategory(id);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+const deleteMany = async (ids) => {
+  try {
+    return await Category.deleteManyCategories(ids);
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -70,6 +77,6 @@ export const categoryService = {
   getById,
   getByName,
   update,
-  softDelete,
-  hardDelete,
+  deleteCategory,
+  deleteMany,
 };

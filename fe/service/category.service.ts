@@ -98,6 +98,14 @@ const categoryService = {
   remove: async (id: string): Promise<ApiResponse> => {
     return apiDelete(`/category/${id}`);
   },
+
+  /**
+   * Xóa nhiều loại sản phẩm
+   * POST /api/v1/category/delete-many
+   */
+  deleteMany: async (ids: string[]): Promise<ApiResponse> => {
+    return apiPost("/category/delete-many", { ids });
+  },
 };
 
 export default categoryService;

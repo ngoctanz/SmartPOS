@@ -3,30 +3,27 @@ import { ApiResponse } from "./api.config";
 
 export interface Branch {
   _id: string;
-  name: string;
+  branchName: string;
   address: string;
-  phone: string;
-  isActive: boolean;
+  contactInfo: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateBranchRequest {
-  name: string;
+  branchName: string;
   address: string;
-  phone: string;
+  contactInfo: string;
 }
 
 export interface UpdateBranchRequest {
-  name?: string;
+  branchName?: string;
   address?: string;
-  phone?: string;
-  isActive?: boolean;
+  contactInfo?: string;
 }
 
 export interface SearchBranchParams {
-  keyword?: string;
-  isActive?: boolean;
+  name?: string;
 }
 
 const branchService = {
@@ -46,9 +43,7 @@ const branchService = {
     params: SearchBranchParams
   ): Promise<ApiResponse<Branch[]>> => {
     const queryParams = new URLSearchParams();
-    if (params.keyword) queryParams.append("keyword", params.keyword);
-    if (params.isActive !== undefined)
-      queryParams.append("isActive", String(params.isActive));
+    if (params.name) queryParams.append("name", params.name);
 
     return apiGet<Branch[]>(`/branch/search?${queryParams.toString()}`);
   },
@@ -86,6 +81,14 @@ const branchService = {
    */
   remove: async (id: string): Promise<ApiResponse> => {
     return apiDelete(`/branch/${id}`);
+  },
+
+  /**
+   * Xóa nhiều chi nhánh
+   * POST /api/v1/branch/delete-many
+   */
+  deleteMany: async (ids: string[]): Promise<ApiResponse> => {
+    return apiPost("/branch/delete-many", { ids });
   },
 };
 

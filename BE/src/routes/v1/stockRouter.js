@@ -23,4 +23,16 @@ Router.patch(
   branchProductController.setMinStock
 );
 
+// Get all stock (admin to view reports, others might need it too)
+Router.get("/", authorize("admin", "manager", "staff"), branchProductController.getAll);
+
+// Create stock report (Manager/Staff)
+Router.post("/", authorize("manager", "staff"), branchProductController.create);
+
+// Update stock (Manager/Staff)
+Router.put("/:id", authorize("manager", "staff"), branchProductController.update);
+
+// Delete stock (Admin)
+Router.delete("/:id", authorize("admin"), branchProductController.remove);
+
 export const stockRouter = Router;
