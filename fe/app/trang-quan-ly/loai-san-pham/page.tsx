@@ -13,23 +13,59 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input" 
 import { toast } from "sonner" 
 import { format } from "date-fns"
+import { useEffect, useState, useMemo, useCallback } from "react"
+import { Button } from "@/components/ui/button"
+import { categoryService } from "@/service"
 
 export default function Page() {
-  const [data, setData] = React.useState<Category[]>(mockCategories)
-  const [selectedItem, setSelectedItem] = React.useState<Category | null>(null)
+  const [data, setData] = useState<Category[]>([])
+  const [loading, setLoading] = useState(false)
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
   
-  const [isDetailOpen, setIsDetailOpen] = React.useState(false)
-  const [isEdit, setIsEdit] = React.useState(false)
-  const [isDeleteOpen, setIsDeleteOpen] = React.useState(false)
+  const [selectedItem, setSelectedItem] = useState<Category | null>(null)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [isEdit, setIsEdit] = useState(false)
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   
+  const [formData, setFormData] = useState<{ name: string; desc: string }>({ name: "", desc: "" })
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await categoryService.getAll({ page, limit })
+      if (res.data) {
+        setData(res.data)
+      }
+    } catch (error) {
+      toast.error("Không thể tải danh sách loại sản phẩm")
+      console.error(error)
+    } finally {
+      setLoading(false)
+    }
+  }, [page, limit])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  const handleCreate = () => {
+    setSelectedItem(null)
+    setFormData({ name: "", desc: "" })
+    setIsEdit(true)
+    setIsDetailOpen(true)
+  }
+
   const handleView = (item: Category) => {
     setSelectedItem(item)
+    setFormData({ name: item.name, desc: item.description || "" })
     setIsEdit(false)
     setIsDetailOpen(true)
   }
 
   const handleEdit = (item: Category) => {
     setSelectedItem(item)
+    setFormData({ name: item.name, desc: item.description || "" })
     setIsEdit(true)
     setIsDetailOpen(true)
   }
@@ -39,16 +75,45 @@ export default function Page() {
     setIsDeleteOpen(true)
   }
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (selectedItem) {
-        setData(data.filter(i => i._id !== selectedItem._id))
-        setIsDeleteOpen(false)
-        setSelectedItem(null)
-        toast.success("Đã xóa danh mục thành công")
+        try {
+            await categoryService.remove(selectedItem._id)
+            toast.success("Đã xóa danh mục thành công")
+            fetchData()
+        } catch (error) {
+            toast.error("Xóa danh mục thất bại")
+            console.error(error)
+        } finally {
+            setIsDeleteOpen(false)
+            setSelectedItem(null)
+        }
     }
   }
 
-  const columns = React.useMemo<ColumnDef<Category>[]>(() => [
+  const handleSave = async () => {
+      try {
+          if (selectedItem) {
+              await categoryService.update(selectedItem._id, {
+                  name: formData.name,
+                  description: formData.desc,
+              })
+              toast.success("Cập nhật danh mục thành công")
+          } else {
+              await categoryService.create({
+                  name: formData.name,
+                  description: formData.desc,
+              })
+              toast.success("Tạo danh mục thành công")
+          }
+          setIsDetailOpen(false)
+          fetchData()
+      } catch (error: any) {
+          toast.error(error?.message || "Có lỗi xảy ra")
+      }
+  }
+
+  const columns = useMemo<ColumnDef<Category>[]>(() => [
     {
         id: "select",
         header: ({ table }) => (
@@ -73,7 +138,7 @@ export default function Page() {
         header: "Tên loại",
       },
       {
-        accessorKey: "desc",
+        accessorKey: "description", // Corrected key based on interface
         header: "Mô tả",
       },
       {
@@ -103,6 +168,7 @@ export default function Page() {
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
       <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold tracking-tight">Quản lý loại sản phẩm</h1>
+            <Button onClick={handleCreate}>Thêm mới</Button>
       </div>
       <CommonTable columns={columns} data={data} filterCol="name" filterPlaceholder="Tìm loại sản phẩm..." />
       
@@ -116,21 +182,37 @@ export default function Page() {
        <DetailModal
          open={isDetailOpen}
          onOpenChange={setIsDetailOpen}
-         title={isEdit ? "Chỉnh sửa danh mục" : "Chi tiết danh mục"}
+         title={isEdit ? (selectedItem ? "Chỉnh sửa danh mục" : "Thêm mới danh mục") : "Chi tiết danh mục"}
          onEdit={!isEdit ? (() => setIsEdit(true)) : undefined}
+         footer={isEdit ? (
+             <div className="flex justify-end gap-2">
+                 <Button variant="outline" onClick={() => setIsDetailOpen(false)}>Hủy</Button>
+                 <Button onClick={handleSave}>Lưu</Button>
+             </div>
+         ) : undefined}
        >
-         {selectedItem && (
-            <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">Tên loại</Label>
-                    <Input defaultValue={selectedItem.name} className="col-span-3" readOnly={!isEdit} disabled={!isEdit} />
-                </div>
-                 <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">Mô tả</Label>
-                    <Input defaultValue={selectedItem.desc} className="col-span-3" readOnly={!isEdit} disabled={!isEdit} />
-                </div>
+        <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Tên loại</Label>
+                <Input 
+                    value={formData.name} 
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    className="col-span-3" 
+                    readOnly={!isEdit} 
+                    disabled={!isEdit} 
+                />
             </div>
-         )}
+                <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Mô tả</Label>
+                <Input 
+                    value={formData.desc}
+                    onChange={(e) => setFormData({...formData, desc: e.target.value})}
+                    className="col-span-3" 
+                    readOnly={!isEdit} 
+                    disabled={!isEdit} 
+                />
+            </div>
+        </div>
        </DetailModal>
     </div>
   )

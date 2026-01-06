@@ -66,7 +66,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setUser(null);
       setAccessToken(null);
-      // Redirect to login
       if (typeof window !== "undefined") {
         window.location.href = "/dang-nhap";
       }

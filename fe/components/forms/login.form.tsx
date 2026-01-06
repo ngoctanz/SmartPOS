@@ -46,7 +46,7 @@ export function LoginForm({
     clearErrors,
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    mode: "onBlur", // Validate on blur
+    mode: "onBlur",
     defaultValues: {
       email: "",
       password: "",
@@ -102,20 +102,20 @@ export function LoginForm({
                 </div>
               )}
               <Field>
-                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <FieldLabel htmlFor="email">Tên đăng nhập</FieldLabel>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="email@example.com"
-                  autoComplete="email"
-                  aria-invalid={errors.email ? "true" : "false"}
+                  id="username"
+                  type="text"
+                  placeholder="Tên đăng nhập"
+                  autoComplete="username"
+                  aria-invalid={errors.username ? "true" : "false"}
                   disabled={isSubmitting}
                   className={
-                    errors.email
+                    errors.username
                       ? "border-destructive focus-visible:ring-destructive"
                       : ""
                   }
-                  {...register("email", {
+                  {...register("username", {
                     onChange: () => setError(null),
                   })}
                 />
