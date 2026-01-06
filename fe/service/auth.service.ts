@@ -26,7 +26,9 @@ const authService = {
    * Đăng nhập
    * POST /api/v1/auth/login
    */
-  login: async (credentials: LoginRequest): Promise<ApiResponse<LoginResponse>> => {
+  login: async (
+    credentials: LoginRequest
+  ): Promise<ApiResponse<LoginResponse>> => {
     const response = await apiPost<LoginResponse>("/auth/login", credentials, {
       requiresAuth: false,
     });
