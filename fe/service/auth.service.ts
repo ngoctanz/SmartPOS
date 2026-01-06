@@ -6,6 +6,7 @@ export interface LoginRequest {
   password: string;
 }
 
+// Basic user info returned from auth endpoints (không nhạy cảm)
 export interface User {
   _id: string;
   userName: string;

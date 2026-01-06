@@ -19,7 +19,17 @@ export const errorHandlingMiddleware = (err, req, res, next) => {
   if (err.code === 11000) {
     statusCode = StatusCodes.BAD_REQUEST;
     const field = Object.keys(err.keyPattern)[0];
-    message = `${field} already exists`;
+    const value = err.keyValue?.[field];
+
+    // Localize field names
+    const fieldNames = {
+      userName: "Tên đăng nhập",
+      email: "Email",
+      phone: "Số điện thoại",
+    };
+
+    const fieldName = fieldNames[field] || field;
+    message = `${fieldName} "${value}" đã tồn tại trong hệ thống`;
   }
 
   // Handle MongoDB Validation Error
@@ -42,6 +52,7 @@ export const errorHandlingMiddleware = (err, req, res, next) => {
 
   // Biến quản lý những thông tin muốn trả về
   const responseError = {
+    success: false,
     statusCode,
     message,
   };

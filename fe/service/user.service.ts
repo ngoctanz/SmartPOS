@@ -1,38 +1,27 @@
-import { apiGet, apiPost, apiPatch } from "./api.service";
+import { apiGet, apiPost, apiPatch, apiDelete } from "./api.service";
 import { ApiResponse } from "./api.config";
+import type { User, UserRole, UserStatus } from "@/types/user";
 
-export interface User {
-  _id: string;
-  fullName: string;
-  email: string;
-  role: "admin" | "manager" | "staff";
-  branchId?: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+export type { User };
 
 export interface CreateUserRequest {
-  fullName: string;
-  email: string;
+  userName: string;
   password: string;
-  role: "admin" | "manager" | "staff";
+  name?: string;
+  role?: UserRole;
   branchId?: string;
+  status?: UserStatus;
 }
 
 export interface UpdateUserRequest {
-  fullName?: string;
-  email?: string;
-  password?: string;
-  role?: "admin" | "manager" | "staff";
+  name?: string;
+  role?: UserRole;
   branchId?: string;
-  isActive?: boolean;
+  status?: UserStatus;
 }
 
 export interface SearchUserParams {
-  keyword?: string;
-  role?: string;
-  branchId?: string;
+  name?: string;
 }
 
 const userService = {
@@ -45,14 +34,12 @@ const userService = {
   },
 
   /**
-   * Tìm kiếm người dùng
-   * GET /api/v1/user/search
+   * Tìm kiếm người dùng theo tên
+   * GET /v1/user/search?name=xxx
    */
   search: async (params: SearchUserParams): Promise<ApiResponse<User[]>> => {
     const queryParams = new URLSearchParams();
-    if (params.keyword) queryParams.append("keyword", params.keyword);
-    if (params.role) queryParams.append("role", params.role);
-    if (params.branchId) queryParams.append("branchId", params.branchId);
+    if (params.name) queryParams.append("name", params.name);
 
     return apiGet<User[]>(`/user/search?${queryParams.toString()}`);
   },
@@ -82,6 +69,36 @@ const userService = {
     data: UpdateUserRequest
   ): Promise<ApiResponse<User>> => {
     return apiPatch<User>(`/user/update/${id}`, data);
+  },
+
+  /**
+   * Xóa người dùng (soft delete)
+   * DELETE /api/v1/user/:id
+   */
+  delete: async (id: string): Promise<ApiResponse<void>> => {
+    return apiDelete<void>(`/user/${id}`);
+  },
+
+  /**
+   * Toggle trạng thái người dùng (khóa/mở khóa)
+   * PATCH /api/v1/user/toggle-status/:id
+   */
+  toggleStatus: async (id: string): Promise<ApiResponse<User>> => {
+    return apiPatch<User>(`/user/toggle-status/${id}`);
+  },
+
+  /**
+   * Thay đổi trạng thái nhiều người dùng
+   * POST /api/v1/user/bulk-toggle-status
+   */
+  bulkToggleStatus: async (
+    ids: string[],
+    status: UserStatus
+  ): Promise<ApiResponse<{ modifiedCount: number }>> => {
+    return apiPost<{ modifiedCount: number }>("/user/bulk-toggle-status", {
+      ids,
+      status,
+    });
   },
 };
 

@@ -10,32 +10,51 @@ export interface ErrorDetail {
 export function parseError(error: unknown): ErrorDetail {
   if (error instanceof FetchError) {
     const statusCode = error.statusCode;
-    const message = error.message?.toLowerCase() || "";
+    const message = error.message || "";
 
     // Authentication errors (401)
     if (statusCode === 401) {
+      // Check for Vietnamese message first (from BE)
       if (
-        message.includes("invalid") ||
-        message.includes("incorrect") ||
-        message.includes("wrong") ||
-        message.includes("password")
+        message.includes("không chính xác") ||
+        message.includes("không hợp lệ")
       ) {
         return {
           title: "Đăng nhập thất bại",
-          message: "Email hoặc mật khẩu không đúng",
+          message: message,
           statusCode,
           suggestion: "Vui lòng kiểm tra lại thông tin đăng nhập của bạn",
         };
       }
-      if (message.includes("not found") || message.includes("user")) {
+      if (
+        message.toLowerCase().includes("invalid") ||
+        message.toLowerCase().includes("incorrect") ||
+        message.toLowerCase().includes("wrong") ||
+        message.toLowerCase().includes("password")
+      ) {
         return {
-          title: "Tài khoản không tồn tại",
-          message: "Email này chưa được đăng ký trong hệ thống",
+          title: "Đăng nhập thất bại",
+          message: "Tài khoản hoặc mật khẩu không đúng",
           statusCode,
-          suggestion: "Vui lòng kiểm tra lại email hoặc liên hệ quản trị viên",
+          suggestion: "Vui lòng kiểm tra lại thông tin đăng nhập của bạn",
         };
       }
-      if (message.includes("disabled") || message.includes("inactive")) {
+      if (
+        message.toLowerCase().includes("not found") ||
+        message.toLowerCase().includes("user")
+      ) {
+        return {
+          title: "Tài khoản không tồn tại",
+          message: "Tên đăng nhập này chưa được đăng ký trong hệ thống",
+          statusCode,
+          suggestion:
+            "Vui lòng kiểm tra lại tên đăng nhập hoặc liên hệ quản trị viên",
+        };
+      }
+      if (
+        message.toLowerCase().includes("disabled") ||
+        message.toLowerCase().includes("inactive")
+      ) {
         return {
           title: "Tài khoản bị khóa",
           message: "Tài khoản của bạn đã bị vô hiệu hóa",
@@ -45,7 +64,7 @@ export function parseError(error: unknown): ErrorDetail {
       }
       return {
         title: "Xác thực thất bại",
-        message: error.message || "Phiên đăng nhập đã hết hạn",
+        message: message || "Phiên đăng nhập đã hết hạn",
         statusCode,
         suggestion: "Vui lòng đăng nhập lại",
       };

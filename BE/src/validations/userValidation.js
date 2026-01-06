@@ -1,12 +1,9 @@
 import Joi from "joi";
 import ApiError from "../utils/apiError.js";
+import { StatusCodes } from "http-status-codes";
+
 const correctCondition = Joi.object({
   userName: Joi.string().required().min(3).max(15).trim().strict(),
-  email: Joi.string()
-    .email({ tlds: { allow: false } })
-    .required()
-    .trim()
-    .strict(),
   password: Joi.string()
     .required()
     .min(6)
@@ -19,6 +16,10 @@ const correctCondition = Joi.object({
     )
     .trim()
     .strict(),
+  name: Joi.string().max(100).trim().allow(""),
+  role: Joi.string().valid("admin", "staff"),
+  branchId: Joi.string().allow(null, ""),
+  status: Joi.string().valid("active", "inactive"),
 });
 
 const createdNew = async (req, res, next) => {
@@ -29,25 +30,27 @@ const createdNew = async (req, res, next) => {
     const errorMessage =
       error.details?.map((detail) => detail.message).join(", ") ||
       error.message;
-    return next(new ApiError(500, errorMessage));
+    return next(new ApiError(StatusCodes.BAD_REQUEST, errorMessage));
   }
 };
-const validateUpdateData = (req, res, next) => {
-  try {
-    const data = req.body;
-    if (!data || Object.keys(data) === 0)
-      return next(new ApiError(400, "Data is required!"));
+const updateUserSchema = Joi.object({
+  name: Joi.string().max(100).trim().allow(""),
+  role: Joi.string().valid("admin", "staff"),
+  branchId: Joi.string().allow(null, ""),
+  status: Joi.string().valid("active", "inactive"),
+})
+  .min(1)
+  .message("Cần ít nhất một trường để cập nhật");
 
-    //check id
-    const allowedFields = ["email", "username"];
-    const hasValidField = allowedFields.some(
-      (field) => data[field] !== undefined
-    );
-    if (!hasValidField)
-      return next(new ApiError(400, "No valid fields to update!"));
+const validateUpdateData = async (req, res, next) => {
+  try {
+    await updateUserSchema.validateAsync(req.body, { abortEarly: true });
     next();
   } catch (error) {
-    return next(error);
+    const errorMessage =
+      error.details?.map((detail) => detail.message).join(", ") ||
+      error.message;
+    return next(new ApiError(StatusCodes.BAD_REQUEST, errorMessage));
   }
 };
 

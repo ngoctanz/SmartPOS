@@ -1,15 +1,12 @@
 import { BaseEntity } from "./common";
 
-export type UserRole = "admin" | "manager" | "staff";
+export type UserRole = "admin" | "staff";
 export type UserStatus = "active" | "inactive";
 
 export interface User extends BaseEntity {
   userName: string;
-  email: string;
-  phone: string;
-  name: string;
+  name?: string;
   role: UserRole;
-  branchId?: string; 
+  branchId?: string;
   status: UserStatus;
-  password?: string; 
 }

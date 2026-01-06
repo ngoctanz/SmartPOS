@@ -10,8 +10,9 @@ const login = async (req, res, next) => {
     res.cookie("refresh_token", result.refresh_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: "/",
     });
 
     res.status(StatusCodes.OK).json({
@@ -21,7 +22,7 @@ const login = async (req, res, next) => {
       access_token: result.access_token,
     });
   } catch (error) {
-    next(error.message || error);
+    next(error);
   }
 };
 const refreshToken = async (req, res, next) => {
@@ -39,8 +40,9 @@ const refreshToken = async (req, res, next) => {
     res.cookie("refresh_token", result.refresh_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      path: "/", // Explicit path để cookie được overwrite đúng
     });
 
     res.status(StatusCodes.OK).json({
@@ -50,7 +52,7 @@ const refreshToken = async (req, res, next) => {
       access_token: result.access_token,
     });
   } catch (error) {
-    next(error.message || error);
+    next(error);
   }
 };
 const logout = async (req, res, next) => {
@@ -62,7 +64,8 @@ const logout = async (req, res, next) => {
     res.clearCookie("refresh_token", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+      path: "/", // Phải match với path khi set cookie
     });
 
     res.status(StatusCodes.OK).json({
@@ -70,7 +73,7 @@ const logout = async (req, res, next) => {
       message: "Logged out successfully",
     });
   } catch (error) {
-    next(error.message || error);
+    next(error);
   }
 };
 
