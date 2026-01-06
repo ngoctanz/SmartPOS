@@ -1,0 +1,88 @@
+import { Product, BranchProduct } from "../types/product";
+
+export const mockProducts: Product[] = [
+  {
+    _id: "prod_01",
+    categoryId: "cat_01",
+    name: "Cà phê đen đá",
+    desc: "Cà phê Robusta nguyên chất",
+    barcode: "8930001",
+    unit: "Ly",
+    image: "https://example.com/cafe-den.jpg",
+    currentSalePrice: 25000,
+    isDeleted: false,
+    createdAt: "2023-01-02T00:00:00.000Z",
+    updatedAt: "2023-01-02T00:00:00.000Z",
+  },
+  {
+    _id: "prod_02",
+    categoryId: "cat_01",
+    name: "Cà phê sữa đá",
+    desc: "Cà phê pha phin với sữa đặc",
+    barcode: "8930002",
+    unit: "Ly",
+    image: "https://example.com/cafe-sua.jpg",
+    currentSalePrice: 30000,
+    isDeleted: false,
+    createdAt: "2023-01-02T00:00:00.000Z",
+    updatedAt: "2023-01-02T00:00:00.000Z",
+  },
+  {
+    _id: "prod_03",
+    categoryId: "cat_02",
+    name: "Trà sữa truyền thống",
+    desc: "Hồng trà sữa với trân châu đen",
+    barcode: "8930003",
+    unit: "Ly",
+    image: "https://example.com/tra-sua.jpg",
+    currentSalePrice: 35000,
+    isDeleted: false,
+    createdAt: "2023-01-02T00:00:00.000Z",
+    updatedAt: "2023-01-02T00:00:00.000Z",
+  },
+  {
+    _id: "prod_04",
+    categoryId: "cat_03",
+    name: "Bánh Tiramisu",
+    desc: "Bánh ngọt vị cacao",
+    barcode: "8930004",
+    unit: "Cái",
+    image: "https://example.com/tiramisu.jpg",
+    currentSalePrice: 45000,
+    isDeleted: false,
+    createdAt: "2023-01-02T00:00:00.000Z",
+    updatedAt: "2023-01-02T00:00:00.000Z",
+  },
+];
+
+export const mockBranchProducts: BranchProduct[] = [
+  // Kho Hà Nội
+  {
+    _id: "bp_01",
+    branchId: "branch_01",
+    productId: "prod_01",
+    stock: 100,
+    minStock: 10,
+    createdAt: "2023-01-02T00:00:00.000Z",
+    updatedAt: "2023-01-02T00:00:00.000Z",
+  },
+  {
+    _id: "bp_02",
+    branchId: "branch_01",
+    productId: "prod_02",
+    stock: 80,
+    minStock: 10,
+    createdAt: "2023-01-02T00:00:00.000Z",
+    updatedAt: "2023-01-02T00:00:00.000Z",
+  },
+  // Kho HCM
+  {
+    _id: "bp_03",
+    branchId: "branch_02",
+    productId: "prod_03",
+    stock: 150,
+    minStock: 20,
+    createdAt: "2023-01-02T00:00:00.000Z",
+    updatedAt: "2023-01-02T00:00:00.000Z",
+  },
+];
