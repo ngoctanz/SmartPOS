@@ -70,10 +70,23 @@ const update = async (req, res, next) => {
 
 const remove = async (req, res, next) => {
   try {
-    await branchService.softDelete(req.params.id);
+    await branchService.deleteBranch(req.params.id);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Branch deleted successfully!",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteMany = async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    await branchService.deleteMany(ids);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Branches deleted successfully!",
     });
   } catch (error) {
     next(error);
@@ -87,4 +100,5 @@ export const branchController = {
   search,
   update,
   remove,
+  deleteMany,
 };

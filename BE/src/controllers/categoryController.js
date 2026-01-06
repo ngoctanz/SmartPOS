@@ -70,10 +70,23 @@ const update = async (req, res, next) => {
 
 const remove = async (req, res, next) => {
   try {
-    await categoryService.softDelete(req.params.id);
+    await categoryService.deleteCategory(req.params.id);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Category deleted successfully!",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteMany = async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    await categoryService.deleteMany(ids);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Categories deleted successfully!",
     });
   } catch (error) {
     next(error);
@@ -87,4 +100,5 @@ export const categoryController = {
   search,
   update,
   remove,
+  deleteMany,
 };

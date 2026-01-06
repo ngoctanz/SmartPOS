@@ -22,15 +22,6 @@ const branchSchema = new mongoose.Schema(
       maxlength: [200, "Contact info max 200 characters"],
       default: "",
     },
-    isDeleted: {
-      type: Boolean,
-      default: false,
-      select: false,
-    },
-    deletedAt: {
-      type: Date,
-      select: false,
-    },
   },
   {
     timestamps: true,
@@ -43,8 +34,6 @@ branchSchema.index({ createdAt: -1 });
 // Instance method
 branchSchema.methods.toJSON = function () {
   const obj = this.toObject();
-  delete obj.isDeleted;
-  delete obj.deletedAt;
   return obj;
 };
 
@@ -57,11 +46,11 @@ branchSchema.statics = {
   },
 
   async findAllBranches(filter = {}) {
-    return this.find({ isDeleted: false, ...filter }).sort({ createdAt: -1 }).lean();
+    return this.find(filter).sort({ createdAt: -1 }).lean();
   },
 
   async findBranchById(id) {
-    const branch = await this.findOne({ _id: id, isDeleted: false }).lean();
+    const branch = await this.findOne({ _id: id }).lean();
     if (!branch) throw new Error("Branch not found");
     return branch;
   },
@@ -69,13 +58,12 @@ branchSchema.statics = {
   async findBranchByName(name) {
     return this.find({
       branchName: new RegExp(name, "i"),
-      isDeleted: false,
     }).lean();
   },
 
   async updateBranch(id, data) {
     const branch = await this.findOneAndUpdate(
-      { _id: id, isDeleted: false },
+      { _id: id },
       data,
       { new: true, runValidators: true }
     );
@@ -83,18 +71,15 @@ branchSchema.statics = {
     return branch;
   },
 
-  async softDeleteBranch(id) {
-    const branch = await this.findOneAndUpdate(
-      { _id: id, isDeleted: false },
-      { isDeleted: true, deletedAt: new Date() },
-      { new: true }
-    );
+  async deleteBranch(id) {
+    const branch = await this.findByIdAndDelete(id);
     if (!branch) throw new Error("Branch not found");
     return branch;
   },
 
-  async deleteBranch(id) {
-    return this.findByIdAndDelete(id);
+  async deleteManyBranches(ids) {
+    const result = await this.deleteMany({ _id: { $in: ids } });
+    return result;
   },
 };
 

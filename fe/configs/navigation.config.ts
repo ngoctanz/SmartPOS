@@ -12,8 +12,8 @@ import {
 
 export const navItems = {
   user: {
-    name: 'Admin',
-    email: 'admin@SmartPOS.com',
+    name: '',
+    email: '',
     avatar: '',
   },
   navMain: [

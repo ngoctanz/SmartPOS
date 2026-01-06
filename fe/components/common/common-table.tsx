@@ -96,6 +96,13 @@ export function CommonTable<TData, TValue>({
     setRowSelection({});
   };
 
+  React.useEffect(() => {
+    if (onSelectionChange) {
+      const selected = table.getFilteredSelectedRowModel().rows.map(row => row.original)
+      onSelectionChange(selected)
+    }
+  }, [rowSelection]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className="w-full">
       {/* Bulk Actions Bar */}
@@ -167,7 +174,7 @@ export function CommonTable<TData, TValue>({
                   colSpan={columns.length}
                   className="h-24 text-center"
                 >
-                  No results.
+                  Không có dữ liệu.
                 </TableCell>
               </TableRow>
             )}
@@ -176,8 +183,8 @@ export function CommonTable<TData, TValue>({
       </div>
       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredSelectedRowModel().rows.length} of{" "}
-          {table.getFilteredRowModel().rows.length} row(s) selected.
+          {table.getFilteredSelectedRowModel().rows.length}/{""}
+          {table.getFilteredRowModel().rows.length} hàng được chọn
         </div>
         <div className="space-x-2">
           <Button
@@ -186,7 +193,7 @@ export function CommonTable<TData, TValue>({
             onClick={() => table.previousPage()}
             disabled={!table.getCanPreviousPage()}
           >
-            Previous
+            Trước
           </Button>
           <Button
             variant="outline"
@@ -194,7 +201,7 @@ export function CommonTable<TData, TValue>({
             onClick={() => table.nextPage()}
             disabled={!table.getCanNextPage()}
           >
-            Next
+            Sau
           </Button>
         </div>
       </div>

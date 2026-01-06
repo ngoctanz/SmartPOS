@@ -30,11 +30,11 @@ export function DetailModal({
 }: DetailModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
+      <DialogContent className="sm:max-w-[500px] max-h-screen overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
-        <div className="flex-1 overflow-y-auto py-4">
+        <div className="py-4">
              {children}
         </div>
         {(onEdit || footer) && (
