@@ -2,19 +2,17 @@ import { apiPost, setAccessToken } from "./api.service";
 import { ApiResponse } from "./api.config";
 
 export interface LoginRequest {
-  email: string;
+  userName: string;
   password: string;
 }
 
 export interface User {
   _id: string;
-  fullName: string;
-  email: string;
+  userName: string;
+  name?: string;
   role: "admin" | "manager" | "staff";
   branchId?: string;
   isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface LoginResponse {

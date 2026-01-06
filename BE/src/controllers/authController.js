@@ -17,7 +17,7 @@ const login = async (req, res, next) => {
     res.status(StatusCodes.OK).json({
       success: true,
       message: "login successful!",
-      data: result.user,
+      data: { user: result.user },
       access_token: result.access_token,
     });
   } catch (error) {
@@ -46,6 +46,7 @@ const refreshToken = async (req, res, next) => {
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Token refreshed successfully",
+      data: { user: result.user },
       access_token: result.access_token,
     });
   } catch (error) {

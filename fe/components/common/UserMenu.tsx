@@ -31,7 +31,8 @@ export function UserMenu() {
     }
   };
 
-  const getInitials = (name: string) => {
+  const getInitials = (name?: string) => {
+    if (!name) return "U";
     return name
       .split(" ")
       .map((n) => n[0])
@@ -54,7 +55,7 @@ export function UserMenu() {
         <Button variant="ghost" className="relative h-10 w-10 rounded-full">
           <Avatar className="h-10 w-10">
             <AvatarFallback className="bg-primary text-primary-foreground">
-              {getInitials(user.fullName)}
+              {getInitials(user.name || user.userName)}
             </AvatarFallback>
           </Avatar>
         </Button>
@@ -62,9 +63,11 @@ export function UserMenu() {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user.fullName}</p>
+            <p className="text-sm font-medium leading-none">
+              {user.name || user.userName}
+            </p>
             <p className="text-xs leading-none text-muted-foreground">
-              {user.email}
+              @{user.userName}
             </p>
             <p className="text-xs leading-none text-muted-foreground">
               {getRoleBadge(user.role)}

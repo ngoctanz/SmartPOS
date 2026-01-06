@@ -1,6 +1,5 @@
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { UserMenu } from "@/components/common/UserMenu";
 
 export function SiteHeader() {
   return (
@@ -12,9 +11,7 @@ export function SiteHeader() {
           className="mx-2 data-[orientation=vertical]:h-4 bg-sidebar-border"
         />
         <h1 className="text-base font-medium text-primary">SmartPOS</h1>
-        <div className="ml-auto">
-          <UserMenu />
-        </div>
+        <div className="ml-auto"></div>
       </div>
     </header>
   );

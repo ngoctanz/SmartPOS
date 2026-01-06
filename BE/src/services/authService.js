@@ -3,11 +3,11 @@ import { User } from "../models/userModel.js";
 import jwt from "jsonwebtoken";
 const login = async (reqBody) => {
   try {
-    const { email, password } = reqBody;
-    //tìm user theo email
-    const user = await User.findOne({ email: email.toLowerCase() }).select(
-      "+password"
-    );
+    const { userName, password } = reqBody;
+    //tìm user theo userName (case-insensitive)
+    const user = await User.findOne({
+      userName: { $regex: new RegExp(`^${userName}$`, "i") },
+    }).select("+password");
     if (!user) throw new Error("Invalid credentials");
 
     //so sánh password
@@ -26,8 +26,19 @@ const login = async (reqBody) => {
 
     // update refresh token lên dtb
     await User.updateUser(user._id, { refresh_token });
+
+    // Return clean user data without sensitive fields
+    const userData = {
+      _id: user._id,
+      userName: user.userName,
+      name: user.name,
+      role: user.role,
+      branchId: user.branchId,
+      isActive: user.isActive,
+    };
+
     return {
-      data: user,
+      user: userData,
       access_token,
       refresh_token,
     };
@@ -66,7 +77,19 @@ const refreshToken = async (refreshToken) => {
     await User.updateUser(user._id, {
       refresh_token: newRefresh_token,
     });
+
+    // Return clean user data
+    const userData = {
+      _id: user._id,
+      userName: user.userName,
+      name: user.name,
+      role: user.role,
+      branchId: user.branchId,
+      isActive: user.isActive,
+    };
+
     return {
+      user: userData,
       access_token: newAccess_token,
       refresh_token: newRefresh_token,
     };

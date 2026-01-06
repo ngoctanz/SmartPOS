@@ -2,10 +2,10 @@ import { z } from "zod";
 
 // Login Schema - Match BE
 export const loginSchema = z.object({
-  email: z
-    .string({ required_error: "Email là bắt buộc" })
-    .min(1, "Vui lòng nhập email")
-    .email("Email không hợp lệ")
+  userName: z
+    .string({ required_error: "Tên đăng nhập là bắt buộc" })
+    .min(3, "Tên đăng nhập phải có ít nhất 3 ký tự")
+    .max(15, "Tên đăng nhập tối đa 15 ký tự")
     .trim(),
   password: z
     .string({ required_error: "Mật khẩu là bắt buộc" })

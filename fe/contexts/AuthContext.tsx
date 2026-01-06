@@ -23,19 +23,40 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    // Load user from localStorage on initial render
+    if (typeof window !== "undefined") {
+      const savedUser = localStorage.getItem("user");
+      if (savedUser) {
+        try {
+          return JSON.parse(savedUser);
+        } catch {
+          return null;
+        }
+      }
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(true);
 
   const refreshAuth = useCallback(async () => {
     try {
       const response = await authService.refreshToken();
-      if (response.data) {
-        setUser(response.data);
+      if (response.data?.user) {
+        setUser(response.data.user);
+        // Save user to localStorage
+        if (typeof window !== "undefined") {
+          localStorage.setItem("user", JSON.stringify(response.data.user));
+        }
       }
     } catch (error) {
       console.error("Failed to refresh auth:", error);
       setUser(null);
       setAccessToken(null);
+      // Clear localStorage
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("user");
+      }
     } finally {
       setLoading(false);
     }
@@ -51,6 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await authService.login(credentials);
       if (response.data?.user) {
         setUser(response.data.user);
+        // Save user to localStorage
+        if (typeof window !== "undefined") {
+          localStorage.setItem("user", JSON.stringify(response.data.user));
+        }
       }
     } catch (error) {
       console.error("Login failed:", error);
@@ -66,8 +91,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       setUser(null);
       setAccessToken(null);
-      // Redirect to login
+      // Clear localStorage
       if (typeof window !== "undefined") {
+        localStorage.removeItem("user");
         window.location.href = "/dang-nhap";
       }
     }

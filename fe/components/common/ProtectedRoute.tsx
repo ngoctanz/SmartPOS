@@ -20,15 +20,16 @@ export function ProtectedRoute({
   const router = useRouter();
 
   useEffect(() => {
-    if (!loading) {
-      if (!isAuthenticated) {
-        router.push(redirectTo);
-      } else if (allowedRoles && user && !allowedRoles.includes(user.role)) {
-        // User không có quyền truy cập
-        router.push("/trang-quan-ly"); // Redirect về trang chủ
-      }
+    if (!loading && !isAuthenticated) {
+      router.replace(redirectTo);
     }
-  }, [loading, isAuthenticated, user, allowedRoles, router, redirectTo]);
+  }, [loading, isAuthenticated, router, redirectTo]);
+
+  useEffect(() => {
+    if (!loading && isAuthenticated && allowedRoles && user && !allowedRoles.includes(user.role)) {
+      router.replace("/trang-quan-ly");
+    }
+  }, [loading, isAuthenticated, user, allowedRoles, router]);
 
   if (loading) {
     return (

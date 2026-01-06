@@ -73,7 +73,7 @@ export function LoginForm({
         <CardHeader className="text-center">
           <CardTitle className="text-xl  text-primary">Đăng Nhập</CardTitle>
           <CardDescription>
-            Nhập email và mật khẩu của bạn để truy cập
+            Nhập tên đăng nhập và mật khẩu của bạn để truy cập
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -102,27 +102,27 @@ export function LoginForm({
                 </div>
               )}
               <Field>
-                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <FieldLabel htmlFor="userName">Tên đăng nhập</FieldLabel>
                 <Input
-                  id="email"
-                  type="email"
-                  placeholder="email@example.com"
-                  autoComplete="email"
-                  aria-invalid={errors.email ? "true" : "false"}
+                  id="userName"
+                  type="text"
+                  placeholder="username"
+                  autoComplete="username"
+                  aria-invalid={errors.userName ? "true" : "false"}
                   disabled={isSubmitting}
                   className={
-                    errors.email
+                    errors.userName
                       ? "border-destructive focus-visible:ring-destructive"
                       : ""
                   }
-                  {...register("email", {
+                  {...register("userName", {
                     onChange: () => setError(null),
                   })}
                 />
-                {errors.email && (
+                {errors.userName && (
                   <p className="text-sm text-destructive mt-1.5 flex items-center gap-1">
                     <AlertCircle className="h-3.5 w-3.5" />
-                    {errors.email.message}
+                    {errors.userName.message}
                   </p>
                 )}
               </Field>
