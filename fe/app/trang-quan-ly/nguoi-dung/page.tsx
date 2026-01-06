@@ -23,7 +23,7 @@ import {
 
 interface BranchOption {
   _id: string;
-  name: string;
+  branchName: string;
 }
 
 // Helper để check có phải admin account không
@@ -89,7 +89,7 @@ export default function Page() {
     (branchId?: string) => {
       if (!branchId) return "---";
       const branch = branches.find((b) => b._id === branchId);
-      return branch?.name || branchId;
+      return branch?.branchName || branchId;
     },
     [branches]
   );
@@ -305,10 +305,12 @@ export default function Page() {
       },
       {
         id: "actions",
-        cell: ({ row }) => {
+        cell: ({ row, table }) => {
           const user = row.original;
           const isAdmin = isAdminAccount(user);
           const isActive = user.status === "active";
+          const isAnyRowSelected =
+            table.getFilteredSelectedRowModel().rows.length > 0;
 
           return (
             <RowActions
@@ -317,6 +319,7 @@ export default function Page() {
               onAction={isAdmin ? undefined : () => handleToggleStatus(user)}
               actionLabel={isActive ? "Khóa" : "Mở khóa"}
               actionIcon={isActive ? "lock" : "unlock"}
+              disabled={isAnyRowSelected}
             />
           );
         },

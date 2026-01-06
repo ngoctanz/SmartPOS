@@ -10,7 +10,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Edit, Trash2, Eye, Lock, Unlock } from "lucide-react";
+import {
+  MoreHorizontal,
+  Edit,
+  Trash2,
+  Eye,
+  Lock,
+  Unlock,
+  Check,
+  X,
+} from "lucide-react";
 
 interface RowActionsProps {
   onView?: () => void;
@@ -19,8 +28,18 @@ interface RowActionsProps {
   /** @deprecated Use onAction instead */
   onDelete?: () => void;
   actionLabel?: string;
-  actionIcon?: "trash" | "lock" | "unlock";
+  actionIcon?: "trash" | "lock" | "unlock" | "check" | "cancel";
+  disabled?: boolean;
 }
+
+// Icon mapping outside component to avoid creating during render
+const ACTION_ICONS = {
+  trash: Trash2,
+  lock: Lock,
+  unlock: Unlock,
+  check: Check,
+  cancel: X,
+} as const;
 
 export function RowActions({
   onView,
@@ -29,16 +48,17 @@ export function RowActions({
   onDelete,
   actionLabel = "Xóa",
   actionIcon = "trash",
+  disabled = false,
 }: RowActionsProps) {
   // Support both onAction and onDelete (backward compatibility)
   const handleAction = onAction || onDelete;
-  const ActionIcon =
-    actionIcon === "lock" ? Lock : actionIcon === "unlock" ? Unlock : Trash2;
+  const ActionIcon = ACTION_ICONS[actionIcon];
+  const isDestructive = actionIcon === "trash" || actionIcon === "cancel";
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-8 w-8 p-0">
+        <Button variant="ghost" className="h-8 w-8 p-0" disabled={disabled}>
           <span className="sr-only">Open menu</span>
           <MoreHorizontal className="h-4 w-4" />
         </Button>
@@ -62,7 +82,11 @@ export function RowActions({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={handleAction}
-              className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/50"
+              className={
+                isDestructive
+                  ? "text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/50"
+                  : "text-green-600 focus:text-green-600 focus:bg-green-50 dark:focus:bg-green-950/50"
+              }
             >
               <ActionIcon className="mr-2 h-4 w-4" />
               {actionLabel}

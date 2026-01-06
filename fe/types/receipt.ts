@@ -1,7 +1,7 @@
 import { BaseEntity } from "./common";
 
 export interface ReceiptItem {
-  productId: string; 
+  productId: string;
   productName: string;
   quantity: number;
   salePrice: number;
@@ -12,8 +12,8 @@ export type ReceiptStatus = "completed" | "cancelled";
 
 export interface Receipt extends BaseEntity {
   code: string;
-  branchId: string; 
-  createdBy: string; 
+  branchId: string;
+  createdBy: string;
   listProduct: ReceiptItem[];
   totalAmount: number;
   paymentMethod: ReceiptPaymentMethod;
@@ -33,9 +33,10 @@ export type ImportReceiptStatus = "pending" | "completed" | "cancelled";
 
 export interface ImportReceipt extends BaseEntity {
   code: string;
-  branchId: string;
-  supplierName: string;
-  createdBy: string; 
+  barcode: string;
+  branchId: string | { _id: string; branchName: string };
+  supplierName?: string;
+  createdBy: string | { _id: string; userName: string; name?: string };
   listProduct: ImportReceiptItem[];
   totalAmount: number;
   status: ImportReceiptStatus;

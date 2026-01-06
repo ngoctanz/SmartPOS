@@ -12,6 +12,7 @@ Router.get("/", importReceiptController.getAll);
 Router.get("/date-range", importReceiptController.getByDateRange);
 Router.get("/total", importReceiptController.getTotalImport);
 Router.get("/code/:code", importReceiptController.getByCode);
+Router.get("/barcode/:barcode", importReceiptController.getByBarcode);
 Router.get("/branch/:branchId", importReceiptController.getByBranch);
 Router.get("/:id", importReceiptController.getById);
 

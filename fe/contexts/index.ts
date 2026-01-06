@@ -1,8 +1,9 @@
 // Auth Context
-export { AuthProvider, useAuth } from "./AuthContext";
+export { AuthProvider, useAuthContext } from "./auth-context";
+export type { User } from "./auth-context";
 
 // Auth hooks
-export { default as useAuthHook } from "@/hooks/useAuth";
+export { useAuth, useLogin, useLogout } from "@/hooks/useAuth";
 export {
   useUser,
   useIsAdmin,
@@ -12,6 +13,7 @@ export {
   useCanManage,
 } from "@/hooks/useUser";
 export { useRequireAuth, useRequireRole } from "@/hooks/useRequireAuth";
+export { useRedirectIfAuthenticated } from "@/hooks/useRedirectIfAuthenticated";
 
 // Auth components
 export { ProtectedRoute } from "@/components/common/ProtectedRoute";

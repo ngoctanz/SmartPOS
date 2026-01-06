@@ -1,12 +1,13 @@
-import { apiPost, setAccessToken } from "./api.service";
+import { apiPost } from "./api.service";
 import { ApiResponse } from "./api.config";
+import { setContextAccessToken } from "@/lib/fetch";
 
 export interface LoginRequest {
   userName: string;
   password: string;
 }
 
-// Basic user info returned from auth endpoints (không nhạy cảm)
+// Basic user info returned from auth endpoints
 export interface User {
   _id: string;
   userName: string;
@@ -29,12 +30,12 @@ const authService = {
     credentials: LoginRequest
   ): Promise<ApiResponse<LoginResponse>> => {
     const response = await apiPost<LoginResponse>("/auth/login", credentials, {
-      requiresAuth: false,
+      requireAuth: false,
     });
 
-    // Lưu access token vào memory
+    // Lưu access token vào context
     if (response.access_token) {
-      setAccessToken(response.access_token);
+      setContextAccessToken(response.access_token);
     }
 
     return response;
@@ -45,10 +46,12 @@ const authService = {
    * POST /api/v1/auth/logout
    */
   logout: async (): Promise<ApiResponse> => {
-    const response = await apiPost("/auth/logout");
+    const response = await apiPost("/auth/logout", undefined, {
+      skipRefresh: true,
+    });
 
     // Clear access token
-    setAccessToken(null);
+    setContextAccessToken(null);
 
     return response;
   },
@@ -61,11 +64,11 @@ const authService = {
     const response = await apiPost(
       "/auth/refresh_token",
       {},
-      { requiresAuth: false, skipRefresh: true }
+      { requireAuth: false, skipRefresh: true }
     );
 
     if (response.access_token) {
-      setAccessToken(response.access_token);
+      setContextAccessToken(response.access_token);
     }
 
     return response;

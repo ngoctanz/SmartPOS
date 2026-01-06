@@ -51,6 +51,7 @@ export const mockImportReceipts: ImportReceipt[] = [
   {
     _id: "import_01",
     code: "PN001",
+    barcode: "2000010001234",
     branchId: "branch_01",
     supplierName: "Công ty Cà phê Trung Nguyên",
     createdBy: "user_02",

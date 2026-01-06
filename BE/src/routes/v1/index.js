@@ -9,6 +9,7 @@ import { stockRouter } from "./stockRouter.js";
 import { importReceiptRouter } from "./importReceiptRouter.js";
 import { receiptRouter } from "./receiptRouter.js";
 import { dashboardRouter } from "./dashboardRouter.js";
+import { uploadRouter } from "./uploadRouter.js";
 
 const Router = express.Router();
 
@@ -34,6 +35,9 @@ Router.use("/receipt", receiptRouter);
 
 // Dashboard
 Router.use("/dashboard", dashboardRouter);
+
+// Upload
+Router.use("/upload", uploadRouter);
 
 export const APIs_V1 = {
   Router,

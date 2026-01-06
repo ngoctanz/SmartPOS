@@ -4,27 +4,23 @@ import { ApiResponse } from "./api.config";
 export interface Product {
   _id: string;
   name: string;
-  barcode: string;
-  categoryId: string;
-  categoryName?: string;
+  barcode?: string;
+  categoryId: string | { _id: string; name: string };
   unit: string;
-  importPrice: number;
-  salePrice: number;
-  description?: string;
+  currentSalePrice: number;
+  desc?: string;
   image?: string;
-  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateProductRequest {
   name: string;
-  barcode: string;
+  barcode?: string;
   categoryId: string;
   unit: string;
-  importPrice: number;
-  salePrice: number;
-  description?: string;
+  currentSalePrice: number;
+  desc?: string;
   image?: string;
 }
 
@@ -33,11 +29,9 @@ export interface UpdateProductRequest {
   barcode?: string;
   categoryId?: string;
   unit?: string;
-  importPrice?: number;
-  salePrice?: number;
-  description?: string;
+  currentSalePrice?: number;
+  desc?: string;
   image?: string;
-  isActive?: boolean;
 }
 
 export interface UpdatePriceRequest {
@@ -45,9 +39,8 @@ export interface UpdatePriceRequest {
 }
 
 export interface SearchProductParams {
-  keyword?: string;
+  name?: string; // Search by name or barcode
   categoryId?: string;
-  isActive?: boolean;
 }
 
 const productService = {
@@ -60,17 +53,16 @@ const productService = {
   },
 
   /**
-   * Tìm kiếm sản phẩm
-   * GET /api/v1/product/search
+   * Tìm kiếm sản phẩm theo tên hoặc barcode
+   * GET /api/v1/product/search?name=xxx
+   * BE sẽ tìm kiếm theo cả name và barcode
    */
   search: async (
     params: SearchProductParams
   ): Promise<ApiResponse<Product[]>> => {
     const queryParams = new URLSearchParams();
-    if (params.keyword) queryParams.append("keyword", params.keyword);
+    if (params.name) queryParams.append("name", params.name);
     if (params.categoryId) queryParams.append("categoryId", params.categoryId);
-    if (params.isActive !== undefined)
-      queryParams.append("isActive", String(params.isActive));
 
     return apiGet<Product[]>(`/product/search?${queryParams.toString()}`);
   },
@@ -137,6 +129,17 @@ const productService = {
    */
   remove: async (id: string): Promise<ApiResponse> => {
     return apiDelete(`/product/${id}`);
+  },
+
+  /**
+   * Xóa nhiều sản phẩm
+   * DELETE /api/v1/product/bulk
+   */
+  removeMany: async (ids: string[]): Promise<ApiResponse> => {
+    return apiDelete("/product/bulk", {
+      body: JSON.stringify({ ids }),
+      headers: { "Content-Type": "application/json" },
+    });
   },
 };
 
