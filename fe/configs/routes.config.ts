@@ -1,10 +1,10 @@
 export const ROUTES = {
-  DASHBOARD: "/dashboard",
-  PRODUCT_TYPES: "/dashboard/product-type",
-  PRODUCTS: "/dashboard/products",
-  IMPORTS: "/dashboard/imports",
-  INVOICES: "/dashboard/invoices",
-  INVENTORY: "/dashboard/inventory",
-  USERS: "/dashboard/users",
-  BRANCHES: "/dashboard/branches",
+  DASHBOARD: "/trang-quan-ly",
+  PRODUCT_TYPES: "/trang-quan-ly/loai-san-pham",
+  PRODUCTS: "/trang-quan-ly/san-pham",
+  IMPORTS: "/trang-quan-ly/nhap-hang",
+  INVOICES: "/trang-quan-ly/hoa-don",
+  INVENTORY: "/trang-quan-ly/ton-kho",
+  USERS: "/trang-quan-ly/nguoi-dung",
+  BRANCHES: "/trang-quan-ly/chi-nhanh",
 };
