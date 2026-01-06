@@ -522,7 +522,7 @@ export function DataTable({
                       colSpan={columns.length}
                       className="h-24 text-center"
                     >
-                      No results.
+                      Không có dữ liệu.
                     </TableCell>
                   </TableRow>
                 )}
@@ -571,7 +571,7 @@ export function DataTable({
                 onClick={() => table.setPageIndex(0)}
                 disabled={!table.getCanPreviousPage()}
               >
-                <span className="sr-only">Go to first page</span>
+                <span className="sr-only">Trang đầu</span>
                 <IconChevronsLeft />
               </Button>
               <Button
@@ -581,7 +581,7 @@ export function DataTable({
                 onClick={() => table.previousPage()}
                 disabled={!table.getCanPreviousPage()}
               >
-                <span className="sr-only">Go to previous page</span>
+                <span className="sr-only">Trang trước</span>
                 <IconChevronLeft />
               </Button>
               <Button
@@ -591,7 +591,7 @@ export function DataTable({
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}
               >
-                <span className="sr-only">Go to next page</span>
+                <span className="sr-only">Trang sau</span>
                 <IconChevronRight />
               </Button>
               <Button

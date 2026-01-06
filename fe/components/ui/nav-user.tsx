@@ -28,6 +28,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { useAuth } from "@/hooks/useAuth"
 
 export function NavUser({
   user,
@@ -39,6 +40,14 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const { logout, user: authUser } = useAuth()
+
+  // Use authUser if available, otherwise fall back to prop
+  const displayUser = authUser ? {
+    name: authUser.name || authUser.userName || user.name,
+    email: (authUser as any).email || user.email, // Cast to any to access potential email field not in interface
+    avatar: user.avatar 
+  } : user
 
   return (
     <SidebarMenu>
@@ -50,13 +59,13 @@ export function NavUser({
               className="hover:bg-transparent hover:text-sidebar-foreground active:bg-transparent data-[state=open]:bg-transparent data-[state=open]:hover:bg-transparent"
             >
               <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className="rounded-lg">Lan</AvatarFallback>
+                <AvatarImage src={displayUser.avatar} alt={displayUser.name} />
+                <AvatarFallback className="rounded-lg">CN</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
+                <span className="truncate font-medium">{displayUser.name}</span>
                 <span className="truncate text-xs text-muted-foreground">
-                  {user.email}
+                  {displayUser.email}
                 </span>
               </div>
               <IconDotsVertical className="ml-auto size-4" />
@@ -71,13 +80,13 @@ export function NavUser({
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <Avatar className="h-8 w-8 rounded-lg">
-                  <AvatarImage src={user.avatar} alt={user.name} />
+                  <AvatarImage src={displayUser.avatar} alt={displayUser.name} />
                   <AvatarFallback className="rounded-lg">CN</AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium">{user.name}</span>
+                  <span className="truncate font-medium">{displayUser.name}</span>
                   <span className="text-muted-foreground truncate text-xs">
-                    {user.email}
+                    {displayUser.email}
                   </span>
                 </div>
               </div>
@@ -86,21 +95,21 @@ export function NavUser({
             <DropdownMenuGroup>
               <DropdownMenuItem>
                 <IconUserCircle />
-                Account
+                Tài khoản
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <IconCreditCard />
-                Billing
+                Thanh toán
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <IconNotification />
-                Notifications
+                Thông báo
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={logout}>
               <IconLogout />
-              Log out
+              Đăng xuất
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

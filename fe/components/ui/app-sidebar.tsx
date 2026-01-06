@@ -1,5 +1,4 @@
-'use client';
-
+"use client"
 
 import type * as React from 'react';
 
@@ -11,15 +10,26 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuButton,
 } from '@/components/ui/sidebar';
 import Image from 'next/image';
-import { ROUTES } from '@/configs/routes.config';
 import { navItems } from '@/configs/navigation.config';
+import { useAuth } from '@/hooks/useAuth';
+import { useMemo, ComponentProps } from 'react';
 
+export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
+  const { user } = useAuth();
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const filteredNavMain = useMemo(() => {
+    if (user?.role !== 'admin') {
+      return navItems.navMain.filter(
+        (item) => item.title !== 'Quản lý user' && item.title !== 'Quản lý chi nhánh'
+      );
+    }
+    return navItems.navMain;
+  }, [user]);
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -40,7 +50,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={navItems.navMain} />
+        <NavMain items={filteredNavMain} />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={navItems.user} />

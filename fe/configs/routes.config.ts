@@ -7,4 +7,5 @@ export const ROUTES = {
   INVENTORY: "/trang-quan-ly/ton-kho",
   USERS: "/trang-quan-ly/nguoi-dung",
   BRANCHES: "/trang-quan-ly/chi-nhanh",
+  LOGIN: "/dang-nhap",
 };

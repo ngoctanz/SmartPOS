@@ -33,4 +33,10 @@ Router.delete(
   branchController.remove
 );
 
+Router.post(
+  "/delete-many",
+  authorize("admin"),
+  branchController.deleteMany
+);
+
 export const branchRouter = Router;

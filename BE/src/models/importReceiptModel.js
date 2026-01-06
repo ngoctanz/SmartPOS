@@ -7,6 +7,10 @@ const importProductSchema = new mongoose.Schema(
       ref: "Product",
       required: true,
     },
+    barcode: {
+      type: String,
+      required: true,
+    },
     productName: {
       type: String,
       required: true,
@@ -86,7 +90,6 @@ const importReceiptSchema = new mongoose.Schema(
   }
 );
 
-importReceiptSchema.index({ code: 1 });
 importReceiptSchema.index({ branchId: 1 });
 importReceiptSchema.index({ createdBy: 1 });
 importReceiptSchema.index({ status: 1 });

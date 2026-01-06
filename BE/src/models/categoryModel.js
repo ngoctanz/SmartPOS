@@ -16,15 +16,6 @@ const categorySchema = new mongoose.Schema(
       maxlength: [500, "Description max 500 characters"],
       default: "",
     },
-    isDeleted: {
-      type: Boolean,
-      default: false,
-      select: false,
-    },
-    deletedAt: {
-      type: Date,
-      select: false,
-    },
   },
   {
     timestamps: true,
@@ -32,14 +23,11 @@ const categorySchema = new mongoose.Schema(
   }
 );
 
-categorySchema.index({ name: 1 });
 categorySchema.index({ createdAt: -1 });
 
 // Instance method
 categorySchema.methods.toJSON = function () {
   const obj = this.toObject();
-  delete obj.isDeleted;
-  delete obj.deletedAt;
   return obj;
 };
 
@@ -52,11 +40,13 @@ categorySchema.statics = {
   },
 
   async findAllCategories(filter = {}) {
-    return this.find({ isDeleted: false, ...filter }).sort({ createdAt: -1 }).lean();
+    return this.find(filter)
+      .sort({ createdAt: -1 })
+      .lean();
   },
 
   async findCategoryById(id) {
-    const category = await this.findOne({ _id: id, isDeleted: false }).lean();
+    const category = await this.findOne({ _id: id }).lean();
     if (!category) throw new Error("Category not found");
     return category;
   },
@@ -64,13 +54,12 @@ categorySchema.statics = {
   async findCategoryByName(name) {
     return this.find({
       name: new RegExp(name, "i"),
-      isDeleted: false,
     }).lean();
   },
 
   async updateCategory(id, data) {
     const category = await this.findOneAndUpdate(
-      { _id: id, isDeleted: false },
+      { _id: id },
       data,
       { new: true, runValidators: true }
     );
@@ -78,18 +67,15 @@ categorySchema.statics = {
     return category;
   },
 
-  async softDeleteCategory(id) {
-    const category = await this.findOneAndUpdate(
-      { _id: id, isDeleted: false },
-      { isDeleted: true, deletedAt: new Date() },
-      { new: true }
-    );
+  async deleteCategory(id) {
+    const category = await this.findByIdAndDelete(id);
     if (!category) throw new Error("Category not found");
     return category;
   },
 
-  async deleteCategory(id) {
-    return this.findByIdAndDelete(id);
+  async deleteManyCategories(ids) {
+    const result = await this.deleteMany({ _id: { $in: ids } });
+    return result;
   },
 };
 

@@ -1,0 +1,212 @@
+import { apiGet, apiPost, apiPatch } from "./api.service";
+import { ApiResponse } from "./api.config";
+
+export interface ReceiptItem {
+  productId: string;
+  productName?: string;
+  quantity: number;
+  salePrice: number;
+  totalPrice: number;
+}
+
+export interface Receipt {
+  _id: string;
+  code: string;
+  branchId: string;
+  branchName?: string;
+  cashierId: string;
+  cashierName?: string;
+  items: ReceiptItem[];
+  subtotal: number;
+  discount: number;
+  totalAmount: number;
+  paymentMethod: "cash" | "card" | "transfer";
+  status: "completed" | "cancelled";
+  customerName?: string;
+  customerPhone?: string;
+  note?: string;
+  cancelledBy?: string;
+  cancelReason?: string;
+  cancelledAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateReceiptRequest {
+  branchId: string;
+  items: {
+    productId: string;
+    quantity: number;
+    salePrice: number;
+  }[];
+  subtotal: number;
+  discount?: number;
+  totalAmount: number;
+  paymentMethod: "cash" | "card" | "transfer";
+  customerName?: string;
+  customerPhone?: string;
+  note?: string;
+}
+
+export interface GetReceiptParams {
+  page?: number;
+  limit?: number;
+  branchId?: string;
+  status?: string;
+  paymentMethod?: string;
+}
+
+export interface DateRangeParams {
+  startDate: string;
+  endDate: string;
+  branchId?: string;
+}
+
+export interface RevenueData {
+  totalRevenue: number;
+  totalReceipts: number;
+  averageReceiptValue: number;
+}
+
+export interface DailyRevenueData {
+  date: string;
+  revenue: number;
+  receipts: number;
+}
+
+export interface TopProduct {
+  productId: string;
+  productName: string;
+  totalQuantity: number;
+  totalRevenue: number;
+}
+
+const receiptService = {
+  /**
+   * Lấy tất cả hóa đơn
+   * GET /api/v1/receipt
+   */
+  getAll: async (
+    params?: GetReceiptParams
+  ): Promise<ApiResponse<Receipt[]>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append("page", String(params.page));
+    if (params?.limit) queryParams.append("limit", String(params.limit));
+    if (params?.branchId) queryParams.append("branchId", params.branchId);
+    if (params?.status) queryParams.append("status", params.status);
+    if (params?.paymentMethod)
+      queryParams.append("paymentMethod", params.paymentMethod);
+
+    const query = queryParams.toString();
+    return apiGet<Receipt[]>(`/receipt${query ? `?${query}` : ""}`);
+  },
+
+  /**
+   * Lấy hóa đơn theo khoảng thời gian
+   * GET /api/v1/receipt/date-range
+   */
+  getByDateRange: async (
+    params: DateRangeParams
+  ): Promise<ApiResponse<Receipt[]>> => {
+    const queryParams = new URLSearchParams();
+    queryParams.append("startDate", params.startDate);
+    queryParams.append("endDate", params.endDate);
+    if (params.branchId) queryParams.append("branchId", params.branchId);
+
+    return apiGet<Receipt[]>(`/receipt/date-range?${queryParams.toString()}`);
+  },
+
+  /**
+   * Lấy doanh thu
+   * GET /api/v1/receipt/revenue
+   */
+  getRevenue: async (
+    params?: DateRangeParams
+  ): Promise<ApiResponse<RevenueData>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.startDate) queryParams.append("startDate", params.startDate);
+    if (params?.endDate) queryParams.append("endDate", params.endDate);
+    if (params?.branchId) queryParams.append("branchId", params.branchId);
+
+    const query = queryParams.toString();
+    return apiGet<RevenueData>(`/receipt/revenue${query ? `?${query}` : ""}`);
+  },
+
+  /**
+   * Lấy doanh thu theo ngày
+   * GET /api/v1/receipt/daily-revenue
+   */
+  getDailyRevenue: async (
+    params: DateRangeParams
+  ): Promise<ApiResponse<DailyRevenueData[]>> => {
+    const queryParams = new URLSearchParams();
+    queryParams.append("startDate", params.startDate);
+    queryParams.append("endDate", params.endDate);
+    if (params.branchId) queryParams.append("branchId", params.branchId);
+
+    return apiGet<DailyRevenueData[]>(
+      `/receipt/daily-revenue?${queryParams.toString()}`
+    );
+  },
+
+  /**
+   * Lấy sản phẩm bán chạy
+   * GET /api/v1/receipt/top-products
+   */
+  getTopProducts: async (
+    params?: DateRangeParams & { limit?: number }
+  ): Promise<ApiResponse<TopProduct[]>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.startDate) queryParams.append("startDate", params.startDate);
+    if (params?.endDate) queryParams.append("endDate", params.endDate);
+    if (params?.branchId) queryParams.append("branchId", params.branchId);
+    if (params?.limit) queryParams.append("limit", String(params.limit));
+
+    const query = queryParams.toString();
+    return apiGet<TopProduct[]>(
+      `/receipt/top-products${query ? `?${query}` : ""}`
+    );
+  },
+
+  /**
+   * Lấy hóa đơn theo mã
+   * GET /api/v1/receipt/code/:code
+   */
+  getByCode: async (code: string): Promise<ApiResponse<Receipt>> => {
+    return apiGet<Receipt>(`/receipt/code/${code}`);
+  },
+
+  /**
+   * Lấy hóa đơn theo chi nhánh
+   * GET /api/v1/receipt/branch/:branchId
+   */
+  getByBranch: async (branchId: string): Promise<ApiResponse<Receipt[]>> => {
+    return apiGet<Receipt[]>(`/receipt/branch/${branchId}`);
+  },
+
+  /**
+   * Lấy chi tiết hóa đơn
+   * GET /api/v1/receipt/:id
+   */
+  getById: async (id: string): Promise<ApiResponse<Receipt>> => {
+    return apiGet<Receipt>(`/receipt/${id}`);
+  },
+
+  /**
+   * Tạo hóa đơn mới
+   * POST /api/v1/receipt
+   */
+  create: async (data: CreateReceiptRequest): Promise<ApiResponse<Receipt>> => {
+    return apiPost<Receipt>("/receipt", data);
+  },
+
+  /**
+   * Hủy hóa đơn
+   * PATCH /api/v1/receipt/:id/cancel
+   */
+  cancel: async (id: string, reason: string): Promise<ApiResponse<Receipt>> => {
+    return apiPatch<Receipt>(`/receipt/${id}/cancel`, { reason });
+  },
+};
+
+export default receiptService;

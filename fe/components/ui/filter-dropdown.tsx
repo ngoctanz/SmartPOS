@@ -2,7 +2,12 @@
 
 import { useState } from 'react';
 import useClickOutSide from '@/hooks/useClickOutSide';
-import type { FilterOption } from '@/utils/accounts.util';
+// import type { FilterOption } from '@/utils/accounts.util';
+
+export interface FilterOption {
+  label: string;
+  value: string;
+}
 
 interface FilterDropdownProps {
   label: string;

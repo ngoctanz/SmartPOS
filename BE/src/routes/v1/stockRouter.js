@@ -9,7 +9,7 @@ Router.use(authMiddleware);
 // Get stock info
 Router.get("/branch/:branchId", branchProductController.getByBranch);
 Router.get("/product/:productId", branchProductController.getByProduct);
-Router.get("/branch/:branchId/product/:productId", branchProductController.getStockInfo);
+Router.get("/branch/:branchId/product/:productId", branchProductController.getStock);
 Router.get("/branch/:branchId/low-stock", branchProductController.getLowStock);
 Router.get(
   "/branch/:branchId/product/:productId/check",
@@ -22,5 +22,17 @@ Router.patch(
   authorize("admin", "manager"),
   branchProductController.setMinStock
 );
+
+// Get all stock (admin to view reports, others might need it too)
+Router.get("/", authorize("admin", "manager", "staff"), branchProductController.getAll);
+
+// Create stock report (Manager/Staff)
+Router.post("/", authorize("manager", "staff"), branchProductController.create);
+
+// Update stock (Manager/Staff)
+Router.put("/:id", authorize("manager", "staff"), branchProductController.update);
+
+// Delete stock (Admin)
+Router.delete("/:id", authorize("admin"), branchProductController.remove);
 
 export const stockRouter = Router;

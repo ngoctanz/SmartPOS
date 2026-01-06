@@ -111,10 +111,7 @@ const getByDateRange = async (req, res, next) => {
 const getRevenue = async (req, res, next) => {
   try {
     const { period, branchId } = req.query;
-    const result = await receiptService.getRevenue(
-      period || "month",
-      branchId || null
-    );
+    const result = await receiptService.getRevenue(period || "month", branchId || null);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get revenue successfully",
@@ -128,10 +125,7 @@ const getRevenue = async (req, res, next) => {
 const getDailyRevenue = async (req, res, next) => {
   try {
     const { period, branchId } = req.query;
-    const result = await receiptService.getDailyRevenue(
-      period || "month",
-      branchId || null
-    );
+    const result = await receiptService.getDailyRevenue(period || "month", branchId || null);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get daily revenue successfully",

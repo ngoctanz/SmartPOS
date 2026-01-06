@@ -3,7 +3,15 @@
 import { ArrowLeft, Home, MessageCircle, PackageOpen, SearchX } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { SHOP_INFO } from '@/constants/shop-info';
+// import { SHOP_INFO } from '@/constants/shop-info';
+
+const SHOP_INFO = {
+  social: {
+    facebook: {
+      url: '#'
+    }
+  }
+};
 import { cn } from '@/lib/utils';
 
 interface EmptyStateProps {

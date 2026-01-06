@@ -27,9 +27,9 @@ const getByProduct = async (productId) => {
   }
 };
 
-const getStockInfo = async (branchId, productId) => {
+const getStock = async (branchId, productId) => {
   try {
-    return await BranchProduct.getStockInfo(branchId, productId);
+    return await BranchProduct.getStock(branchId, productId);
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -59,7 +59,7 @@ const getLowStock = async (branchId) => {
 
 const checkStockAvailability = async (branchId, productId, quantity) => {
   try {
-    const { stock } = await BranchProduct.getStockInfo(branchId, productId);
+    const stock = await BranchProduct.getStock(branchId, productId);
     return {
       available: stock >= quantity,
       currentStock: stock,
@@ -71,11 +71,80 @@ const checkStockAvailability = async (branchId, productId, quantity) => {
   }
 };
 
+const getAll = async (filter = {}) => {
+  try {
+    return await BranchProduct.findAll(filter);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+const create = async (data) => {
+  try {
+    // data: { branchId, items: [{ productId, stock, minStock }] }
+    // If usage is single item creation from admin, wrap in list.
+    // If usage is bulk report from manager, it's a list.
+    // Let's support { branchId, productId, stock, minStock } (old single) and { branchId, items } (new bulk)
+    
+    let { branchId, items, productId, stock, minStock } = data;
+    
+    if (!items && productId) {
+        items = [{ productId, stock, minStock }];
+    }
+    
+    if (!branchId || !items || items.length === 0) {
+        throw new ApiError(400, "Branch and items are required");
+    }
+
+    return await BranchProduct.bulkUpdateStock(branchId, items);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+const update = async (id, data) => {
+  try {
+    // Update single item by sub-document ID
+    const result = await BranchProduct.findOneAndUpdate(
+        { "products._id": id },
+        { 
+            $set: { 
+                "products.$.stock": data.stock,
+                "products.$.minStock": data.minStock 
+            }
+        },
+        { new: true }
+    );
+    if (!result) throw new Error("Stock record not found");
+    return result;
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+const deleteStock = async (id) => {
+  try {
+     const result = await BranchProduct.findOneAndUpdate(
+        { "products._id": id },
+        { $pull: { products: { _id: id } } },
+        { new: true }
+    );
+    if (!result) throw new Error("Stock record not found");
+    return result;
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 export const branchProductService = {
+  getAll,
   getByBranch,
   getByProduct,
-  getStockInfo,
+  getStock,
   setMinStock,
   getLowStock,
   checkStockAvailability,
+  create,
+  update,
+  deleteStock
 };

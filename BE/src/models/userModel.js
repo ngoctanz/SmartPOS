@@ -13,10 +13,9 @@ const userSchema = new mongoose.Schema(
     },
     email: {
       type: Schema.Types.String,
-      required: [true, "email is required!"],
       trim: true,
       lowercase: true,
-      unique: true,
+      sparse: true,
       match: [/^\S+@\S+\.\S+$/, "Please enter a valid email"],
     },
     phone: {
@@ -48,7 +47,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: Schema.Types.String,
-      enum: ["admin", "manager", "staff"],
+      enum: ["admin", "staff"],
       default: "staff",
     },
     branchId: {
@@ -72,6 +71,16 @@ const userSchema = new mongoose.Schema(
     },
     refresh_token: {
       type: String,
+      select: false,
+      default: null,
+    },
+    previous_refresh_token: {
+      type: String,
+      select: false,
+      default: null,
+    },
+    token_updated_at: {
+      type: Date,
       select: false,
       default: null,
     },

@@ -5,12 +5,6 @@ import { Branch } from "../models/branchModel.js";
 import ApiError from "../utils/apiError.js";
 import { getDateRange } from "../utils/calculators.js";
 
-/**
- * Tạo hóa đơn bán hàng
- * - Lấy avgImportPrice từ BranchProduct để tính costPrice
- * - costPrice = avgImportPrice × quantity
- * - profit = (salePrice × quantity) - costPrice
- */
 const create = async (data, userId) => {
   try {
     // Validate branch
@@ -18,16 +12,11 @@ const create = async (data, userId) => {
 
     const listProduct = [];
     let totalAmount = 0;
-    let totalCost = 0;
-    let totalProfit = 0;
 
-    // Validate stock trước
+    // Validate stock và prepare list
     for (const item of data.listProduct) {
-      const { stock } = await BranchProduct.getStockInfo(
-        data.branchId,
-        item.productId
-      );
       const product = await Product.findProductById(item.productId);
+      const stock = await BranchProduct.getStock(data.branchId, item.productId);
 
       if (stock < item.quantity) {
         throw new ApiError(
@@ -35,58 +24,43 @@ const create = async (data, userId) => {
           `Insufficient stock for ${product.name}. Available: ${stock}, Requested: ${item.quantity}`
         );
       }
-    }
-
-    // Tạo list product với cost tính từ avgImportPrice
-    for (const item of data.listProduct) {
-      const product = await Product.findProductById(item.productId);
-
-      // Bán hàng và lấy avgImportPrice
-      const { avgImportPrice } = await BranchProduct.sellStock(
-        data.branchId,
-        item.productId,
-        item.quantity
-      );
 
       const salePrice = item.salePrice || product.currentSalePrice;
-      const revenue = salePrice * item.quantity;
-      const costPrice = avgImportPrice * item.quantity;
-      const profit = revenue - costPrice;
+      const subtotal = salePrice * item.quantity;
 
       listProduct.push({
         productId: product._id,
         productName: product.name,
         quantity: item.quantity,
         salePrice,
-        costPrice,
-        profit,
       });
 
-      totalAmount += revenue;
-      totalCost += costPrice;
-      totalProfit += profit;
+      totalAmount += subtotal;
     }
 
+    // Create receipt
     const receiptData = {
       branchId: data.branchId,
       createdBy: userId,
       listProduct,
       totalAmount,
-      totalCost,
-      totalProfit,
       paymentMethod: data.paymentMethod || "cash",
       status: "completed",
     };
 
-    return await Receipt.createReceipt(receiptData);
+    const receipt = await Receipt.createReceipt(receiptData);
+
+    // Decrease stock
+    for (const item of listProduct) {
+      await BranchProduct.decreaseStock(data.branchId, item.productId, item.quantity);
+    }
+
+    return receipt;
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
-/**
- * Hủy hóa đơn - Hoàn trả stock
- */
 const cancel = async (id) => {
   try {
     const receipt = await Receipt.findReceiptById(id);
@@ -97,14 +71,9 @@ const cancel = async (id) => {
 
     const branchId = receipt.branchId._id || receipt.branchId;
 
-    // Hoàn trả stock cho từng sản phẩm
+    // Restore stock
     for (const item of receipt.listProduct) {
-      await BranchProduct.restoreStock(
-        branchId,
-        item.productId,
-        item.quantity,
-        item.costPrice
-      );
+      await BranchProduct.increaseStock(branchId, item.productId, item.quantity);
     }
 
     return await Receipt.updateStatus(id, "cancelled");
@@ -191,12 +160,7 @@ const getDailyRevenue = async (period, branchId = null) => {
 const getTopProducts = async (period, branchId = null, limit = 10) => {
   try {
     const { startDate, endDate } = getDateRange(period);
-    return await Receipt.getTopSellingProducts(
-      startDate,
-      endDate,
-      branchId,
-      limit
-    );
+    return await Receipt.getTopSellingProducts(startDate, endDate, branchId, limit);
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -205,11 +169,7 @@ const getTopProducts = async (period, branchId = null, limit = 10) => {
 const getRevenueByPaymentMethod = async (period, branchId = null) => {
   try {
     const { startDate, endDate } = getDateRange(period);
-    return await Receipt.getRevenueByPaymentMethod(
-      startDate,
-      endDate,
-      branchId
-    );
+    return await Receipt.getRevenueByPaymentMethod(startDate, endDate, branchId);
   } catch (error) {
     throw new Error(error.message || error);
   }

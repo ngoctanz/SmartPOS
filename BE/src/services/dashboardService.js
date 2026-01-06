@@ -7,12 +7,8 @@ const getSummary = async (period = "month", branchId = null) => {
   try {
     const { startDate, endDate } = getDateRange(period);
 
-    // Get revenue and profit
-    const revenueData = await Receipt.getRevenueByDateRange(
-      startDate,
-      endDate,
-      branchId
-    );
+    // Get revenue
+    const revenueData = await Receipt.getRevenueByDateRange(startDate, endDate, branchId);
 
     // Get total import cost
     const importData = await ImportReceipt.getTotalImportByDateRange(
@@ -21,14 +17,17 @@ const getSummary = async (period = "month", branchId = null) => {
       branchId
     );
 
+    // Profit = Revenue - Import Cost (tính đơn giản)
+    const profit = (revenueData.totalRevenue || 0) - (importData.totalAmount || 0);
+
     return {
       period,
       startDate,
       endDate,
       revenue: revenueData.totalRevenue || 0,
-      profit: revenueData.totalProfit || 0,
-      totalOrders: revenueData.count || 0,
       totalImportCost: importData.totalAmount || 0,
+      profit,
+      totalOrders: revenueData.count || 0,
       totalImportReceipts: importData.count || 0,
     };
   } catch (error) {
@@ -48,12 +47,7 @@ const getDailyStats = async (period = "month", branchId = null) => {
 const getTopProducts = async (period = "month", branchId = null, limit = 10) => {
   try {
     const { startDate, endDate } = getDateRange(period);
-    return await Receipt.getTopSellingProducts(
-      startDate,
-      endDate,
-      branchId,
-      limit
-    );
+    return await Receipt.getTopSellingProducts(startDate, endDate, branchId, limit);
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -62,11 +56,7 @@ const getTopProducts = async (period = "month", branchId = null, limit = 10) => 
 const getPaymentMethodStats = async (period = "month", branchId = null) => {
   try {
     const { startDate, endDate } = getDateRange(period);
-    return await Receipt.getRevenueByPaymentMethod(
-      startDate,
-      endDate,
-      branchId
-    );
+    return await Receipt.getRevenueByPaymentMethod(startDate, endDate, branchId);
   } catch (error) {
     throw new Error(error.message || error);
   }

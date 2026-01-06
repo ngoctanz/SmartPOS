@@ -59,8 +59,6 @@ const productSchema = new mongoose.Schema(
   }
 );
 
-productSchema.index({ name: 1 });
-productSchema.index({ barcode: 1 });
 productSchema.index({ categoryId: 1 });
 productSchema.index({ createdAt: -1 });
 
