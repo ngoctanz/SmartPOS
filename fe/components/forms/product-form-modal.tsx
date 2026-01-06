@@ -46,6 +46,7 @@ const productSchema = z.object({
     .string()
     .min(1, "Tên sản phẩm là bắt buộc")
     .max(200, "Tên sản phẩm tối đa 200 ký tự"),
+  barcode: z.string().max(50, "Mã barcode tối đa 50 ký tự").optional(),
   categoryId: z.string().min(1, "Vui lòng chọn loại sản phẩm"),
   unit: z.string().min(1, "Đơn vị là bắt buộc"),
   currentSalePrice: z.coerce.number().min(0, "Giá bán không được âm"),
@@ -100,6 +101,7 @@ export function ProductFormModal({
     resolver: zodResolver(productSchema),
     defaultValues: {
       name: "",
+      barcode: "",
       categoryId: "",
       unit: "cái",
       currentSalePrice: 0,
@@ -114,6 +116,7 @@ export function ProductFormModal({
       if (product) {
         form.reset({
           name: product.name || "",
+          barcode: product.barcode || "",
           categoryId: getCategoryId(product.categoryId),
           unit: product.unit || "cái",
           currentSalePrice: product.currentSalePrice || 0,
@@ -123,6 +126,7 @@ export function ProductFormModal({
       } else {
         form.reset({
           name: "",
+          barcode: "",
           categoryId: "",
           unit: "cái",
           currentSalePrice: 0,
@@ -137,6 +141,7 @@ export function ProductFormModal({
     // Clean up empty optional fields
     const cleanData = {
       ...values,
+      barcode: values.barcode || undefined,
       desc: values.desc || undefined,
       image: values.image || undefined,
     };
@@ -232,6 +237,35 @@ export function ProductFormModal({
                           <p className="text-[11px] font-medium text-destructive mt-1 flex items-center gap-1">
                             <Info className="w-2.5 h-2.5" />
                             {form.formState.errors.name.message}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Barcode Field */}
+                      <div className="space-y-1.5">
+                        <Label
+                          htmlFor="barcode"
+                          className="text-xs font-medium"
+                        >
+                          Mã Barcode{" "}
+                          <span className="text-muted-foreground text-[10px]">
+                            (tự động tạo nếu để trống)
+                          </span>
+                        </Label>
+                        <Input
+                          id="barcode"
+                          {...form.register("barcode")}
+                          placeholder="Nhập hoặc quét mã barcode..."
+                          className={cn(
+                            "h-10 text-sm transition-all focus:ring-2 focus:ring-primary/20 font-mono",
+                            form.formState.errors.barcode &&
+                              "border-destructive focus:ring-destructive/20"
+                          )}
+                        />
+                        {form.formState.errors.barcode && (
+                          <p className="text-[11px] font-medium text-destructive mt-1 flex items-center gap-1">
+                            <Info className="w-2.5 h-2.5" />
+                            {form.formState.errors.barcode.message}
                           </p>
                         )}
                       </div>

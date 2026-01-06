@@ -3,49 +3,34 @@ import { ApiResponse } from "./api.config";
 
 export interface ReceiptItem {
   productId: string;
-  productName?: string;
+  productName: string;
   quantity: number;
   salePrice: number;
-  totalPrice: number;
 }
 
 export interface Receipt {
   _id: string;
   code: string;
-  branchId: string;
-  branchName?: string;
-  cashierId: string;
-  cashierName?: string;
-  items: ReceiptItem[];
-  subtotal: number;
-  discount: number;
+  branchId: string | { _id: string; branchName: string; address?: string };
+  createdBy: string | { _id: string; userName: string; name?: string };
+  listProduct: ReceiptItem[];
   totalAmount: number;
   paymentMethod: "cash" | "card" | "transfer";
   status: "completed" | "cancelled";
-  customerName?: string;
-  customerPhone?: string;
-  note?: string;
-  cancelledBy?: string;
-  cancelReason?: string;
-  cancelledAt?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateReceiptRequest {
   branchId: string;
-  items: {
+  listProduct: {
     productId: string;
+    productName: string;
     quantity: number;
     salePrice: number;
   }[];
-  subtotal: number;
-  discount?: number;
   totalAmount: number;
   paymentMethod: "cash" | "card" | "transfer";
-  customerName?: string;
-  customerPhone?: string;
-  note?: string;
 }
 
 export interface GetReceiptParams {

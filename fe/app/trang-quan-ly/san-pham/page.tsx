@@ -14,7 +14,7 @@ import { ProductFormModal } from "@/components/forms/product-form-modal";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Loader2, Plus, Package } from "lucide-react";
+import { Loader2, Plus, Package, Barcode } from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import productService, {
   CreateProductRequest,
@@ -209,6 +209,23 @@ export default function Page() {
         ),
       },
       {
+        accessorKey: "barcode",
+        header: "Mã Barcode",
+        cell: ({ row }) => {
+          const barcode = row.getValue("barcode") as string;
+          return barcode ? (
+            <div className="flex items-center gap-1.5">
+              <Barcode className="h-3.5 w-3.5 text-muted-foreground" />
+              <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">
+                {barcode}
+              </code>
+            </div>
+          ) : (
+            <span className="text-muted-foreground text-xs">---</span>
+          );
+        },
+      },
+      {
         accessorKey: "categoryId",
         header: "Loại",
         cell: ({ row }) => (
@@ -338,6 +355,21 @@ export default function Page() {
                   </div>
                 )}
               </div>
+
+              {/* Barcode Display */}
+              {selectedItem.barcode && (
+                <div className="w-full rounded-lg border bg-white p-4 text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <Barcode className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-xs font-medium uppercase text-muted-foreground">
+                      Mã Barcode
+                    </span>
+                  </div>
+                  <code className="text-lg font-mono font-bold tracking-wider">
+                    {selectedItem.barcode}
+                  </code>
+                </div>
+              )}
             </div>
 
             {/* Right Column: Info */}
