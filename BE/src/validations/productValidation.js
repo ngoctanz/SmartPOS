@@ -9,6 +9,7 @@ const createSchema = Joi.object({
   unit: Joi.string().required().trim(),
   image: Joi.string().trim().allow(""),
   currentSalePrice: Joi.number().min(0).required(),
+  status: Joi.string().valid("active", "inactive").default("active"),
 });
 
 const updateSchema = Joi.object({
@@ -19,6 +20,7 @@ const updateSchema = Joi.object({
   unit: Joi.string().trim(),
   image: Joi.string().trim().allow(""),
   currentSalePrice: Joi.number().min(0),
+  status: Joi.string().valid("active", "inactive"),
 }).min(1);
 
 const updatePriceSchema = Joi.object({

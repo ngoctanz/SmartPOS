@@ -3,12 +3,20 @@ import { branchProductService } from "../services/branchProductService.js";
 
 const getByBranch = async (req, res, next) => {
   try {
-    const stocks = await branchProductService.getByBranch(req.params.branchId);
+    const { search, page, limit, lowStockOnly } = req.query;
+    const options = {
+      search,
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 20,
+      lowStockOnly: lowStockOnly === "true",
+    };
+    
+    const result = await branchProductService.getByBranch(req.params.branchId, options);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get stock by branch successfully",
-      results: stocks.length,
-      data: stocks,
+      data: result.data,
+      pagination: result.pagination,
     });
   } catch (error) {
     next(error);
@@ -93,19 +101,22 @@ const checkAvailability = async (req, res, next) => {
 
 const getAll = async (req, res, next) => {
   try {
-    let filter = {};
+    const { branchId, search, page, limit, lowStockOnly } = req.query;
     
-    // Admin có thể xem tất cả hoặc filter theo branchId từ query
-    // Staff: branchId đã được inject từ middleware vào query
-    if (req.query.branchId) {
-      filter.branchId = req.query.branchId;
-    }
+    const options = {
+      branchId,
+      search,
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 20,
+      lowStockOnly: lowStockOnly === "true",
+    };
     
-    const list = await branchProductService.getAll(filter);
+    const result = await branchProductService.getAll(options);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get all stock successfully",
-      data: list,
+      data: result.data,
+      pagination: result.pagination,
     });
   } catch (error) {
     next(error);

@@ -3,13 +3,13 @@ import { Branch } from "../models/branchModel.js";
 import { Product } from "../models/productModel.js";
 import ApiError from "../utils/apiError.js";
 
-const getByBranch = async (branchId) => {
+const getByBranch = async (branchId, options = {}) => {
   try {
     if (!branchId || branchId.trim() === "") {
       throw new ApiError(400, "Branch ID is required!");
     }
     await Branch.findBranchById(branchId);
-    return await BranchProduct.findByBranch(branchId);
+    return await BranchProduct.findByBranch(branchId, options);
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -71,9 +71,9 @@ const checkStockAvailability = async (branchId, productId, quantity) => {
   }
 };
 
-const getAll = async (filter = {}) => {
+const getAll = async (options = {}) => {
   try {
-    return await BranchProduct.findAll(filter);
+    return await BranchProduct.findAll(options);
   } catch (error) {
     throw new Error(error.message || error);
   }

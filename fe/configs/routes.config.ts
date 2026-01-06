@@ -4,8 +4,9 @@ export const ROUTES = {
   PRODUCTS: "/trang-quan-ly/san-pham",
   IMPORTS: "/trang-quan-ly/nhap-hang",
   INVOICES: "/trang-quan-ly/hoa-don",
+  CREATE_INVOICE: "/trang-quan-ly/hoa-don/tao-moi",
   INVENTORY: "/trang-quan-ly/ton-kho",
   USERS: "/trang-quan-ly/nguoi-dung",
   BRANCHES: "/trang-quan-ly/chi-nhanh",
-  LOGIN: "/dang-nhap"
+  LOGIN: "/dang-nhap",
 };

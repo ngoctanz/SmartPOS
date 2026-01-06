@@ -18,13 +18,39 @@ export interface StockAvailability {
   requestedQuantity: number;
 }
 
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface StockListResponse {
+  data: BranchProduct[];
+  pagination: Pagination;
+}
+
+export interface StockQueryParams {
+  search?: string;
+  page?: number;
+  limit?: number;
+  lowStockOnly?: boolean;
+}
+
 const stockService = {
   /**
-   * Get all stock
+   * Get all stock with pagination and search
    * GET /api/v1/stock
    */
-  getAll: async (): Promise<ApiResponse<BranchProduct[]>> => {
-    return apiGet<BranchProduct[]>("/stock");
+  getAll: async (params?: StockQueryParams): Promise<ApiResponse<BranchProduct[]> & { pagination?: Pagination }> => {
+    const searchParams = new URLSearchParams();
+    if (params?.search) searchParams.append("search", params.search);
+    if (params?.page) searchParams.append("page", params.page.toString());
+    if (params?.limit) searchParams.append("limit", params.limit.toString());
+    if (params?.lowStockOnly) searchParams.append("lowStockOnly", "true");
+    
+    const query = searchParams.toString();
+    return apiGet<BranchProduct[]>(`/stock${query ? `?${query}` : ""}`);
   },
 
   /**
@@ -52,13 +78,21 @@ const stockService = {
   },
 
   /**
-   * Lấy tồn kho theo chi nhánh
+   * Lấy tồn kho theo chi nhánh với pagination và search
    * GET /api/v1/stock/branch/:branchId
    */
   getByBranch: async (
-    branchId: string
-  ): Promise<ApiResponse<BranchProduct[]>> => {
-    return apiGet<BranchProduct[]>(`/stock/branch/${branchId}`);
+    branchId: string,
+    params?: StockQueryParams
+  ): Promise<ApiResponse<BranchProduct[]> & { pagination?: Pagination }> => {
+    const searchParams = new URLSearchParams();
+    if (params?.search) searchParams.append("search", params.search);
+    if (params?.page) searchParams.append("page", params.page.toString());
+    if (params?.limit) searchParams.append("limit", params.limit.toString());
+    if (params?.lowStockOnly) searchParams.append("lowStockOnly", "true");
+    
+    const query = searchParams.toString();
+    return apiGet<BranchProduct[]>(`/stock/branch/${branchId}${query ? `?${query}` : ""}`);
   },
 
   /**

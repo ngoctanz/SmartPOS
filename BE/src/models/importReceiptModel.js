@@ -9,7 +9,7 @@ const importProductSchema = new mongoose.Schema(
     },
     barcode: {
       type: String,
-      required: true,
+      default: "",
     },
     productName: {
       type: String,

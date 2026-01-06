@@ -37,6 +37,7 @@ import {
   PlusCircle,
   PencilLine,
   ChevronRight,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -70,6 +71,8 @@ interface ProductFormModalProps {
     data: CreateProductRequest | UpdateProductRequest
   ) => Promise<void>;
   isSubmitting?: boolean;
+  /** Mode for import page - shows warning about shared product */
+  isImportMode?: boolean;
 }
 
 const UNIT_OPTIONS = [
@@ -99,8 +102,9 @@ export function ProductFormModal({
   categories,
   onSubmit,
   isSubmitting = false,
+  isImportMode = false,
 }: ProductFormModalProps) {
-  const isEditMode = !!product;
+  const isEditMode = !!product && !!product._id;
 
   const form = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
@@ -173,11 +177,28 @@ export function ProductFormModal({
               </DialogTitle>
             </div>
             <DialogDescription className="text-sm text-muted-foreground ml-7">
-              {isEditMode
+              {isImportMode
+                ? "Tạo sản phẩm mới từ mã barcode vừa quét."
+                : isEditMode
                 ? "Thực hiện các thay đổi cho thông tin sản phẩm của bạn tại đây."
                 : "Điền các thông tin bên dưới để thêm một sản phẩm mới vào thực đơn."}
             </DialogDescription>
           </div>
+
+          {/* Warning for import mode */}
+          {isImportMode && (
+            <div className="mx-5 mt-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                Lưu ý quan trọng
+              </p>
+              <ul className="mt-2 text-xs text-amber-700 dark:text-amber-300 space-y-1 list-disc list-inside">
+                <li>Sản phẩm mới sẽ được thêm vào danh mục chung của <strong>TẤT CẢ chi nhánh</strong></li>
+                <li>Các chi nhánh khác cũng sẽ thấy và có thể sử dụng sản phẩm này</li>
+                <li>Vui lòng kiểm tra kỹ thông tin trước khi tạo</li>
+              </ul>
+            </div>
+          )}
 
           <form
             onSubmit={form.handleSubmit(onFormSubmit)}
@@ -251,15 +272,23 @@ export function ProductFormModal({
 
                       {/* Barcode Field */}
                       <div className="space-y-1.5">
-                        <Label htmlFor="barcode" className="text-xs font-medium">
-                          Mã vạch (Barcode)
+                        <Label
+                          htmlFor="barcode"
+                          className="text-xs font-medium"
+                        >
+                          Mã Barcode
+                          {isImportMode && (
+                            <span className="ml-2 text-muted-foreground">(từ máy quét)</span>
+                          )}
                         </Label>
                         <Input
                           id="barcode"
                           {...form.register("barcode")}
-                          placeholder="Quét hoặc nhập mã vạch sản phẩm..."
+                          placeholder="Nhập hoặc quét mã barcode..."
+                          readOnly={isImportMode}
                           className={cn(
-                            "h-10 text-sm font-mono transition-all focus:ring-2 focus:ring-primary/20",
+                            "h-10 text-sm transition-all focus:ring-2 focus:ring-primary/20",
+                            isImportMode && "bg-muted font-mono",
                             form.formState.errors.barcode &&
                               "border-destructive focus:ring-destructive/20"
                           )}

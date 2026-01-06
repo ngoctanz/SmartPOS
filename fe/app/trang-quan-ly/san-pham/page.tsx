@@ -232,6 +232,7 @@ export default function Page() {
           </div>
         ),
       },
+
       {
         accessorKey: "categoryId",
         header: "Loại",

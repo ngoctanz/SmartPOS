@@ -38,7 +38,15 @@ branchProductSchema.index({ "products.productId": 1 });
 
 // Static methods
 branchProductSchema.statics = {
-  async findAll(filter = {}) {
+  async findAll(options = {}) {
+    const { 
+      branchId, 
+      search, 
+      page = 1, 
+      limit = 20,
+      lowStockOnly = false 
+    } = options;
+
     const pipeline = [
       { $unwind: "$products" },
       {
@@ -59,40 +67,125 @@ branchProductSchema.statics = {
       },
       { $unwind: "$branch" },
       { $unwind: "$product" },
-      {
-        $project: {
-          _id: "$products._id", // Use item ID as row ID
-          branchId: "$branch",
-          productId: "$product",
-          stock: "$products.stock",
-          minStock: "$products.minStock",
-          updatedAt: "$updatedAt",
-        },
-      },
-      { $sort: { updatedAt: -1 } },
     ];
-    
-    // Apply additional filters if any (needs adaptation to pipeline)
-    // For simplicity, returning all Flattened
-    return this.aggregate(pipeline);
+
+    // Filter by branchId if provided
+    if (branchId) {
+      pipeline.unshift({ 
+        $match: { branchId: new mongoose.Types.ObjectId(branchId) } 
+      });
+    }
+
+    // Search by product name or barcode
+    if (search && search.trim()) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { "product.name": { $regex: search, $options: "i" } },
+            { "product.barcode": { $regex: search, $options: "i" } },
+          ],
+        },
+      });
+    }
+
+    // Filter low stock only
+    if (lowStockOnly) {
+      pipeline.push({
+        $match: {
+          $expr: { $lte: ["$products.stock", "$products.minStock"] }
+        }
+      });
+    }
+
+    // Project fields
+    pipeline.push({
+      $project: {
+        _id: "$products._id",
+        branchId: "$branch",
+        productId: "$product",
+        stock: "$products.stock",
+        minStock: "$products.minStock",
+        updatedAt: "$updatedAt",
+      },
+    });
+
+    // Sort
+    pipeline.push({ $sort: { updatedAt: -1 } });
+
+    // Count total before pagination
+    const countPipeline = [...pipeline, { $count: "total" }];
+    const countResult = await this.aggregate(countPipeline);
+    const total = countResult[0]?.total || 0;
+
+    // Pagination
+    const skip = (page - 1) * limit;
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: limit });
+
+    const data = await this.aggregate(pipeline);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   },
 
-  async findByBranch(branchId) {
+  async findByBranch(branchId, options = {}) {
+    const { search, page = 1, limit = 20, lowStockOnly = false } = options;
+
     const doc = await this.findOne({ branchId })
       .populate("branchId", "branchName")
       .populate("products.productId", "name barcode unit currentSalePrice image")
       .lean();
     
-    if (!doc) return [];
+    if (!doc) {
+      return {
+        data: [],
+        pagination: { page, limit, total: 0, totalPages: 0 },
+      };
+    }
     
-    // Flatten result for consistency
-    return doc.products.map(p => ({
-        _id: p._id,
-        branchId: doc.branchId,
-        productId: p.productId,
-        stock: p.stock,
-        minStock: p.minStock
+    // Flatten and filter
+    let items = doc.products.map(p => ({
+      _id: p._id,
+      branchId: doc.branchId,
+      productId: p.productId,
+      stock: p.stock,
+      minStock: p.minStock,
     }));
+
+    // Search filter
+    if (search && search.trim()) {
+      const searchLower = search.toLowerCase();
+      items = items.filter(item => 
+        item.productId?.name?.toLowerCase().includes(searchLower) ||
+        item.productId?.barcode?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Low stock filter
+    if (lowStockOnly) {
+      items = items.filter(item => item.stock <= item.minStock);
+    }
+
+    const total = items.length;
+    const skip = (page - 1) * limit;
+    const paginatedItems = items.slice(skip, skip + limit);
+
+    return {
+      data: paginatedItems,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   },
 
   async bulkUpdateStock(branchId, items) {
@@ -135,6 +228,63 @@ branchProductSchema.statics = {
          { $pull: { products: { productId } } },
          { new: true }
      );
+  },
+
+  // Increase stock for a product in a branch (used when confirming import receipt)
+  async increaseStock(branchId, productId, quantity) {
+    let doc = await this.findOne({ branchId });
+    
+    if (!doc) {
+      // Create new branch product document if not exists
+      doc = new this({ 
+        branchId, 
+        products: [{ productId, stock: quantity, minStock: 10 }] 
+      });
+      await doc.save();
+      return doc;
+    }
+
+    const existingProduct = doc.products.find(
+      p => p.productId.toString() === productId.toString()
+    );
+
+    if (existingProduct) {
+      existingProduct.stock += quantity;
+    } else {
+      doc.products.push({
+        productId,
+        stock: quantity,
+        minStock: 10
+      });
+    }
+
+    await doc.save();
+    return doc;
+  },
+
+  // Decrease stock for a product in a branch (used when confirming sale receipt)
+  async decreaseStock(branchId, productId, quantity) {
+    const doc = await this.findOne({ branchId });
+    
+    if (!doc) {
+      throw new Error("Branch product not found");
+    }
+
+    const existingProduct = doc.products.find(
+      p => p.productId.toString() === productId.toString()
+    );
+
+    if (!existingProduct) {
+      throw new Error("Product not found in branch");
+    }
+
+    if (existingProduct.stock < quantity) {
+      throw new Error("Insufficient stock");
+    }
+
+    existingProduct.stock -= quantity;
+    await doc.save();
+    return doc;
   }
 };
 

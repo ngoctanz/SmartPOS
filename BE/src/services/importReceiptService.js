@@ -20,6 +20,7 @@ const create = async (data, userId) => {
 
       listProduct.push({
         productId: product._id,
+        barcode: product.barcode || "",
         productName: product.name,
         quantity: item.quantity,
         importPrice: item.importPrice,

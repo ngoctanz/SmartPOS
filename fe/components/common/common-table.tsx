@@ -27,6 +27,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BulkActions } from "./bulk-actions";
 
+export interface ServerPagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 interface CommonTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
@@ -37,6 +44,11 @@ interface CommonTableProps<TData, TValue> {
   bulkActionLabel?: string;
   bulkActionIcon?: "trash" | "lock";
   onSelectionChange?: (selectedRows: TData[]) => void;
+  // Server-side pagination props
+  serverPagination?: ServerPagination;
+  onPageChange?: (page: number) => void;
+  onSearch?: (search: string) => void;
+  searchValue?: string;
 }
 
 export function CommonTable<TData, TValue>({
@@ -49,6 +61,11 @@ export function CommonTable<TData, TValue>({
   bulkActionLabel,
   bulkActionIcon,
   onSelectionChange,
+  // Server-side pagination
+  serverPagination,
+  onPageChange,
+  onSearch,
+  searchValue,
 }: CommonTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -57,6 +74,9 @@ export function CommonTable<TData, TValue>({
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
+  const [localSearch, setLocalSearch] = React.useState("");
+
+  const isServerSide = !!serverPagination;
 
   // Reset selection when data changes
   React.useEffect(() => {
@@ -69,9 +89,18 @@ export function CommonTable<TData, TValue>({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    // Only use client-side pagination/filtering if not server-side
+    ...(isServerSide
+      ? {
+          manualPagination: true,
+          manualFiltering: true,
+          pageCount: serverPagination.totalPages,
+        }
+      : {
+          getPaginationRowModel: getPaginationRowModel(),
+          getFilteredRowModel: getFilteredRowModel(),
+        }),
     getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
     enableRowSelection: canSelectRow
@@ -82,6 +111,12 @@ export function CommonTable<TData, TValue>({
       columnFilters,
       columnVisibility,
       rowSelection,
+      ...(isServerSide && {
+        pagination: {
+          pageIndex: serverPagination.page - 1,
+          pageSize: serverPagination.limit,
+        },
+      }),
     },
   });
 
@@ -107,6 +142,53 @@ export function CommonTable<TData, TValue>({
     }
   }, [rowSelection]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Handle search input
+  const handleSearchChange = (value: string) => {
+    if (isServerSide && onSearch) {
+      onSearch(value);
+    } else if (filterCol) {
+      table.getColumn(filterCol)?.setFilterValue(value);
+      setLocalSearch(value);
+    }
+  };
+
+  // Get current search value
+  const currentSearchValue = isServerSide
+    ? searchValue ?? ""
+    : localSearch;
+
+  // Pagination handlers
+  const handlePreviousPage = () => {
+    if (isServerSide && onPageChange) {
+      onPageChange(serverPagination.page - 1);
+    } else {
+      table.previousPage();
+    }
+  };
+
+  const handleNextPage = () => {
+    if (isServerSide && onPageChange) {
+      onPageChange(serverPagination.page + 1);
+    } else {
+      table.nextPage();
+    }
+  };
+
+  const canPreviousPage = isServerSide
+    ? serverPagination.page > 1
+    : table.getCanPreviousPage();
+
+  const canNextPage = isServerSide
+    ? serverPagination.page < serverPagination.totalPages
+    : table.getCanNextPage();
+
+  // Row counts for display
+  const totalRows = isServerSide
+    ? serverPagination.total
+    : table.getFilteredRowModel().rows.length;
+
+  const selectedRowCount = table.getFilteredSelectedRowModel().rows.length;
+
   return (
     <div className="w-full">
       {/* Bulk Actions Bar */}
@@ -125,12 +207,8 @@ export function CommonTable<TData, TValue>({
         <div className="flex items-center py-4">
           <Input
             placeholder={filterPlaceholder}
-            value={
-              (table.getColumn(filterCol)?.getFilterValue() as string) ?? ""
-            }
-            onChange={(event) =>
-              table.getColumn(filterCol)?.setFilterValue(event.target.value)
-            }
+            value={currentSearchValue}
+            onChange={(event) => handleSearchChange(event.target.value)}
             className="max-w-sm"
           />
         </div>
@@ -187,23 +265,32 @@ export function CommonTable<TData, TValue>({
       </div>
       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
-          {table.getFilteredSelectedRowModel().rows.length}/{""}
-          {table.getFilteredRowModel().rows.length} hàng được chọn
+          {selectedRowCount > 0 ? (
+            <>
+              {selectedRowCount}/{totalRows} hàng được chọn
+            </>
+          ) : isServerSide ? (
+            <>
+              Trang {serverPagination.page}/{serverPagination.totalPages} ({totalRows} kết quả)
+            </>
+          ) : (
+            <>{totalRows} kết quả</>
+          )}
         </div>
         <div className="space-x-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
+            onClick={handlePreviousPage}
+            disabled={!canPreviousPage}
           >
             Trước
           </Button>
           <Button
             variant="outline"
             size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+            onClick={handleNextPage}
+            disabled={!canNextPage}
           >
             Sau
           </Button>

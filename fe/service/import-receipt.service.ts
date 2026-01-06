@@ -26,14 +26,11 @@ export interface ImportReceipt {
 }
 
 export interface CreateImportReceiptRequest {
-  branchId: string;
+  branchId?: string;
   listProduct: {
     productId: string;
-    barcode: string;
-    productName: string;
     quantity: number;
     importPrice: number;
-    subtotal: number;
   }[];
   supplierName?: string;
   note?: string;

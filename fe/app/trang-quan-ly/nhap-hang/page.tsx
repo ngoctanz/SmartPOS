@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { CommonTable } from "@/components/common/common-table";
 import { ImportReceipt } from "@/service/import-receipt.service";
 import { ColumnDef } from "@tanstack/react-table";
@@ -55,6 +56,7 @@ const getStatusBadge = (status: ImportReceipt["status"]) => {
 };
 
 export default function Page() {
+  const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
@@ -106,7 +108,7 @@ export default function Page() {
   };
 
   const handleCreate = () => {
-    setIsFormOpen(true);
+    router.push("/trang-quan-ly/nhap-hang/tao-moi");
   };
 
   const handleConfirm = (item: ImportReceipt) => {
@@ -310,6 +312,8 @@ export default function Page() {
         isSubmitting={isSubmitting}
         title="Xác nhận phiếu nhập?"
         description={`Xác nhận phiếu ${selectedItem?.code}? Hành động này sẽ cập nhật số lượng tồn kho cho các sản phẩm trong phiếu.`}
+        variant="default"
+        confirmLabel="Xác nhận"
       />
 
       {/* Cancel Dialog */}
@@ -383,22 +387,6 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Barcode */}
-            {selectedItem.barcode && (
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">Barcode phiếu</Label>
-                <div className="flex w-fit rounded border p-2 bg-white">
-                  <Barcode
-                    value={selectedItem.barcode}
-                    width={1.5}
-                    height={50}
-                    fontSize={12}
-                    margin={0}
-                  />
-                </div>
-              </div>
-            )}
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Chi nhánh</Label>
@@ -446,15 +434,11 @@ export default function Page() {
                 <table className="w-full text-sm">
                   <thead className="bg-muted">
                     <tr>
-                      <th className="p-2 text-left font-medium min-w-[130px]">
-                        Mã vạch
-                      </th>
-                      <th className="p-2 text-left font-medium">
-                        Tên sản phẩm
-                      </th>
-                      <th className="p-2 text-right font-medium">SL</th>
-                      <th className="p-2 text-right font-medium">Đơn giá</th>
-                      <th className="p-2 text-right font-medium">Thành tiền</th>
+                      <th className="p-3 text-left font-medium min-w-[140px]">Mã vạch</th>
+                      <th className="p-3 text-left font-medium">Tên sản phẩm</th>
+                      <th className="p-3 text-right font-medium">SL</th>
+                      <th className="p-3 text-right font-medium">Đơn giá</th>
+                      <th className="p-3 text-right font-medium">Thành tiền</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -463,7 +447,7 @@ export default function Page() {
                         key={index}
                         className="border-b last:border-0 hover:bg-muted/50"
                       >
-                        <td className="p-2 py-4">
+                        <td className="p-3 py-4">
                           {p.barcode ? (
                             <div className="flex">
                               <Barcode
@@ -479,16 +463,12 @@ export default function Page() {
                             "---"
                           )}
                         </td>
-                        <td className="p-2 py-4 align-middle">
-                          {p.productName}
-                        </td>
-                        <td className="p-2 py-4 text-right align-middle">
-                          {p.quantity}
-                        </td>
-                        <td className="p-2 py-4 text-right align-middle">
+                        <td className="p-3 py-4 align-middle">{p.productName}</td>
+                        <td className="p-3 py-4 text-right align-middle">{p.quantity}</td>
+                        <td className="p-3 py-4 text-right align-middle">
                           {formatCurrency(p.importPrice)}
                         </td>
-                        <td className="p-2 py-4 text-right font-medium align-middle">
+                        <td className="p-3 py-4 text-right font-medium align-middle">
                           {formatCurrency(p.subtotal)}
                         </td>
                       </tr>
@@ -496,10 +476,10 @@ export default function Page() {
                   </tbody>
                   <tfoot className="bg-muted/50 font-medium">
                     <tr>
-                      <td colSpan={4} className="p-2 text-right">
+                      <td colSpan={4} className="p-3 text-right">
                         Tổng cộng:
                       </td>
-                      <td className="p-2 text-right text-lg">
+                      <td className="p-3 text-right text-lg">
                         {formatCurrency(selectedItem.totalAmount)}
                       </td>
                     </tr>
