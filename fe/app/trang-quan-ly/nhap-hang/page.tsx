@@ -1,217 +1,515 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { CommonTable } from "@/components/common/common-table"
-import { mockImportReceipts } from "@/mock/receipts"
-import { ImportReceipt } from "@/types/receipt"
-import { ColumnDef } from "@tanstack/react-table"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
-import { format } from "date-fns"
-import { RowActions } from "@/components/common/row-actions"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input" 
-import { mockBranches, mockUsers } from "@/mock/index"
-import Barcode from "react-barcode"
-import { DetailModal } from "@/components/common/detail-modal"
+import * as React from "react";
+import { CommonTable } from "@/components/common/common-table";
+import { ImportReceipt } from "@/service/import-receipt.service";
+import { ColumnDef } from "@tanstack/react-table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { format } from "date-fns";
+import { RowActions } from "@/components/common/row-actions";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import Barcode from "react-barcode";
+import { DetailModal } from "@/components/common/detail-modal";
+import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
+import { ImportReceiptFormModal } from "@/components/forms/import-receipt-form-modal";
+import { toast } from "sonner";
+import { Loader2, Plus, Check, X } from "lucide-react";
+import { formatCurrency } from "@/utils/format.utils";
+import { useAuth } from "@/hooks/useAuth";
+import importReceiptService, {
+  CreateImportReceiptRequest,
+} from "@/service/import-receipt.service";
+import branchService, { Branch } from "@/service/branch.service";
+
+// Helper để lấy tên từ populated field
+const getBranchName = (branchId: ImportReceipt["branchId"]): string => {
+  if (typeof branchId === "object" && branchId?.branchName) {
+    return branchId.branchName;
+  }
+  return String(branchId);
+};
+
+const getCreatedByName = (createdBy: ImportReceipt["createdBy"]): string => {
+  if (typeof createdBy === "object") {
+    return createdBy?.name || createdBy?.userName || "---";
+  }
+  return String(createdBy);
+};
+
+// Status badge helper
+const getStatusBadge = (status: ImportReceipt["status"]) => {
+  const config = {
+    completed: { label: "Hoàn thành", variant: "default" as const },
+    pending: { label: "Chờ xử lý", variant: "secondary" as const },
+    cancelled: { label: "Đã hủy", variant: "destructive" as const },
+  };
+  const { label, variant } = config[status] || {
+    label: status,
+    variant: "outline" as const,
+  };
+  return <Badge variant={variant}>{label}</Badge>;
+};
 
 export default function Page() {
-  const [data] = React.useState<ImportReceipt[]>(mockImportReceipts)
-  const [selectedItem, setSelectedItem] = React.useState<ImportReceipt | null>(null)
-  
-  const [isDetailOpen, setIsDetailOpen] = React.useState(false)
-  
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
+  const [data, setData] = React.useState<ImportReceipt[]>([]);
+  const [branches, setBranches] = React.useState<Branch[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [selectedItem, setSelectedItem] = React.useState<ImportReceipt | null>(
+    null
+  );
+
+  const [isDetailOpen, setIsDetailOpen] = React.useState(false);
+  const [isFormOpen, setIsFormOpen] = React.useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = React.useState(false);
+  const [isCancelOpen, setIsCancelOpen] = React.useState(false);
+  const [cancelReason, setCancelReason] = React.useState("");
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  // Fetch data
+  const fetchData = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const [receiptsRes, branchesRes] = await Promise.all([
+        importReceiptService.getAll(),
+        branchService.getAll(),
+      ]);
+
+      if (receiptsRes.data) {
+        setData(receiptsRes.data);
+      }
+      if (branchesRes.data) {
+        setBranches(branchesRes.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch data:", error);
+      toast.error("Không thể tải dữ liệu");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Handlers
   const handleView = (item: ImportReceipt) => {
-    setSelectedItem(item)
-    setIsDetailOpen(true)
-  }
+    setSelectedItem(item);
+    setIsDetailOpen(true);
+  };
 
-  const columns = React.useMemo<ColumnDef<ImportReceipt>[]>(() => [
-    {
-    id: "select",
-    header: ({ table }) => (
-      <Checkbox
-        checked={
-          table.getIsAllPageRowsSelected() ||
-          (table.getIsSomePageRowsSelected() && "indeterminate")
-        }
-        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-        aria-label="Select all"
-      />
-    ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-      />
-    ),
-    enableSorting: false,
-    enableHiding: false,
-  },
-  {
-    accessorKey: "code",
-    header: "Mã phiếu nhập",
-  },
-  {
-    accessorKey: "branchId",
-    header: "Chi nhánh",
-    cell: ({ row }) => {
-        const branchId = row.getValue("branchId");
-        const branch = mockBranches.find(b => b._id === branchId);
-        return branch ? branch.branchName : branchId;
-    }
-  },
-   {
-    accessorKey: "supplierName",
-    header: "Nhà cung cấp",
-  },
-  {
-    accessorKey: "createdBy",
-    header: "Người nhập",
-    cell: ({ row }) => {
-        const userId = row.getValue("createdBy");
-        const user = mockUsers.find(u => u._id === userId);
-        return user ? user.name : userId;
-    }
-  },
-  {
-    accessorKey: "createdAt",
-    header: "Ngày nhập",
-    cell: ({ row }) => {
-       try {
-           return format(new Date(row.getValue("createdAt")), "dd/MM/yyyy HH:mm");
-       } catch {
-           return row.getValue("createdAt");
-       }
-    }
-  },
-  {
-    accessorKey: "totalAmount",
-    header: "Tổng tiền",
-    cell: ({ row }) => {
-        const amount = parseFloat(row.getValue("totalAmount"));
-        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
-    }
-  },
-  {
-    accessorKey: "status",
-    header: "Trạng thái",
-     cell: ({ row }) => {
-        const status = row.getValue("status") as string;
-        let label = status;
-        let variant: "default" | "secondary" | "destructive" | "outline" = "default";
-        
-        if (status === "completed") {
-            label = "Hoàn thành";
-            variant = "default";
-        } else if (status === "pending") {
-            label = "Chờ xử lý";
-            variant = "secondary";
-        } else {
-            label = "Đã hủy";
-            variant = "destructive";
-        }
+  const handleCreate = () => {
+    setIsFormOpen(true);
+  };
 
-        return (
-            <Badge variant={variant}>
-                {label}
-            </Badge>
-        )
-    },
-  },
-  {
-    accessorKey: "note",
-    header: "Ghi chú",
-    cell: ({ row }) => <div className="max-w-[200px] truncate" title={row.getValue("note")}>{row.getValue("note")}</div>
-  },
-  {
-    id: "actions",
-    cell: ({ row }) => (
-        <RowActions 
-            onView={() => handleView(row.original)}
-        />
-    )
-  }
-  ], [])
+  const handleConfirm = (item: ImportReceipt) => {
+    setSelectedItem(item);
+    setIsConfirmOpen(true);
+  };
+
+  const handleCancel = (item: ImportReceipt) => {
+    setSelectedItem(item);
+    setCancelReason("");
+    setIsCancelOpen(true);
+  };
+
+  // Create receipt
+  const handleFormSubmit = async (formData: CreateImportReceiptRequest) => {
+    try {
+      setIsSubmitting(true);
+      await importReceiptService.create(formData);
+      toast.success("Tạo phiếu nhập thành công!");
+      setIsFormOpen(false);
+      fetchData();
+    } catch (error: unknown) {
+      console.error("Create error:", error);
+      const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
+      toast.error(errMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Confirm receipt (update stock)
+  const confirmReceipt = async () => {
+    if (!selectedItem) return;
+    try {
+      setIsSubmitting(true);
+      await importReceiptService.confirm(selectedItem._id);
+      toast.success("Xác nhận phiếu nhập thành công! Đã cập nhật tồn kho.");
+      setIsConfirmOpen(false);
+      setSelectedItem(null);
+      fetchData();
+    } catch (error: unknown) {
+      console.error("Confirm error:", error);
+      const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
+      toast.error(errMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Cancel receipt
+  const cancelReceipt = async () => {
+    if (!selectedItem) return;
+    try {
+      setIsSubmitting(true);
+      await importReceiptService.cancel(selectedItem._id, cancelReason);
+      toast.success("Đã hủy phiếu nhập!");
+      setIsCancelOpen(false);
+      setSelectedItem(null);
+      fetchData();
+    } catch (error: unknown) {
+      console.error("Cancel error:", error);
+      const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
+      toast.error(errMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const columns = React.useMemo<ColumnDef<ImportReceipt>[]>(
+    () => [
+      {
+        id: "select",
+        header: ({ table }) => (
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected() ||
+              (table.getIsSomePageRowsSelected() && "indeterminate")
+            }
+            onCheckedChange={(value) =>
+              table.toggleAllPageRowsSelected(!!value)
+            }
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+          />
+        ),
+        enableSorting: false,
+        enableHiding: false,
+      },
+      {
+        accessorKey: "code",
+        header: "Mã phiếu nhập",
+        cell: ({ row }) => (
+          <span className="font-mono font-medium">{row.getValue("code")}</span>
+        ),
+      },
+      {
+        accessorKey: "branchId",
+        header: "Chi nhánh",
+        cell: ({ row }) => getBranchName(row.original.branchId),
+      },
+      {
+        accessorKey: "supplierName",
+        header: "Nhà cung cấp",
+        cell: ({ row }) => row.getValue("supplierName") || "---",
+      },
+      {
+        accessorKey: "createdBy",
+        header: "Người tạo",
+        cell: ({ row }) => getCreatedByName(row.original.createdBy),
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Ngày tạo",
+        cell: ({ row }) => {
+          try {
+            return format(
+              new Date(row.getValue("createdAt")),
+              "dd/MM/yyyy HH:mm"
+            );
+          } catch {
+            return row.getValue("createdAt");
+          }
+        },
+      },
+      {
+        accessorKey: "totalAmount",
+        header: "Tổng tiền",
+        cell: ({ row }) => formatCurrency(row.getValue("totalAmount")),
+      },
+      {
+        accessorKey: "status",
+        header: "Trạng thái",
+        cell: ({ row }) => getStatusBadge(row.getValue("status")),
+      },
+      {
+        id: "actions",
+        cell: ({ row }) => {
+          const item = row.original;
+          const isPending = item.status === "pending";
+
+          return (
+            <RowActions
+              onView={() => handleView(item)}
+              onAction={isPending ? () => handleConfirm(item) : undefined}
+              actionLabel="Xác nhận"
+              actionIcon="check"
+              onDelete={isPending ? () => handleCancel(item) : undefined}
+            />
+          );
+        },
+      },
+    ],
+    []
+  );
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-       <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold tracking-tight">Quản lý nhập hàng</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold tracking-tight">Quản lý nhập hàng</h1>
+        <Button onClick={handleCreate}>
+          <Plus className="mr-2 h-4 w-4" />
+          Tạo phiếu nhập
+        </Button>
       </div>
-      <CommonTable columns={columns} data={data} filterCol="code" filterPlaceholder="Tìm mã phiếu nhập..." />
-      
-       <DetailModal
-         open={isDetailOpen}
-         onOpenChange={setIsDetailOpen}
-         title="Chi tiết phiếu nhập"
-         footer={<div />}
-       >
-         {selectedItem && (
-            <div className="grid gap-4 py-4">
-                 <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">Mã phiếu</Label>
-                    <div className="col-span-3">
-                         <Input defaultValue={selectedItem.code} className="mb-2" readOnly />
-                         <div className="flex w-fit rounded border p-2 bg-white">
-                            <Barcode value={selectedItem.code} width={1.5} height={40} fontSize={12} margin={0} />
-                         </div>
-                    </div>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">Nhà cung cấp</Label>
-                    <Input defaultValue={selectedItem.supplierName} className="col-span-3" readOnly />
-                </div>
-                 <div className="grid grid-cols-4 items-center gap-4">
-                    <Label className="text-right">Tổng tiền</Label>
-                    <Input defaultValue={new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selectedItem.totalAmount)} className="col-span-3" readOnly />
-                </div>
-                
-                 <div className="mt-4">
-                    <h4 className="mb-2 font-medium">Danh sách sản phẩm nhập</h4>
-                    <div className="border rounded-md overflow-hidden">
-                        <table className="w-full text-sm">
-                            <thead className="bg-muted">
-                                <tr>
-                                    <th className="p-2 text-left font-medium min-w-[130px]">Mã vạch</th>
-                                    <th className="p-2 text-left font-medium">Tên sản phẩm</th>
-                                    <th className="p-2 text-right font-medium">SL</th>
-                                    <th className="p-2 text-right font-medium">Đơn giá</th>
-                                    <th className="p-2 text-right font-medium">Thành tiền</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {selectedItem.listProduct.map((p, index) => (
-                                    <tr key={index} className="border-b last:border-0 hover:bg-muted/50">
-                                        <td className="p-2 py-4">
-                                            {p.barcode ? (
-                                                <div className="flex">
-                                                    <Barcode value={p.barcode} width={1.2} height={40} fontSize={11} displayValue={true} margin={0} />
-                                                </div>
-                                            ) : (
-                                                "---"
-                                            )}
-                                        </td>
-                                        <td className="p-2 py-4 align-middle">{p.productName}</td>
-                                        <td className="p-2 py-4 text-right align-middle">{p.quantity}</td>
-                                        <td className="p-2 py-4 text-right align-middle">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(p.importPrice)}</td>
-                                        <td className="p-2 py-4 text-right font-medium align-middle">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(p.subtotal)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                            <tfoot className="bg-muted/50 font-medium">
-                                <tr>
-                                    <td colSpan={4} className="p-2 text-right">Tổng cộng:</td>
-                                    <td className="p-2 text-right">{new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(selectedItem.totalAmount)}</td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                 </div>
+
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <CommonTable
+          columns={columns}
+          data={data}
+          filterCol="code"
+          filterPlaceholder="Tìm mã phiếu nhập..."
+        />
+      )}
+
+      {/* Create Form Modal */}
+      <ImportReceiptFormModal
+        open={isFormOpen}
+        onOpenChange={setIsFormOpen}
+        branches={branches}
+        userBranchId={user?.branchId}
+        isAdmin={isAdmin}
+        onSubmit={handleFormSubmit}
+        isSubmitting={isSubmitting}
+      />
+
+      {/* Confirm Dialog */}
+      <ConfirmDeleteDialog
+        open={isConfirmOpen}
+        onOpenChange={setIsConfirmOpen}
+        onConfirm={confirmReceipt}
+        isSubmitting={isSubmitting}
+        title="Xác nhận phiếu nhập?"
+        description={`Xác nhận phiếu ${selectedItem?.code}? Hành động này sẽ cập nhật số lượng tồn kho cho các sản phẩm trong phiếu.`}
+      />
+
+      {/* Cancel Dialog */}
+      <ConfirmDeleteDialog
+        open={isCancelOpen}
+        onOpenChange={setIsCancelOpen}
+        onConfirm={cancelReceipt}
+        isSubmitting={isSubmitting}
+        title="Hủy phiếu nhập?"
+        description={
+          <div className="space-y-4">
+            <p>Bạn có chắc chắn muốn hủy phiếu {selectedItem?.code}?</p>
+            <div className="space-y-2">
+              <Label>Lý do hủy</Label>
+              <Textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Nhập lý do hủy phiếu..."
+                rows={2}
+              />
             </div>
-         )}
-       </DetailModal>
+          </div>
+        }
+      />
+
+      {/* Detail Modal */}
+      <DetailModal
+        open={isDetailOpen}
+        onOpenChange={setIsDetailOpen}
+        title="Chi tiết phiếu nhập"
+        className="max-w-4xl"
+        footer={
+          selectedItem?.status === "pending" ? (
+            <div className="flex gap-2">
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setIsDetailOpen(false);
+                  handleCancel(selectedItem);
+                }}
+              >
+                <X className="mr-2 h-4 w-4" />
+                Hủy phiếu
+              </Button>
+              <Button
+                onClick={() => {
+                  setIsDetailOpen(false);
+                  handleConfirm(selectedItem);
+                }}
+              >
+                <Check className="mr-2 h-4 w-4" />
+                Xác nhận
+              </Button>
+            </div>
+          ) : undefined
+        }
+      >
+        {selectedItem && (
+          <div className="grid gap-4 py-4">
+            {/* Basic Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Mã phiếu</Label>
+                <Input value={selectedItem.code} readOnly />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Trạng thái</Label>
+                <div className="pt-2">
+                  {getStatusBadge(selectedItem.status)}
+                </div>
+              </div>
+            </div>
+
+            {/* Barcode */}
+            {selectedItem.barcode && (
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Barcode phiếu</Label>
+                <div className="flex w-fit rounded border p-2 bg-white">
+                  <Barcode
+                    value={selectedItem.barcode}
+                    width={1.5}
+                    height={50}
+                    fontSize={12}
+                    margin={0}
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Chi nhánh</Label>
+                <Input value={getBranchName(selectedItem.branchId)} readOnly />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Nhà cung cấp</Label>
+                <Input value={selectedItem.supplierName || "---"} readOnly />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Người tạo</Label>
+                <Input
+                  value={getCreatedByName(selectedItem.createdBy)}
+                  readOnly
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Ngày tạo</Label>
+                <Input
+                  value={format(
+                    new Date(selectedItem.createdAt),
+                    "dd/MM/yyyy HH:mm"
+                  )}
+                  readOnly
+                />
+              </div>
+            </div>
+
+            {selectedItem.note && (
+              <div className="space-y-2">
+                <Label className="text-muted-foreground">Ghi chú</Label>
+                <Textarea value={selectedItem.note} readOnly rows={2} />
+              </div>
+            )}
+
+            {/* Products Table */}
+            <div className="mt-4">
+              <h4 className="mb-2 font-medium">
+                Danh sách sản phẩm ({selectedItem.listProduct.length})
+              </h4>
+              <div className="border rounded-md overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="p-2 text-left font-medium min-w-[130px]">
+                        Mã vạch
+                      </th>
+                      <th className="p-2 text-left font-medium">
+                        Tên sản phẩm
+                      </th>
+                      <th className="p-2 text-right font-medium">SL</th>
+                      <th className="p-2 text-right font-medium">Đơn giá</th>
+                      <th className="p-2 text-right font-medium">Thành tiền</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedItem.listProduct.map((p, index) => (
+                      <tr
+                        key={index}
+                        className="border-b last:border-0 hover:bg-muted/50"
+                      >
+                        <td className="p-2 py-4">
+                          {p.barcode ? (
+                            <div className="flex">
+                              <Barcode
+                                value={p.barcode}
+                                width={1.2}
+                                height={40}
+                                fontSize={11}
+                                displayValue={true}
+                                margin={0}
+                              />
+                            </div>
+                          ) : (
+                            "---"
+                          )}
+                        </td>
+                        <td className="p-2 py-4 align-middle">
+                          {p.productName}
+                        </td>
+                        <td className="p-2 py-4 text-right align-middle">
+                          {p.quantity}
+                        </td>
+                        <td className="p-2 py-4 text-right align-middle">
+                          {formatCurrency(p.importPrice)}
+                        </td>
+                        <td className="p-2 py-4 text-right font-medium align-middle">
+                          {formatCurrency(p.subtotal)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-muted/50 font-medium">
+                    <tr>
+                      <td colSpan={4} className="p-2 text-right">
+                        Tổng cộng:
+                      </td>
+                      <td className="p-2 text-right text-lg">
+                        {formatCurrency(selectedItem.totalAmount)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+      </DetailModal>
     </div>
-  )
+  );
 }

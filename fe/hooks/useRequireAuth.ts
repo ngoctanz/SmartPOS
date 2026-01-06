@@ -1,38 +1,53 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
+import { useEffect } from "react";
+import { useAuthContext } from "@/contexts/auth-context";
+import { ROUTES } from "@/constants/routes";
 
-export function useRequireAuth(redirectTo = "/dang-nhap") {
-  const { isAuthenticated, loading } = useAuth();
+export function useRequireAuth(redirectTo = ROUTES.AUTH.LOGIN) {
   const router = useRouter();
+  const { user, isAuthenticated, isLoading, isInitialized } = useAuthContext();
 
   useEffect(() => {
-    if (!loading && !isAuthenticated) {
-      router.push(redirectTo);
-    }
-  }, [loading, isAuthenticated, router, redirectTo]);
+    if (!isInitialized) return;
 
-  return { isAuthenticated, loading };
+    if (!isAuthenticated) {
+      router.replace(redirectTo);
+    }
+  }, [isInitialized, isAuthenticated, router, redirectTo]);
+
+  return {
+    isLoading: isLoading || !isInitialized,
+    loading: isLoading || !isInitialized, // Backwards compatibility
+    isAuthenticated,
+    user,
+  };
 }
 
+/**
+ * Hook to require specific roles for a page
+ * Redirects to dashboard if user doesn't have the required role
+ */
 export function useRequireRole(
   allowedRoles: Array<"admin" | "manager" | "staff">,
-  redirectTo = "/trang-quan-ly"
+  redirectTo = ROUTES.DASHBOARD.HOME
 ) {
-  const { user, loading } = useAuth();
   const router = useRouter();
+  const { user, isLoading, isInitialized } = useAuthContext();
 
   useEffect(() => {
-    if (!loading && user && !allowedRoles.includes(user.role)) {
-      router.push(redirectTo);
+    if (!isInitialized) return;
+
+    if (user && !allowedRoles.includes(user.role)) {
+      router.replace(redirectTo);
     }
-  }, [loading, user, allowedRoles, router, redirectTo]);
+  }, [isInitialized, user, allowedRoles, router, redirectTo]);
 
   return {
     user,
-    loading,
+    isLoading: isLoading || !isInitialized,
+    loading: isLoading || !isInitialized, // Backwards compatibility
     hasAccess: user ? allowedRoles.includes(user.role) : false,
   };
 }

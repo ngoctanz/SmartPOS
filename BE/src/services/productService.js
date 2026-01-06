@@ -100,6 +100,17 @@ const softDelete = async (id) => {
   }
 };
 
+const softDeleteMany = async (ids) => {
+  try {
+    if (!Array.isArray(ids) || ids.length === 0) {
+      throw new ApiError(400, "Product IDs are required!");
+    }
+    return await Product.softDeleteManyProducts(ids);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 const hardDelete = async (id) => {
   try {
     return await Product.deleteProduct(id);
@@ -118,5 +129,6 @@ export const productService = {
   update,
   updateSalePrice,
   softDelete,
+  softDeleteMany,
   hardDelete,
 };

@@ -41,6 +41,11 @@ const importReceiptSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    barcode: {
+      type: String,
+      unique: true,
+      sparse: true, // Cho phép null/undefined nhưng nếu có thì phải unique
+    },
     branchId: {
       type: Schema.Types.ObjectId,
       ref: "Branch",
@@ -105,11 +110,28 @@ importReceiptSchema.statics = {
     return `PN${String(newNumber).padStart(3, "0")}`;
   },
 
+  // Generate barcode from code (format: 200 + 9 digits from timestamp + check digit placeholder)
+  generateBarcode(code) {
+    // Simple approach: use prefix + code number + timestamp suffix
+    const codeNum = code.replace("PN", "").padStart(6, "0");
+    const timestamp = Date.now().toString().slice(-6);
+    return `200${codeNum}${timestamp}`;
+  },
+
   async createImportReceipt(data) {
     const code = await this.generateCode();
-    const receipt = new this({ ...data, code });
+    const barcode = this.generateBarcode(code);
+    const receipt = new this({ ...data, code, barcode });
     await receipt.save();
     return receipt;
+  },
+
+  // Tìm theo barcode
+  async findImportReceiptByBarcode(barcode) {
+    return this.findOne({ barcode })
+      .populate("branchId", "branchName")
+      .populate("createdBy", "userName name")
+      .lean();
   },
 
   async findAllImportReceipts(filter = {}) {
@@ -187,4 +209,7 @@ importReceiptSchema.statics = {
   },
 };
 
-export const ImportReceipt = mongoose.model("ImportReceipt", importReceiptSchema);
+export const ImportReceipt = mongoose.model(
+  "ImportReceipt",
+  importReceiptSchema
+);

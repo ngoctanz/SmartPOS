@@ -18,8 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import Link from "next/link";
 import { useState } from "react";
-import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
+import { useLogin } from "@/hooks/useAuth";
 import { Loader2, AlertCircle } from "lucide-react";
 import { parseError } from "@/lib/error-handler";
 import { useForm } from "react-hook-form";
@@ -35,8 +34,7 @@ export function LoginForm({
     message: string;
     suggestion?: string;
   } | null>(null);
-  const { login } = useAuth();
-  const router = useRouter();
+  const { login } = useLogin();
 
   const {
     register,
@@ -58,7 +56,6 @@ export function LoginForm({
 
     try {
       await login(data);
-      router.push("/trang-quan-ly");
       reset();
     } catch (err) {
       const errorDetail = parseError(err);

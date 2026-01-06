@@ -60,7 +60,11 @@ const confirm = async (id) => {
 
     // Increase stock for each product
     for (const item of receipt.listProduct) {
-      await BranchProduct.increaseStock(branchId, item.productId, item.quantity);
+      await BranchProduct.increaseStock(
+        branchId,
+        item.productId,
+        item.quantity
+      );
     }
 
     return await ImportReceipt.updateStatus(id, "completed");
@@ -115,6 +119,21 @@ const getByCode = async (code) => {
   }
 };
 
+const getByBarcode = async (barcode) => {
+  try {
+    if (!barcode || barcode.trim() === "") {
+      throw new ApiError(400, "Barcode is required!");
+    }
+    const receipt = await ImportReceipt.findImportReceiptByBarcode(barcode);
+    if (!receipt) {
+      throw new ApiError(404, "Import receipt not found");
+    }
+    return receipt;
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 const getByBranch = async (branchId, filter = {}) => {
   try {
     if (!branchId || branchId.trim() === "") {
@@ -141,7 +160,11 @@ const getByDateRange = async (startDate, endDate, branchId = null) => {
 const getTotalImport = async (period, branchId = null) => {
   try {
     const { startDate, endDate } = getDateRange(period);
-    return await ImportReceipt.getTotalImportByDateRange(startDate, endDate, branchId);
+    return await ImportReceipt.getTotalImportByDateRange(
+      startDate,
+      endDate,
+      branchId
+    );
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -154,6 +177,7 @@ export const importReceiptService = {
   getAll,
   getById,
   getByCode,
+  getByBarcode,
   getByBranch,
   getByDateRange,
   getTotalImport,

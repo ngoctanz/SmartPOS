@@ -89,4 +89,4 @@ export type {
 
 // Export API response types
 export type { ApiResponse, ApiError } from "./api.config";
-export { FetchError } from "./api.config";
+export { FetchError } from "./api.service";

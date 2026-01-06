@@ -37,9 +37,11 @@ Router.patch(
 );
 
 Router.delete(
-  "/:id",
+  "/bulk",
   authorize("admin", "manager"),
-  productController.remove
+  productController.removeMany
 );
+
+Router.delete("/:id", authorize("admin", "manager"), productController.remove);
 
 export const productRouter = Router;
