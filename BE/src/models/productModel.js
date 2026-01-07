@@ -79,7 +79,7 @@ productSchema.statics = {
   async findAllProducts(filter = {}) {
     const query = { ...filter };
     if (!query.status) {
-      query.status = "active"; // Maintain default behavior but allow override
+      query.status = "active"; 
     }
     // If status is 'all', remove it from query
     if (query.status === "all") {

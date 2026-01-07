@@ -105,6 +105,18 @@ const getAll = async (options = {}, user = null) => {
   }
 };
 
+/**
+ * Get aggregated stock by product (sum across all branches)
+ * Only for admin when viewing "All branches"
+ */
+const getAggregatedByProduct = async (options = {}) => {
+  try {
+    return await BranchProduct.findAggregatedByProduct(options);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 const create = async (data, user = null) => {
   try {
     // data: { branchId, items: [{ productId, stock, minStock }] }
@@ -166,6 +178,7 @@ const deleteStock = async (id) => {
 export const branchProductService = {
   getStats,
   getAll,
+  getAggregatedByProduct,
   getByBranch,
   getByProduct,
   getStock,

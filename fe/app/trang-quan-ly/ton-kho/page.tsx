@@ -110,10 +110,15 @@ export default function Page() {
 
       const targetBranchId = (isAdmin && filterBranchId !== "all") ? filterBranchId : undefined;
 
+      // When admin selects "All branches", use aggregated API
+      const stockPromise = isAdmin && filterBranchId === "all"
+        ? stockService.getAggregatedByProduct(params)
+        : targetBranchId 
+          ? stockService.getByBranch(targetBranchId, params)
+          : stockService.getAll(params);
+
       const [res, statsRes] = await Promise.all([
-          targetBranchId 
-            ? stockService.getByBranch(targetBranchId, params)
-            : stockService.getAll(params),
+          stockPromise,
           stockService.getStats(targetBranchId)
       ]);
 
@@ -168,8 +173,8 @@ export default function Page() {
     setSearchTerm(search);
   };
 
-  // Show branch column only when admin views all branches
-  const showBranchColumn = isAdmin && filterBranchId === "all";
+  // Show branch count column when viewing aggregated data (all branches)
+  const showBranchCountColumn = isAdmin && filterBranchId === "all";
 
   const columns = React.useMemo<ColumnDef<IBranchProduct>[]>(
     () => [
@@ -226,21 +231,26 @@ export default function Page() {
           );
         },
       },
-      ...(showBranchColumn
+      ...(showBranchCountColumn
         ? [
             {
-              accessorKey: "branchId",
-              header: "Chi nhánh",
+              accessorKey: "branchCount",
+              header: "Số chi nhánh",
               cell: ({ row }: { row: { original: IBranchProduct } }) => {
-                const branch = row.original.branchId;
-                return branch?.branchName || "N/A";
+                const count = row.original.branchCount || 0;
+                return (
+                  <Badge variant="secondary" className="gap-1">
+                    <LayoutGrid className="h-3 w-3" />
+                    {count} chi nhánh
+                  </Badge>
+                );
               },
             } as ColumnDef<IBranchProduct>,
           ]
         : []),
       {
         accessorKey: "stock",
-        header: "Tồn kho",
+        header: showBranchCountColumn ? "Tổng tồn kho" : "Tồn kho",
         cell: ({ row }) => {
           const stock = row.getValue("stock") as number;
           const minStock = row.original.minStock;
@@ -279,6 +289,8 @@ export default function Page() {
         id: "actions",
         cell: ({ row, table }) => {
           const isAnyRowSelected = table.getFilteredSelectedRowModel().rows.length > 0;
+          // Hide actions for aggregated view
+          if (row.original.isAggregated) return null;
           return (
             <RowActions 
               onView={() => handleView(row.original)} 
@@ -288,7 +300,7 @@ export default function Page() {
         },
       },
     ],
-    [showBranchColumn]
+    [showBranchCountColumn]
   );
   
   // Custom toolbar actions (Filters)

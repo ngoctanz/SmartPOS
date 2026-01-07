@@ -63,6 +63,102 @@ branchProductSchema.statics = {
     return result[0] || { totalItems: 0, totalQuantity: 0, lowStockCount: 0 };
   },
 
+  /**
+   * Get aggregated stock by product (sum across all branches)
+   * Used when admin selects "All branches"
+   */
+  async findAggregatedByProduct(options = {}) {
+    const { search, page = 1, limit = 20, lowStockOnly = false } = options;
+
+    const pipeline = [
+      { $unwind: "$products" },
+      // Group by productId to sum stock across all branches
+      {
+        $group: {
+          _id: "$products.productId",
+          totalStock: { $sum: "$products.stock" },
+          totalMinStock: { $sum: "$products.minStock" },
+          branchCount: { $sum: 1 },
+          latestUpdate: { $max: "$updatedAt" },
+        },
+      },
+      // Lookup product details
+      {
+        $lookup: {
+          from: "products",
+          localField: "_id",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      { $unwind: "$product" },
+    ];
+
+    // Search by product name or barcode
+    if (search && search.trim()) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { "product.name": { $regex: search, $options: "i" } },
+            { "product.barcode": { $regex: search, $options: "i" } },
+          ],
+        },
+      });
+    }
+
+    // Filter low stock only (total stock <= average minStock)
+    if (lowStockOnly) {
+      pipeline.push({
+        $match: {
+          $expr: { 
+            $lte: [
+              "$totalStock", 
+              { $divide: ["$totalMinStock", "$branchCount"] }
+            ] 
+          }
+        }
+      });
+    }
+
+    // Project fields
+    pipeline.push({
+      $project: {
+        _id: "$_id",
+        productId: "$product",
+        stock: "$totalStock",
+        minStock: { $round: [{ $divide: ["$totalMinStock", "$branchCount"] }, 0] },
+        branchCount: "$branchCount",
+        updatedAt: "$latestUpdate",
+        isAggregated: { $literal: true },
+      },
+    });
+
+    // Sort by latest update
+    pipeline.push({ $sort: { updatedAt: -1 } });
+
+    // Count total before pagination
+    const countPipeline = [...pipeline, { $count: "total" }];
+    const countResult = await this.aggregate(countPipeline);
+    const total = countResult[0]?.total || 0;
+
+    // Pagination
+    const skip = (page - 1) * limit;
+    pipeline.push({ $skip: skip });
+    pipeline.push({ $limit: limit });
+
+    const data = await this.aggregate(pipeline);
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+
   async findAll(options = {}) {
     const { 
       branchId, 

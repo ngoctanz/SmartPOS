@@ -12,6 +12,8 @@ Router.use(injectUserBranch());
 Router.get("/branch/:branchId", checkBranchAccess, branchProductController.getByBranch);
 // Get stock info
 Router.get("/stats", authorize("admin", "staff"), branchProductController.getStats);
+// Get aggregated stock by product (admin only - for "All branches" view)
+Router.get("/aggregated", authorize("admin"), branchProductController.getAggregatedByProduct);
 Router.get("/product/:productId", branchProductController.getByProduct);
 Router.get("/branch/:branchId/product/:productId", checkBranchAccess, branchProductController.getStock);
 Router.get("/branch/:branchId/low-stock", checkBranchAccess, branchProductController.getLowStock);

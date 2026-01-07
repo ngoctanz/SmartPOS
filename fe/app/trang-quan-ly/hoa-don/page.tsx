@@ -185,16 +185,17 @@ export default function Page() {
           );
         },
       },
-      {
-        accessorKey: "branchId",
+      // Chỉ hiển thị cột chi nhánh cho admin
+      ...(isAdmin ? [{
+        accessorKey: "branchId" as const,
         header: "Chi nhánh",
-        cell: ({ row }) => {
+        cell: ({ row }: { row: any }) => {
           const branchId = row.getValue("branchId") as
             | string
             | { _id: string; branchName: string };
           return getBranchName(branchId);
         },
-      },
+      }] : []),
       {
         accessorKey: "createdBy",
         header: "Người lập",
@@ -262,34 +263,43 @@ export default function Page() {
       },
       {
         id: "actions",
-        cell: ({ row }) => (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8">
-                <MoreHorizontal className="h-4 w-4" />
-                <span className="sr-only">Menu</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleView(row.original)}>
-                <Eye className="h-4 w-4 mr-2" />
-                Xem nhanh
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleViewDetail(row.original)}>
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Xem chi tiết
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handlePrint(row.original)}>
-                <Printer className="h-4 w-4 mr-2" />
-                In hóa đơn
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        ),
+        cell: ({ row, table }) => {
+          const isAnyRowSelected = table.getFilteredSelectedRowModel().rows.length > 0;
+          
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8"
+                  disabled={isAnyRowSelected}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">Menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleView(row.original)}>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Xem nhanh
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleViewDetail(row.original)}>
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Xem chi tiết
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => handlePrint(row.original)}>
+                  <Printer className="h-4 w-4 mr-2" />
+                  In hóa đơn
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
       },
     ],
-    [branches] // eslint-disable-line react-hooks/exhaustive-deps
+    [branches, isAdmin] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const toolbarActions = (
@@ -391,83 +401,74 @@ export default function Page() {
 
       {/* Quick View Modal */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Chi tiết hóa đơn</DialogTitle>
             <DialogDescription>Xem nhanh thông tin hóa đơn</DialogDescription>
           </DialogHeader>
           {selectedItem && (
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Mã HĐ</Label>
-                <Input
-                  defaultValue={selectedItem.code}
-                  className="col-span-3"
-                  readOnly
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Ngày lập</Label>
-                <Input
-                  defaultValue={format(
-                    new Date(selectedItem.createdAt),
-                    "dd/MM/yyyy HH:mm"
-                  )}
-                  className="col-span-3"
-                  readOnly
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Tổng tiền</Label>
-                <Input
-                  defaultValue={new Intl.NumberFormat("vi-VN", {
-                    style: "currency",
-                    currency: "VND",
-                  }).format(selectedItem.totalAmount)}
-                  className="col-span-3"
-                  readOnly
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Trạng thái</Label>
-                <div className="col-span-3">
-                  <Badge
-                    variant={
-                      selectedItem.status === "completed"
-                        ? "default"
+              {/* Thông tin cơ bản - 2 cột */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Mã hóa đơn</Label>
+                  <p className="font-mono font-medium">{selectedItem.code}</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Trạng thái</Label>
+                  <div>
+                    <Badge
+                      variant={
+                        selectedItem.status === "completed"
+                          ? "default"
+                          : selectedItem.status === "pending"
+                          ? "secondary"
+                          : "destructive"
+                      }
+                    >
+                      {selectedItem.status === "completed"
+                        ? "Hoàn thành"
                         : selectedItem.status === "pending"
-                        ? "secondary"
-                        : "destructive"
-                    }
-                  >
-                    {selectedItem.status === "completed"
-                      ? "Hoàn thành"
-                      : selectedItem.status === "pending"
-                      ? "Chờ thanh toán"
-                      : "Đã hủy"}
-                  </Badge>
+                        ? "Chờ thanh toán"
+                        : "Đã hủy"}
+                    </Badge>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Ngày lập</Label>
+                  <p className="text-sm">
+                    {format(new Date(selectedItem.createdAt), "dd/MM/yyyy HH:mm")}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Tổng tiền</Label>
+                  <p className="text-lg font-bold text-primary">
+                    {formatCurrency(selectedItem.totalAmount)}
+                  </p>
                 </div>
               </div>
 
               {/* Payment QR Code for transfer payments */}
               {selectedItem.paymentMethod === "transfer" &&
                 selectedItem.paymentInfo?.checkoutUrl && (
-                  <div className="mt-4 p-4 border rounded-lg bg-muted/50">
-                    <h4 className="mb-3 font-medium text-center">
+                  <div className="mt-2 p-4 border rounded-lg bg-muted/50">
+                    <h4 className="mb-3 font-medium text-center text-sm">
                       Mã QR Thanh toán
                     </h4>
                     <div className="flex flex-col items-center gap-3">
                       <div className="p-3 bg-white rounded-lg border">
                         <QRCodeSVG
                           value={selectedItem.paymentInfo.checkoutUrl}
-                          size={180}
+                          size={160}
                           level="H"
-                          includeMargin
                         />
                       </div>
                       <div className="text-center text-sm">
                         <p className="text-muted-foreground">
-                          Trạng thái thanh toán:{" "}
+                          Trạng thái:{" "}
                           <Badge
                             variant={
                               selectedItem.paymentInfo.status === "paid"
@@ -494,7 +495,7 @@ export default function Page() {
                               href={selectedItem.paymentInfo.checkoutUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-primary hover:underline mt-2 inline-block"
+                              className="text-primary hover:underline mt-2 inline-block text-xs"
                             >
                               Mở trang thanh toán
                             </a>
@@ -504,25 +505,34 @@ export default function Page() {
                   </div>
                 )}
 
-              <div className="mt-4">
-                <h4 className="mb-2 font-medium">Danh sách sản phẩm</h4>
-                <div className="border rounded-md p-2 text-sm max-h-40 overflow-y-auto">
-                  {selectedItem.listProduct.map((p, index) => (
-                    <div
-                      key={index}
-                      className="flex justify-between py-1 border-b last:border-0"
-                    >
-                      <span>
-                        {p.productName} (x{p.quantity})
-                      </span>
-                      <span>
-                        {new Intl.NumberFormat("vi-VN", {
-                          style: "currency",
-                          currency: "VND",
-                        }).format(p.salePrice * p.quantity)}
-                      </span>
-                    </div>
-                  ))}
+              {/* Danh sách sản phẩm */}
+              <div className="mt-2">
+                <h4 className="mb-2 font-medium text-sm">
+                  Danh sách sản phẩm ({selectedItem.listProduct.length})
+                </h4>
+                <div className="border rounded-md max-h-[200px] overflow-y-auto">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted sticky top-0">
+                      <tr>
+                        <th className="p-2 text-left font-medium">Sản phẩm</th>
+                        <th className="p-2 text-center font-medium">SL</th>
+                        <th className="p-2 text-right font-medium">Đơn giá</th>
+                        <th className="p-2 text-right font-medium">Thành tiền</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedItem.listProduct.map((p, index) => (
+                        <tr key={index} className="border-b last:border-0">
+                          <td className="p-2">{p.productName}</td>
+                          <td className="p-2 text-center">{p.quantity}</td>
+                          <td className="p-2 text-right">{formatCurrency(p.salePrice)}</td>
+                          <td className="p-2 text-right font-medium">
+                            {formatCurrency(p.salePrice * p.quantity)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>

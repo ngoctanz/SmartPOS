@@ -8,6 +8,8 @@ export interface BranchProduct {
   stock: number;
   minStock: number;
   avgImportPrice: number;
+  branchCount?: number; // Only for aggregated view
+  isAggregated?: boolean; // Flag for aggregated data
   createdAt: string;
   updatedAt: string;
 }
@@ -58,6 +60,22 @@ const stockService = {
     
     const query = searchParams.toString();
     return apiGet<BranchProduct[]>(`/stock${query ? `?${query}` : ""}`);
+  },
+
+  /**
+   * Get aggregated stock by product (sum across all branches)
+   * Only for admin when viewing "All branches"
+   * GET /api/v1/stock/aggregated
+   */
+  getAggregatedByProduct: async (params?: StockQueryParams): Promise<ApiResponse<BranchProduct[]> & { pagination?: Pagination }> => {
+    const searchParams = new URLSearchParams();
+    if (params?.search) searchParams.append("search", params.search);
+    if (params?.page) searchParams.append("page", params.page.toString());
+    if (params?.limit) searchParams.append("limit", params.limit.toString());
+    if (params?.lowStockOnly) searchParams.append("lowStockOnly", "true");
+    
+    const query = searchParams.toString();
+    return apiGet<BranchProduct[]>(`/stock/aggregated${query ? `?${query}` : ""}`);
   },
 
   /**

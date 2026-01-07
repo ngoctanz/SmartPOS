@@ -5,11 +5,16 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import productService, { Product } from "@/service/product.service";
+import productService, {
+  Product,
+  CreateProductRequest,
+  UpdateProductRequest,
+} from "@/service/product.service";
 import importReceiptService, {
   CreateImportReceiptRequest,
 } from "@/service/import-receipt.service";
 import branchService, { Branch } from "@/service/branch.service";
+import categoryService, { Category } from "@/service/category.service";
 import { useAuthContext } from "@/contexts/auth-context";
 import { ROUTES } from "@/configs/routes.config";
 import {
@@ -20,6 +25,17 @@ import {
   ConfirmDialog,
   ImportItem,
 } from "@/components/import-receipt";
+import { ProductFormModal } from "@/components/forms/product-form-modal";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function CreateImportReceiptPage() {
   const router = useRouter();
@@ -33,6 +49,13 @@ export default function CreateImportReceiptPage() {
   const [note, setNote] = React.useState("");
   const [showConfirmDialog, setShowConfirmDialog] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  // States for product not found flow
+  const [notFoundBarcode, setNotFoundBarcode] = React.useState<string>("");
+  const [showNotFoundDialog, setShowNotFoundDialog] = React.useState(false);
+  const [showProductFormModal, setShowProductFormModal] = React.useState(false);
+  const [categories, setCategories] = React.useState<Category[]>([]);
+  const [isCreatingProduct, setIsCreatingProduct] = React.useState(false);
 
   React.useEffect(() => {
     const loadBranches = async () => {
@@ -52,6 +75,20 @@ export default function CreateImportReceiptPage() {
     };
     loadBranches();
   }, [user?.branchId, isAdmin]);
+
+  React.useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const response = await categoryService.getAll();
+        if (response.success && response.data) {
+          setCategories(response.data);
+        }
+      } catch {
+        toast.error("Không thể tải danh sách loại sản phẩm");
+      }
+    };
+    loadCategories();
+  }, []);
 
   const handleBarcodeScanned = React.useCallback(
     async (barcode: string) => {
@@ -85,15 +122,60 @@ export default function CreateImportReceiptPage() {
             ]);
             toast.success(`Đã thêm: ${product.name}`);
           } else {
-            toast.error("Không tìm thấy sản phẩm");
+            // Product not found - show dialog to create new
+            setNotFoundBarcode(barcode);
+            setShowNotFoundDialog(true);
           }
         } catch (error) {
-          toast.error((error as Error).message || "Không tìm thấy sản phẩm");
+          // Product not found - show dialog to create new
+          setNotFoundBarcode(barcode);
+          setShowNotFoundDialog(true);
         }
       }
     },
     [importItems]
   );
+
+  const handleCreateNewProduct = () => {
+    setShowNotFoundDialog(false);
+    setShowProductFormModal(true);
+  };
+
+  const handleProductFormSubmit = async (
+    data: CreateProductRequest | UpdateProductRequest
+  ) => {
+    setIsCreatingProduct(true);
+    try {
+      const response = await productService.create(data as CreateProductRequest);
+      if (response.success && response.data) {
+        toast.success("Tạo sản phẩm mới thành công!");
+        const newProduct = response.data;
+
+        // Auto add to import list
+        setImportItems((prev) => [
+          ...prev,
+          {
+            productId: newProduct._id,
+            productName: newProduct.name,
+            barcode: newProduct.barcode || notFoundBarcode,
+            quantity: 1,
+            importPrice: 0,
+            unit: newProduct.unit,
+            image: newProduct.image,
+          },
+        ]);
+
+        setShowProductFormModal(false);
+        setNotFoundBarcode("");
+      } else {
+        toast.error(response.message || "Tạo sản phẩm thất bại");
+      }
+    } catch (error) {
+      toast.error((error as Error).message || "Lỗi tạo sản phẩm");
+    } finally {
+      setIsCreatingProduct(false);
+    }
+  };
 
   const handleSearch = React.useCallback(async (term: string) => {
     const response = await productService.search({ name: term });
@@ -245,7 +327,10 @@ export default function CreateImportReceiptPage() {
         <div className="flex-1 flex flex-col min-w-0">
           {/* Search Section */}
           <div className="bg-muted/50 rounded-lg p-4 mb-4 space-y-3">
-            <BarcodeScanner onBarcodeScanned={handleBarcodeScanned} />
+            <BarcodeScanner 
+              onBarcodeScanned={handleBarcodeScanned} 
+              showButton={true}
+            />
             <ProductSearch onProductSelect={handleProductSelect} searchFn={handleSearch} />
           </div>
 
@@ -282,6 +367,37 @@ export default function CreateImportReceiptPage() {
         supplierName={supplierName}
         onConfirm={handleSubmit}
         isSubmitting={isSubmitting}
+      />
+
+      {/* Dialog for product not found */}
+      <AlertDialog open={showNotFoundDialog} onOpenChange={setShowNotFoundDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Không tìm thấy sản phẩm</AlertDialogTitle>
+            <AlertDialogDescription>
+              Mã barcode <span className="font-mono font-bold text-foreground">{notFoundBarcode}</span> chưa có trong hệ thống.
+              <br />
+              Bạn có muốn tạo sản phẩm mới với mã này không?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Hủy</AlertDialogCancel>
+            <AlertDialogAction onClick={handleCreateNewProduct}>
+              Tạo sản phẩm mới
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Product form modal for creating new product */}
+      <ProductFormModal
+        open={showProductFormModal}
+        onOpenChange={setShowProductFormModal}
+        product={{ barcode: notFoundBarcode } as Product}
+        categories={categories}
+        onSubmit={handleProductFormSubmit}
+        isSubmitting={isCreatingProduct}
+        isImportMode={true}
       />
     </div>
   );

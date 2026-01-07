@@ -143,6 +143,33 @@ const getAll = async (req, res, next) => {
   }
 };
 
+/**
+ * Get aggregated stock by product (sum across all branches)
+ * Only for admin when viewing "All branches"
+ */
+const getAggregatedByProduct = async (req, res, next) => {
+  try {
+    const { search, page, limit, lowStockOnly } = req.query;
+    
+    const options = {
+      search,
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 20,
+      lowStockOnly: lowStockOnly === "true",
+    };
+    
+    const result = await branchProductService.getAggregatedByProduct(options);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get aggregated stock by product successfully",
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const create = async (req, res, next) => {
   try {
     // branchId đã được inject từ middleware cho staff
@@ -186,6 +213,7 @@ const remove = async (req, res, next) => {
 export const branchProductController = {
   getStats,
   getAll,
+  getAggregatedByProduct,
   getByBranch,
   getByProduct,
   getStock,

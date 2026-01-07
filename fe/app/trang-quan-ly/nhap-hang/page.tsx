@@ -253,11 +253,12 @@ export default function Page() {
           <span className="font-mono font-medium">{row.getValue("code")}</span>
         ),
       },
-      {
-        accessorKey: "branchId",
+      // Chỉ hiển thị cột chi nhánh cho admin
+      ...(isAdmin ? [{
+        accessorKey: "branchId" as const,
         header: "Chi nhánh",
-        cell: ({ row }) => getBranchName(row.original.branchId),
-      },
+        cell: ({ row }: { row: any }) => getBranchName(row.original.branchId),
+      }] : []),
       {
         accessorKey: "supplierName",
         header: "Nhà cung cấp",
@@ -309,7 +310,7 @@ export default function Page() {
         },
       },
     ],
-    []
+    [isAdmin]
   );
 
   const toolbarActions = (

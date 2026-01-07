@@ -127,13 +127,13 @@ export function ProductStats({ products, categories }: ProductStatsProps) {
   };
 
   return (
-    <div className="grid gap-4 md:grid-cols-4 mb-6">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 mb-6">
       {/* Total Products */}
       <StatsCard
         title="Tổng sản phẩm"
         value={stats.total}
         icon={Package}
-        description={`${stats.active} đang bán`}
+        description={`${stats.active} sản phẩm đang bán`}
       />
 
       {/* Active Products */}
@@ -141,12 +141,14 @@ export function ProductStats({ products, categories }: ProductStatsProps) {
         title="Đang bán"
         value={stats.active}
         icon={TrendingUp}
-        className="text-emerald-600"
-        description={`${
+        trend={{
+          value:
             stats.total > 0
-            ? Math.round((stats.active / stats.total) * 100)
-            : 0
-        }% tổng sản phẩm`}
+              ? Math.round((stats.active / stats.total) * 100)
+              : 0,
+          label: "tỷ lệ active",
+          positive: true,
+        }}
       />
 
       {/* Inactive Products */}
@@ -154,12 +156,15 @@ export function ProductStats({ products, categories }: ProductStatsProps) {
         title="Ngừng bán"
         value={stats.inactive}
         icon={AlertTriangle}
-        className="text-amber-600"
-        description={`${
+        trend={{
+          value:
             stats.total > 0
-            ? Math.round((stats.inactive / stats.total) * 100)
-            : 0
-        }% tổng sản phẩm`}
+              ? Math.round((stats.inactive / stats.total) * 100)
+              : 0,
+          label: "ngừng KD",
+          positive: false,
+        }}
+        description="Sản phẩm đã ẩn/ngừng bán"
       />
 
       {/* Categories */}
@@ -171,21 +176,21 @@ export function ProductStats({ products, categories }: ProductStatsProps) {
       />
 
       {/* Pie Chart - Products by Category */}
-      <Card className="md:col-span-2">
-        <CardHeader className="pb-2">
+      <Card className="md:col-span-1 xl:col-span-2 shadow-sm border-border/60 transition-all hover:shadow-md">
+        <CardHeader className="pb-2 border-b border-border/40 bg-muted/20 py-3">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
+            <BarChart3 className="h-4 w-4 text-primary" />
             Phân bố theo danh mục
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs">
             Top 5 danh mục có nhiều sản phẩm nhất
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           {pieChartData.length > 0 ? (
             <ChartContainer
               config={pieChartConfig}
-              className="mx-auto aspect-square max-h-[200px]"
+              className="mx-auto aspect-square max-h-[180px]"
             >
               <PieChart>
                 <ChartTooltip
@@ -197,7 +202,9 @@ export function ProductStats({ products, categories }: ProductStatsProps) {
                   dataKey="value"
                   nameKey="category"
                   innerRadius={50}
-                  strokeWidth={3}
+                  outerRadius={75}
+                  strokeWidth={2}
+                  paddingAngle={2}
                 >
                   <Label
                     content={({ viewBox }) => {
@@ -212,14 +219,14 @@ export function ProductStats({ products, categories }: ProductStatsProps) {
                             <tspan
                               x={viewBox.cx}
                               y={viewBox.cy}
-                              className="fill-foreground text-2xl font-bold"
+                              className="fill-foreground text-2xl font-bold tracking-tight"
                             >
                               {stats.total}
                             </tspan>
                             <tspan
                               x={viewBox.cx}
-                              y={(viewBox.cy || 0) + 20}
-                              className="fill-muted-foreground text-xs"
+                              y={(viewBox.cy || 0) + 18}
+                              className="fill-muted-foreground text-[10px] uppercase font-medium"
                             >
                               Sản phẩm
                             </tspan>
@@ -232,38 +239,45 @@ export function ProductStats({ products, categories }: ProductStatsProps) {
               </PieChart>
             </ChartContainer>
           ) : (
-            <div className="flex items-center justify-center h-[200px] text-muted-foreground">
-              Không có dữ liệu
+            <div className="flex items-center justify-center h-[180px] text-muted-foreground/50 text-sm">
+              Chưa có dữ liệu thống kê
             </div>
           )}
         </CardContent>
       </Card>
 
       {/* Bar Chart - Status Distribution */}
-      <Card className="md:col-span-2">
-        <CardHeader className="pb-2">
+      <Card className="md:col-span-1 xl:col-span-2 shadow-sm border-border/60 transition-all hover:shadow-md">
+        <CardHeader className="pb-2 border-b border-border/40 bg-muted/20 py-3">
           <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
+            <TrendingUp className="h-4 w-4 text-primary" />
             Trạng thái sản phẩm
           </CardTitle>
-          <CardDescription>Phân bố theo trạng thái bán hàng</CardDescription>
+          <CardDescription className="text-xs">
+            Phân bố theo trạng thái bán hàng
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <ChartContainer config={barChartConfig} className="h-[200px] w-full">
-            <BarChart data={barChartData} layout="vertical">
+        <CardContent className="pt-4">
+          <ChartContainer config={barChartConfig} className="h-[180px] w-full">
+            <BarChart
+              data={barChartData}
+              layout="vertical"
+              margin={{ left: 10, right: 10, top: 10, bottom: 10 }}
+            >
               <XAxis type="number" hide />
               <YAxis
                 type="category"
                 dataKey="name"
                 tickLine={false}
                 axisLine={false}
-                width={80}
+                width={70}
+                tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
               />
               <ChartTooltip
-                cursor={false}
+                cursor={{ fill: "var(--muted)/0.2" }}
                 content={<ChartTooltipContent hideLabel />}
               />
-              <Bar dataKey="value" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={24} />
             </BarChart>
           </ChartContainer>
         </CardContent>

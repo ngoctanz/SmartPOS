@@ -155,9 +155,7 @@ export function CommonTable<TData, TValue>({
   };
 
   // Get current search value
-  const currentSearchValue = isServerSide
-    ? searchValue ?? ""
-    : localSearch;
+  const currentSearchValue = isServerSide ? searchValue ?? "" : localSearch;
 
   // Pagination handlers
   const handlePreviousPage = () => {
@@ -208,9 +206,7 @@ export function CommonTable<TData, TValue>({
       {(filterCol || toolbarActions) && (
         <div className="flex flex-col sm:flex-row items-center gap-4 py-4">
           {toolbarActions && (
-            <div className="flex items-center gap-2">
-              {toolbarActions}
-            </div>
+            <div className="flex items-center gap-2">{toolbarActions}</div>
           )}
           {filterCol && (
             <Input
@@ -222,56 +218,48 @@ export function CommonTable<TData, TValue>({
           )}
         </div>
       )}
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
-                    </TableHead>
-                  );
-                })}
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map((header) => {
+                return (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
+                  </TableHead>
+                );
+              })}
+            </TableRow>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows?.length ? (
+            table.getRowModel().rows.map((row) => (
+              <TableRow
+                key={row.id}
+                data-state={row.getIsSelected() && "selected"}
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </TableCell>
+                ))}
               </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  Không có dữ liệu.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+            ))
+          ) : (
+            <TableRow>
+              <TableCell colSpan={columns.length} className="h-24 text-center">
+                Không có dữ liệu.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
           {selectedRowCount > 0 ? (
@@ -280,7 +268,8 @@ export function CommonTable<TData, TValue>({
             </>
           ) : isServerSide ? (
             <>
-              Trang {serverPagination.page}/{serverPagination.totalPages} ({totalRows} kết quả)
+              Trang {serverPagination.page}/{serverPagination.totalPages} (
+              {totalRows} kết quả)
             </>
           ) : (
             <>{totalRows} kết quả</>
