@@ -143,12 +143,11 @@ export function UserFormModal({
   const handleSubmit = async (
     data: CreateUserFormData | UpdateUserFormData
   ) => {
-   
     const processedData = { ...data };
     if (!processedData.branchId || processedData.branchId === "") {
-      processedData.branchId = null as any; 
+      processedData.branchId = null as any;
     }
-    
+
     // Remove empty password when updating
     if (isEditMode) {
       const updateData = processedData as UpdateUserFormData;
@@ -156,7 +155,7 @@ export function UserFormModal({
         delete updateData.password;
       }
       // Remove userName if present
-      if ('userName' in updateData) {
+      if ("userName" in updateData) {
         delete (updateData as any).userName;
       }
       await onSubmit(updateData);
@@ -213,15 +212,24 @@ export function UserFormModal({
           {/* Password - hiện cho cả tạo mới và chỉnh sửa */}
           <div className="space-y-2">
             <Label htmlFor="password">
-              Mật khẩu {!isEditMode && <span className="text-destructive">*</span>}
-              {isEditMode && <span className="text-muted-foreground text-xs ml-1">(để trống nếu không đổi)</span>}
+              Mật khẩu{" "}
+              {!isEditMode && <span className="text-destructive">*</span>}
+              {isEditMode && (
+                <span className="text-muted-foreground text-xs ml-1">
+                  (để trống nếu không đổi)
+                </span>
+              )}
             </Label>
             <div className="relative">
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
                 {...form.register("password" as keyof CreateUserFormData)}
-                placeholder={isEditMode ? "Nhập mật khẩu mới (nếu muốn đổi)" : "Nhập mật khẩu"}
+                placeholder={
+                  isEditMode
+                    ? "Nhập mật khẩu mới (nếu muốn đổi)"
+                    : "Nhập mật khẩu"
+                }
                 className="pr-10"
               />
               <Button
