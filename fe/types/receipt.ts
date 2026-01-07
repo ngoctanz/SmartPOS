@@ -8,7 +8,16 @@ export interface ReceiptItem {
 }
 
 export type ReceiptPaymentMethod = "cash" | "card" | "transfer";
-export type ReceiptStatus = "completed" | "cancelled";
+export type ReceiptStatus = "completed" | "cancelled" | "pending";
+export type PaymentStatus = "pending" | "paid" | "cancelled" | "expired" | "";
+
+export interface PaymentInfo {
+  orderCode: number;
+  linkId: string;
+  qrCode: string;
+  checkoutUrl: string;
+  status: PaymentStatus;
+}
 
 export interface Receipt extends BaseEntity {
   code: string;
@@ -18,6 +27,8 @@ export interface Receipt extends BaseEntity {
   totalAmount: number;
   paymentMethod: ReceiptPaymentMethod;
   status: ReceiptStatus;
+  // PayOS payment info (only for transfer)
+  paymentInfo?: PaymentInfo;
 }
 
 export interface ImportReceiptItem {

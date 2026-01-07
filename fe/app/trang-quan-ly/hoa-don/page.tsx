@@ -163,8 +163,20 @@ export default function Page() {
         cell: ({ row }) => {
           const status = row.getValue("status") as string;
           return (
-            <Badge variant={status === "completed" ? "default" : "destructive"}>
-              {status === "completed" ? "Hoàn thành" : "Đã hủy"}
+            <Badge
+              variant={
+                status === "completed"
+                  ? "default"
+                  : status === "pending"
+                  ? "secondary"
+                  : "destructive"
+              }
+            >
+              {status === "completed"
+                ? "Hoàn thành"
+                : status === "pending"
+                ? "Chờ thanh toán"
+                : "Đã hủy"}
             </Badge>
           );
         },
@@ -244,6 +256,79 @@ export default function Page() {
                 readOnly
               />
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Trạng thái</Label>
+              <div className="col-span-3">
+                <Badge
+                  variant={
+                    selectedItem.status === "completed"
+                      ? "default"
+                      : selectedItem.status === "pending"
+                      ? "secondary"
+                      : "destructive"
+                  }
+                >
+                  {selectedItem.status === "completed"
+                    ? "Hoàn thành"
+                    : selectedItem.status === "pending"
+                    ? "Chờ thanh toán"
+                    : "Đã hủy"}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Payment QR Code for transfer payments */}
+            {selectedItem.paymentMethod === "transfer" &&
+              selectedItem.paymentInfo?.qrCode && (
+                <div className="mt-4 p-4 border rounded-lg bg-muted/50">
+                  <h4 className="mb-3 font-medium text-center">
+                    Mã QR Thanh toán
+                  </h4>
+                  <div className="flex flex-col items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={selectedItem.paymentInfo.qrCode}
+                      alt="Payment QR Code"
+                      className="w-48 h-48 border rounded-lg"
+                    />
+                    <div className="text-center text-sm">
+                      <p className="text-muted-foreground">
+                        Trạng thái thanh toán:{" "}
+                        <Badge
+                          variant={
+                            selectedItem.paymentInfo.status === "paid"
+                              ? "default"
+                              : selectedItem.paymentInfo.status === "pending"
+                              ? "secondary"
+                              : "destructive"
+                          }
+                        >
+                          {selectedItem.paymentInfo.status === "paid"
+                            ? "Đã thanh toán"
+                            : selectedItem.paymentInfo.status === "pending"
+                            ? "Chờ thanh toán"
+                            : selectedItem.paymentInfo.status === "cancelled"
+                            ? "Đã hủy"
+                            : selectedItem.paymentInfo.status === "expired"
+                            ? "Hết hạn"
+                            : "Chưa xác định"}
+                        </Badge>
+                      </p>
+                      {selectedItem.paymentInfo.checkoutUrl &&
+                        selectedItem.paymentInfo.status === "pending" && (
+                          <a
+                            href={selectedItem.paymentInfo.checkoutUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:underline mt-2 inline-block"
+                          >
+                            Mở trang thanh toán
+                          </a>
+                        )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
             <div className="mt-4">
               <h4 className="mb-2 font-medium">Danh sách sản phẩm</h4>

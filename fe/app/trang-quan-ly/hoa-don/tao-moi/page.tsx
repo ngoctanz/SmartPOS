@@ -6,7 +6,10 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import productService, { Product } from "@/service/product.service";
-import receiptService, { CreateReceiptRequest } from "@/service/receipt.service";
+import receiptService, {
+  CreateReceiptRequest,
+  Receipt,
+} from "@/service/receipt.service";
 import branchService, { Branch } from "@/service/branch.service";
 import { useAuthContext } from "@/contexts/auth-context";
 import { ROUTES } from "@/configs/routes.config";
@@ -18,6 +21,14 @@ import {
   ConfirmDialog,
   CartItem,
 } from "@/components/receipt";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 
 export default function CreateReceiptPage() {
   const router = useRouter();
@@ -27,9 +38,15 @@ export default function CreateReceiptPage() {
   const [branches, setBranches] = React.useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = React.useState<string>("");
   const [cartItems, setCartItems] = React.useState<CartItem[]>([]);
-  const [paymentMethod, setPaymentMethod] = React.useState<"cash" | "card" | "transfer">("cash");
+  const [paymentMethod, setPaymentMethod] = React.useState<
+    "cash" | "card" | "transfer"
+  >("cash");
   const [showConfirmDialog, setShowConfirmDialog] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  // Payment QR Dialog state
+  const [showQRDialog, setShowQRDialog] = React.useState(false);
+  const [paymentData, setPaymentData] = React.useState<Receipt | null>(null);
 
   // Load branches
   React.useEffect(() => {
@@ -103,7 +120,9 @@ export default function CreateReceiptPage() {
   // Handle product select from search
   const handleProductSelect = React.useCallback(
     (product: Product) => {
-      const existingItem = cartItems.find((item) => item.productId === product._id);
+      const existingItem = cartItems.find(
+        (item) => item.productId === product._id
+      );
 
       if (existingItem) {
         setCartItems((prev) =>
@@ -136,7 +155,9 @@ export default function CreateReceiptPage() {
   // Update quantity
   const updateQuantity = (productId: string, newQuantity: number) => {
     if (newQuantity < 1) {
-      setCartItems((prev) => prev.filter((item) => item.productId !== productId));
+      setCartItems((prev) =>
+        prev.filter((item) => item.productId !== productId)
+      );
       return;
     }
     setCartItems((prev) =>
@@ -184,8 +205,17 @@ export default function CreateReceiptPage() {
 
       const response = await receiptService.create(receiptData);
 
-      if (response.success) {
-        toast.success("Tạo hóa đơn thành công!");
+      if (response.success && response.data) {
+        // If transfer payment, show QR dialog
+        if (paymentMethod === "transfer" && response.data.paymentInfo?.qrCode) {
+          setPaymentData(response.data);
+          setShowQRDialog(true);
+          toast.success(
+            "Tạo hóa đơn thành công! Vui lòng quét mã QR để thanh toán."
+          );
+        } else {
+          toast.success("Tạo hóa đơn thành công!");
+        }
         setCartItems([]);
         setShowConfirmDialog(false);
       } else {
@@ -218,7 +248,11 @@ export default function CreateReceiptPage() {
     <div className="flex flex-col h-full p-4 pt-0">
       {/* Header */}
       <div className="flex items-center gap-4 mb-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push(ROUTES.INVOICES)}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.push(ROUTES.INVOICES)}
+        >
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
@@ -236,7 +270,10 @@ export default function CreateReceiptPage() {
           {/* Search Section */}
           <div className="bg-muted/50 rounded-lg p-4 mb-4 space-y-3">
             <BarcodeScanner onBarcodeScanned={handleBarcodeScanned} />
-            <ProductSearch onProductSelect={handleProductSelect} searchFn={handleSearch} />
+            <ProductSearch
+              onProductSelect={handleProductSelect}
+              searchFn={handleSearch}
+            />
           </div>
 
           {/* Cart Table */}
@@ -270,6 +307,76 @@ export default function CreateReceiptPage() {
         onConfirm={handleSubmit}
         isSubmitting={isSubmitting}
       />
+
+      {/* Payment QR Code Dialog */}
+      <Dialog open={showQRDialog} onOpenChange={setShowQRDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center">
+              Thanh toán chuyển khoản
+            </DialogTitle>
+            <DialogDescription className="text-center">
+              Quét mã QR bên dưới để thanh toán
+            </DialogDescription>
+          </DialogHeader>
+          {paymentData && (
+            <div className="flex flex-col items-center gap-4 py-4">
+              {paymentData.paymentInfo?.qrCode && (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={paymentData.paymentInfo.qrCode}
+                  alt="Payment QR Code"
+                  className="w-64 h-64 border rounded-lg"
+                />
+              )}
+              <div className="text-center space-y-2">
+                <p className="font-medium">
+                  Mã hóa đơn:{" "}
+                  <span className="text-primary">{paymentData.code}</span>
+                </p>
+                <p className="text-lg font-bold text-primary">
+                  {new Intl.NumberFormat("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  }).format(paymentData.totalAmount)}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Trạng thái thanh toán:{" "}
+                  <Badge variant="secondary">
+                    {paymentData.paymentInfo?.status === "pending"
+                      ? "Chờ thanh toán"
+                      : paymentData.paymentInfo?.status}
+                  </Badge>
+                </p>
+              </div>
+              {paymentData.paymentInfo?.checkoutUrl && (
+                <a
+                  href={paymentData.paymentInfo.checkoutUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline text-sm"
+                >
+                  Mở trang thanh toán PayOS
+                </a>
+              )}
+              <div className="flex gap-2 mt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowQRDialog(false);
+                    setPaymentData(null);
+                  }}
+                >
+                  Đóng
+                </Button>
+                <Button onClick={() => router.push(ROUTES.INVOICES)}>
+                  Về danh sách hóa đơn
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

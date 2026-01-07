@@ -64,8 +64,20 @@ const receiptSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["completed", "cancelled"],
+      enum: ["completed", "cancelled", "pending"],
       default: "completed",
+    },
+    // PayOS payment info (only for transfer payments)
+    paymentInfo: {
+      orderCode: { type: Number },
+      linkId: { type: String },
+      qrCode: { type: String },
+      checkoutUrl: { type: String },
+      status: {
+        type: String,
+        enum: ["pending", "paid", "cancelled", "expired", ""],
+        default: "",
+      },
     },
   },
   {
@@ -79,6 +91,7 @@ receiptSchema.index({ createdBy: 1 });
 receiptSchema.index({ status: 1 });
 receiptSchema.index({ createdAt: -1 });
 receiptSchema.index({ paymentMethod: 1 });
+receiptSchema.index({ "paymentInfo.orderCode": 1 });
 
 // Static methods
 receiptSchema.statics = {
@@ -119,6 +132,25 @@ receiptSchema.statics = {
       .populate("branchId", "branchName")
       .populate("createdBy", "userName name")
       .lean();
+  },
+
+  async findReceiptByOrderCode(orderCode) {
+    return this.findOne({ "paymentInfo.orderCode": orderCode })
+      .populate("branchId", "branchName")
+      .populate("createdBy", "userName name");
+  },
+
+  async updatePaymentStatus(orderCode, paymentStatus, status = null) {
+    const updateData = { "paymentInfo.status": paymentStatus };
+    if (status) updateData.status = status;
+
+    const receipt = await this.findOneAndUpdate(
+      { "paymentInfo.orderCode": orderCode },
+      updateData,
+      { new: true, runValidators: true }
+    );
+    if (!receipt) throw new Error("Receipt not found");
+    return receipt;
   },
 
   async findReceiptsByBranch(branchId, filter = {}) {
@@ -207,7 +239,9 @@ receiptSchema.statics = {
           productName: { $first: "$listProduct.productName" },
           totalQuantity: { $sum: "$listProduct.quantity" },
           totalRevenue: {
-            $sum: { $multiply: ["$listProduct.salePrice", "$listProduct.quantity"] },
+            $sum: {
+              $multiply: ["$listProduct.salePrice", "$listProduct.quantity"],
+            },
           },
         },
       },

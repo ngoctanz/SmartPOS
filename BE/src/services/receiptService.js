@@ -4,6 +4,7 @@ import { BranchProduct } from "../models/branchProductModel.js";
 import { Branch } from "../models/branchModel.js";
 import ApiError from "../utils/apiError.js";
 import { getDateRange } from "../utils/calculators.js";
+import { payosService } from "./payosService.js";
 
 const create = async (data, userId) => {
   try {
@@ -38,21 +39,56 @@ const create = async (data, userId) => {
       totalAmount += subtotal;
     }
 
-    // Create receipt
+    // Determine initial status based on payment method
+    const isTransfer = data.paymentMethod === "transfer";
+    const initialStatus = isTransfer ? "pending" : "completed";
+
+    // Create receipt data
     const receiptData = {
       branchId: data.branchId,
       createdBy: userId,
       listProduct,
       totalAmount,
       paymentMethod: data.paymentMethod || "cash",
-      status: "completed",
+      status: initialStatus,
     };
+
+    // If transfer payment, create PayOS payment link
+    if (isTransfer) {
+      const orderCode = payosService.generateOrderCode();
+      const baseUrl = process.env.CLIENT_URL || "http://localhost:3000";
+
+      const paymentResult = await payosService.createPaymentLink({
+        orderCode,
+        amount: Math.round(totalAmount),
+        description: `Thanh toan don hang SmartPOS`,
+        returnUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
+        cancelUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
+        expiredAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+      });
+
+      if (paymentResult.success) {
+        receiptData.paymentInfo = {
+          orderCode,
+          linkId: paymentResult.data.paymentLinkId,
+          qrCode: paymentResult.data.qrCode,
+          checkoutUrl: paymentResult.data.checkoutUrl,
+          status: "pending",
+        };
+      }
+    }
 
     const receipt = await Receipt.createReceipt(receiptData);
 
-    // Decrease stock
-    for (const item of listProduct) {
-      await BranchProduct.decreaseStock(data.branchId, item.productId, item.quantity);
+    // Only decrease stock if payment is completed (not transfer)
+    if (!isTransfer) {
+      for (const item of listProduct) {
+        await BranchProduct.decreaseStock(
+          data.branchId,
+          item.productId,
+          item.quantity
+        );
+      }
     }
 
     return receipt;
@@ -73,7 +109,11 @@ const cancel = async (id) => {
 
     // Restore stock
     for (const item of receipt.listProduct) {
-      await BranchProduct.increaseStock(branchId, item.productId, item.quantity);
+      await BranchProduct.increaseStock(
+        branchId,
+        item.productId,
+        item.quantity
+      );
     }
 
     return await Receipt.updateStatus(id, "cancelled");
@@ -160,7 +200,12 @@ const getDailyRevenue = async (period, branchId = null) => {
 const getTopProducts = async (period, branchId = null, limit = 10) => {
   try {
     const { startDate, endDate } = getDateRange(period);
-    return await Receipt.getTopSellingProducts(startDate, endDate, branchId, limit);
+    return await Receipt.getTopSellingProducts(
+      startDate,
+      endDate,
+      branchId,
+      limit
+    );
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -169,7 +214,123 @@ const getTopProducts = async (period, branchId = null, limit = 10) => {
 const getRevenueByPaymentMethod = async (period, branchId = null) => {
   try {
     const { startDate, endDate } = getDateRange(period);
-    return await Receipt.getRevenueByPaymentMethod(startDate, endDate, branchId);
+    return await Receipt.getRevenueByPaymentMethod(
+      startDate,
+      endDate,
+      branchId
+    );
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+/**
+ * Handle PayOS webhook callback
+ */
+const handlePaymentWebhook = async (webhookData) => {
+  try {
+    // Verify webhook data
+    const verifiedData = payosService.verifyPaymentWebhookData(webhookData);
+    if (!verifiedData) {
+      throw new ApiError(400, "Invalid webhook signature");
+    }
+
+    const { orderCode } = verifiedData;
+    const receipt = await Receipt.findReceiptByOrderCode(orderCode);
+
+    if (!receipt) {
+      console.log(`Receipt not found for orderCode: ${orderCode}`);
+      return { success: true }; // Return success to prevent PayOS from retrying
+    }
+
+    // Check if payment was successful (code "00" means success)
+    if (webhookData.code === "00" && webhookData.success) {
+      // Update payment status to paid
+      await Receipt.updatePaymentStatus(orderCode, "paid", "completed");
+
+      // Decrease stock after successful payment
+      const branchId = receipt.branchId._id || receipt.branchId;
+      for (const item of receipt.listProduct) {
+        await BranchProduct.decreaseStock(
+          branchId,
+          item.productId,
+          item.quantity
+        );
+      }
+
+      console.log(`Payment confirmed for receipt: ${receipt.code}`);
+    } else {
+      // Payment failed or cancelled
+      await Receipt.updatePaymentStatus(orderCode, "cancelled", "cancelled");
+      console.log(`Payment failed/cancelled for receipt: ${receipt.code}`);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Webhook handling error:", error);
+    throw new Error(error.message || error);
+  }
+};
+
+/**
+ * Check payment status from PayOS
+ */
+const checkPaymentStatus = async (orderCode) => {
+  try {
+    const paymentInfo = await payosService.getPaymentInfo(orderCode);
+    const receipt = await Receipt.findReceiptByOrderCode(orderCode);
+
+    if (!receipt) {
+      throw new ApiError(404, "Receipt not found");
+    }
+
+    // Update local status based on PayOS status
+    if (
+      paymentInfo.status === "PAID" &&
+      receipt.paymentInfo?.status !== "paid"
+    ) {
+      await Receipt.updatePaymentStatus(orderCode, "paid", "completed");
+
+      // Decrease stock
+      const branchId = receipt.branchId._id || receipt.branchId;
+      for (const item of receipt.listProduct) {
+        await BranchProduct.decreaseStock(
+          branchId,
+          item.productId,
+          item.quantity
+        );
+      }
+    } else if (paymentInfo.status === "CANCELLED") {
+      await Receipt.updatePaymentStatus(orderCode, "cancelled", "cancelled");
+    } else if (paymentInfo.status === "EXPIRED") {
+      await Receipt.updatePaymentStatus(orderCode, "expired", "cancelled");
+    }
+
+    return {
+      paymentStatus: paymentInfo.status,
+      receipt: await Receipt.findReceiptByOrderCode(orderCode),
+    };
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+/**
+ * Get payment info by order code
+ */
+const getPaymentInfo = async (orderCode) => {
+  try {
+    const receipt = await Receipt.findReceiptByOrderCode(orderCode);
+    if (!receipt) {
+      throw new ApiError(404, "Receipt not found");
+    }
+
+    return {
+      receipt,
+      paymentInfo: receipt.paymentInfo?.orderCode
+        ? await payosService.getPaymentInfo(orderCode)
+        : null,
+    };
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -187,4 +348,6 @@ export const receiptService = {
   getDailyRevenue,
   getTopProducts,
   getRevenueByPaymentMethod,
+  handlePaymentWebhook,
+  checkPaymentStatus,
 };

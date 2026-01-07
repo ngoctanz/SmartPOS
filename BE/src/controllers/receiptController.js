@@ -5,11 +5,18 @@ const create = async (req, res, next) => {
   try {
     // branchId đã được inject từ middleware hoặc từ request body (admin)
     const receipt = await receiptService.create(req.body, req.user.userId);
-    res.status(StatusCodes.CREATED).json({
+
+    // If transfer payment, include payment info in response
+    const responseData = {
       success: true,
-      message: "Receipt created successfully!",
+      message:
+        receipt.paymentMethod === "transfer"
+          ? "Receipt created! Please complete payment."
+          : "Receipt created successfully!",
       data: receipt,
-    });
+    };
+
+    res.status(StatusCodes.CREATED).json(responseData);
   } catch (error) {
     next(error);
   }
@@ -79,7 +86,10 @@ const getByBranch = async (req, res, next) => {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
 
-    const receipts = await receiptService.getByBranch(req.params.branchId, filter);
+    const receipts = await receiptService.getByBranch(
+      req.params.branchId,
+      filter
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get receipts by branch successfully",
@@ -113,7 +123,10 @@ const getByDateRange = async (req, res, next) => {
 const getRevenue = async (req, res, next) => {
   try {
     const { period, branchId } = req.query;
-    const result = await receiptService.getRevenue(period || "month", branchId || null);
+    const result = await receiptService.getRevenue(
+      period || "month",
+      branchId || null
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get revenue successfully",
@@ -127,7 +140,10 @@ const getRevenue = async (req, res, next) => {
 const getDailyRevenue = async (req, res, next) => {
   try {
     const { period, branchId } = req.query;
-    const result = await receiptService.getDailyRevenue(period || "month", branchId || null);
+    const result = await receiptService.getDailyRevenue(
+      period || "month",
+      branchId || null
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get daily revenue successfully",
@@ -156,6 +172,41 @@ const getTopProducts = async (req, res, next) => {
   }
 };
 
+/**
+ * PayOS Webhook Handler
+ * POST /receipt/webhook/payos
+ */
+const handlePayosWebhook = async (req, res, next) => {
+  try {
+    console.log("PayOS Webhook received:", JSON.stringify(req.body));
+
+    const result = await receiptService.handlePaymentWebhook(req.body);
+    res.status(StatusCodes.OK).json(result);
+  } catch (error) {
+    console.error("Webhook error:", error);
+    // Always return 200 to prevent PayOS from retrying
+    res.status(StatusCodes.OK).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * Check payment status
+ * GET /receipt/payment-status/:orderCode
+ */
+const checkPaymentStatus = async (req, res, next) => {
+  try {
+    const { orderCode } = req.params;
+    const result = await receiptService.checkPaymentStatus(parseInt(orderCode));
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Payment status retrieved successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const receiptController = {
   create,
   cancel,
@@ -167,4 +218,6 @@ export const receiptController = {
   getRevenue,
   getDailyRevenue,
   getTopProducts,
+  handlePayosWebhook,
+  checkPaymentStatus,
 };

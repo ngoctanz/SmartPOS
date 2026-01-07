@@ -8,6 +8,14 @@ export interface ReceiptItem {
   salePrice: number;
 }
 
+export interface PaymentInfo {
+  orderCode: number;
+  linkId: string;
+  qrCode: string;
+  checkoutUrl: string;
+  status: "pending" | "paid" | "cancelled" | "expired" | "";
+}
+
 export interface Receipt {
   _id: string;
   code: string;
@@ -16,7 +24,9 @@ export interface Receipt {
   listProduct: ReceiptItem[];
   totalAmount: number;
   paymentMethod: "cash" | "card" | "transfer";
-  status: "completed" | "cancelled";
+  status: "completed" | "cancelled" | "pending";
+  // PayOS payment info (only for transfer)
+  paymentInfo?: PaymentInfo;
   createdAt: string;
   updatedAt: string;
 }
@@ -191,6 +201,18 @@ const receiptService = {
    */
   cancel: async (id: string, reason: string): Promise<ApiResponse<Receipt>> => {
     return apiPatch<Receipt>(`/receipt/${id}/cancel`, { reason });
+  },
+
+  /**
+   * Kiểm tra trạng thái thanh toán
+   * GET /api/v1/receipt/payment-status/:orderCode
+   */
+  checkPaymentStatus: async (
+    orderCode: number
+  ): Promise<ApiResponse<{ paymentStatus: string; receipt: Receipt }>> => {
+    return apiGet<{ paymentStatus: string; receipt: Receipt }>(
+      `/receipt/payment-status/${orderCode}`
+    );
   },
 };
 
