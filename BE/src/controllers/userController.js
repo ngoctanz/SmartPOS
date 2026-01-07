@@ -44,6 +44,28 @@ const searchUser = async (req, res, next) => {
 
 const getAllUser = async (req, res, next) => {
   try {
+    const { search, role, status, branchId, page, limit } = req.query;
+    
+    // Nếu có params phân trang thì dùng paginated
+    if (page || limit || search) {
+      const options = {
+        search,
+        role,
+        status,
+        branchId,
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 20,
+      };
+      const result = await userService.getAllUserPaginated(options);
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: "Get users successfully",
+        data: result.data,
+        pagination: result.pagination,
+      });
+    }
+    
+    // Fallback: lấy tất cả (cho các API cũ)
     const users = await userService.getAllUser();
     res.status(StatusCodes.OK).json({
       success: true,

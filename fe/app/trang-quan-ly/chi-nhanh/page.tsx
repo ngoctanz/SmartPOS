@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CommonTable } from "@/components/common/common-table"
+import { CommonTable, ServerPagination } from "@/components/common/common-table"
 import { Branch } from "@/service/branch.service" 
 import { ColumnDef } from "@tanstack/react-table"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input" 
 import { toast } from "sonner" 
 import { format } from "date-fns"
+import { Loader2 } from "lucide-react"
 import branchService from "@/service/branch.service"
 
 export default function Page() {
@@ -32,12 +33,38 @@ export default function Page() {
     contactInfo: ""
   })
 
+  // Server pagination state
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
+  const [pagination, setPagination] = React.useState<ServerPagination>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
+
+  // Debounce search
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPagination((prev) => ({ ...prev, page: 1 }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const fetchData = React.useCallback(async () => {
     try {
       setLoading(true)
-      const res = await branchService.getAll()
+      const res = await branchService.getAll({
+        page: pagination.page,
+        limit: pagination.limit,
+        search: debouncedSearch || undefined,
+      })
       if (res.data) {
         setData(res.data)
+      }
+      if (res.pagination) {
+        setPagination(res.pagination)
       }
     } catch (error) {
       toast.error("Không thể tải danh sách chi nhánh")
@@ -45,11 +72,19 @@ export default function Page() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [pagination.page, pagination.limit, debouncedSearch])
 
   React.useEffect(() => {
     fetchData()
   }, [fetchData])
+
+  const handlePageChange = (page: number) => {
+    setPagination((prev) => ({ ...prev, page }));
+  };
+
+  const handleSearch = (search: string) => {
+    setSearchTerm(search);
+  };
 
   const handleCreate = () => {
     setSelectedItem(null)
@@ -205,15 +240,26 @@ export default function Page() {
                 </button>
             </div>
       </div>
-      <CommonTable 
-        columns={columns} 
-        data={data} 
-        filterCol="branchName" 
-        filterPlaceholder="Tìm chi nhánh..." 
-        onBulkAction={handleDeleteMany}
-        bulkActionLabel="Xóa đã chọn"
-        bulkActionIcon="trash"
-      />
+
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <CommonTable 
+          columns={columns} 
+          data={data} 
+          filterCol="branchName" 
+          filterPlaceholder="Tìm chi nhánh..." 
+          onBulkAction={handleDeleteMany}
+          bulkActionLabel="Xóa đã chọn"
+          bulkActionIcon="trash"
+          serverPagination={pagination}
+          onPageChange={handlePageChange}
+          onSearch={handleSearch}
+          searchValue={searchTerm}
+        />
+      )}
 
       <ConfirmDeleteDialog 
         open={isDeleteOpen}

@@ -74,6 +74,50 @@ productSchema.statics = {
       .lean();
   },
 
+  async findAllProductsPaginated(options = {}) {
+    const { search, categoryId, status, page = 1, limit = 20 } = options;
+    
+    const query = {};
+    
+    // Search by name or barcode
+    if (search && search.trim()) {
+      query.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { barcode: { $regex: search, $options: "i" } },
+      ];
+    }
+    
+    // Filter by category
+    if (categoryId) {
+      query.categoryId = categoryId;
+    }
+    
+    // Filter by status (default: all)
+    if (status) {
+      query.status = status;
+    }
+
+    const total = await this.countDocuments(query);
+    const skip = (page - 1) * limit;
+    
+    const data = await this.find(query)
+      .populate("categoryId", "name")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+
   async findProductById(id) {
     const product = await this.findOne({ _id: id })
       .populate("categoryId", "name")

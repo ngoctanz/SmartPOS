@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CommonTable } from "@/components/common/common-table";
+import { CommonTable, ServerPagination } from "@/components/common/common-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -48,30 +48,65 @@ export default function Page() {
   const [showPrintDialog, setShowPrintDialog] = React.useState(false);
   const printRef = React.useRef<HTMLDivElement>(null);
 
-  // Fetch data on mount
-  React.useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const [receiptsRes, branchesRes] = await Promise.all([
-          receiptService.getAll(),
-          branchService.getAll(),
-        ]);
+  // Server pagination state
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
+  const [pagination, setPagination] = React.useState<ServerPagination>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
 
-        if (receiptsRes.success && receiptsRes.data) {
-          setData(receiptsRes.data);
-        }
-        if (branchesRes.success && branchesRes.data) {
-          setBranches(branchesRes.data);
-        }
-      } catch {
-        toast.error("Không thể tải dữ liệu");
-      } finally {
-        setIsLoading(false);
+  // Debounce search
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPagination((prev) => ({ ...prev, page: 1 }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Fetch data
+  const fetchData = React.useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [receiptsRes, branchesRes] = await Promise.all([
+        receiptService.getAll({
+          page: pagination.page,
+          limit: pagination.limit,
+          search: debouncedSearch || undefined,
+        }),
+        branchService.getAll(),
+      ]);
+
+      if (receiptsRes.success && receiptsRes.data) {
+        setData(receiptsRes.data);
       }
-    };
+      if (receiptsRes.pagination) {
+        setPagination(receiptsRes.pagination);
+      }
+      if (branchesRes.success && branchesRes.data) {
+        setBranches(branchesRes.data);
+      }
+    } catch {
+      toast.error("Không thể tải dữ liệu");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [pagination.page, pagination.limit, debouncedSearch]);
+
+  React.useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
+
+  const handlePageChange = (page: number) => {
+    setPagination((prev) => ({ ...prev, page }));
+  };
+
+  const handleSearch = (search: string) => {
+    setSearchTerm(search);
+  };
 
   const handleView = (item: Receipt) => {
     setSelectedItem(item);
@@ -294,6 +329,10 @@ export default function Page() {
         data={data}
         filterCol="code"
         filterPlaceholder="Tìm mã hóa đơn..."
+        serverPagination={pagination}
+        onPageChange={handlePageChange}
+        onSearch={handleSearch}
+        searchValue={searchTerm}
       />
 
       {/* Quick View Modal */}

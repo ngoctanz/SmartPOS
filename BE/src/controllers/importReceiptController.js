@@ -45,9 +45,30 @@ const cancel = async (req, res, next) => {
 
 const getAll = async (req, res, next) => {
   try {
+    const { search, branchId, status, page, limit } = req.query;
+    
+    // Nếu có params phân trang thì dùng paginated
+    if (page || limit || search) {
+      const options = {
+        search,
+        branchId,
+        status,
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 20,
+      };
+      const result = await importReceiptService.getAllPaginated(options);
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: "Get import receipts successfully",
+        data: result.data,
+        pagination: result.pagination,
+      });
+    }
+    
+    // Fallback: lấy tất cả (cho các API cũ)
     const filter = {};
-    if (req.query.status) filter.status = req.query.status;
-    if (req.query.branchId) filter.branchId = req.query.branchId;
+    if (status) filter.status = status;
+    if (branchId) filter.branchId = branchId;
 
     const receipts = await importReceiptService.getAll(filter);
     res.status(StatusCodes.OK).json({

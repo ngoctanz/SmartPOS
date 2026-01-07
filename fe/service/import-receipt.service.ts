@@ -41,6 +41,14 @@ export interface GetImportReceiptParams {
   limit?: number;
   branchId?: string;
   status?: string;
+  search?: string;
+}
+
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }
 
 export interface DateRangeParams {
@@ -56,17 +64,18 @@ export interface TotalImportData {
 
 const importReceiptService = {
   /**
-   * Lấy tất cả phiếu nhập
+   * Lấy tất cả phiếu nhập (có phân trang)
    * GET /api/v1/import-receipt
    */
   getAll: async (
     params?: GetImportReceiptParams
-  ): Promise<ApiResponse<ImportReceipt[]>> => {
+  ): Promise<ApiResponse<ImportReceipt[]> & { pagination?: Pagination }> => {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", String(params.page));
     if (params?.limit) queryParams.append("limit", String(params.limit));
     if (params?.branchId) queryParams.append("branchId", params.branchId);
     if (params?.status) queryParams.append("status", params.status);
+    if (params?.search) queryParams.append("search", params.search);
 
     const query = queryParams.toString();
     return apiGet<ImportReceipt[]>(

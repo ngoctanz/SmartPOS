@@ -45,6 +45,36 @@ categorySchema.statics = {
       .lean();
   },
 
+  async findAllCategoriesPaginated(options = {}) {
+    const { search, page = 1, limit = 20 } = options;
+    
+    const query = {};
+    
+    // Search by name
+    if (search && search.trim()) {
+      query.name = { $regex: search, $options: "i" };
+    }
+
+    const total = await this.countDocuments(query);
+    const skip = (page - 1) * limit;
+    
+    const data = await this.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+
   async findCategoryById(id) {
     const category = await this.findOne({ _id: id }).lean();
     if (!category) throw new Error("Category not found");

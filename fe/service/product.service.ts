@@ -46,13 +46,36 @@ export interface SearchProductParams {
   categoryId?: string;
 }
 
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface ProductQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  categoryId?: string;
+  status?: string;
+}
+
 const productService = {
   /**
-   * Lấy tất cả sản phẩm
+   * Lấy tất cả sản phẩm (có phân trang)
    * GET /api/v1/product
    */
-  getAll: async (): Promise<ApiResponse<Product[]>> => {
-    return apiGet<Product[]>("/product");
+  getAll: async (params?: ProductQueryParams): Promise<ApiResponse<Product[]> & { pagination?: Pagination }> => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append("page", String(params.page));
+    if (params?.limit) queryParams.append("limit", String(params.limit));
+    if (params?.search) queryParams.append("search", params.search);
+    if (params?.categoryId) queryParams.append("categoryId", params.categoryId);
+    if (params?.status) queryParams.append("status", params.status);
+    
+    const query = queryParams.toString();
+    return apiGet<Product[]>(`/product${query ? `?${query}` : ""}`);
   },
 
   /**

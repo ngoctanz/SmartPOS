@@ -49,6 +49,39 @@ branchSchema.statics = {
     return this.find(filter).sort({ createdAt: -1 }).lean();
   },
 
+  async findAllBranchesPaginated(options = {}) {
+    const { search, page = 1, limit = 20 } = options;
+    
+    const query = {};
+    
+    // Search by name or address
+    if (search && search.trim()) {
+      query.$or = [
+        { branchName: { $regex: search, $options: "i" } },
+        { address: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const total = await this.countDocuments(query);
+    const skip = (page - 1) * limit;
+    
+    const data = await this.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+
   async findBranchById(id) {
     const branch = await this.findOne({ _id: id }).lean();
     if (!branch) throw new Error("Branch not found");

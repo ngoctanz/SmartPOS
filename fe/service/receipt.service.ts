@@ -49,6 +49,14 @@ export interface GetReceiptParams {
   branchId?: string;
   status?: string;
   paymentMethod?: string;
+  search?: string;
+}
+
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 }
 
 export interface DateRangeParams {
@@ -78,19 +86,19 @@ export interface TopProduct {
 
 const receiptService = {
   /**
-   * Lấy tất cả hóa đơn
+   * Lấy tất cả hóa đơn (có phân trang)
    * GET /api/v1/receipt
    */
   getAll: async (
     params?: GetReceiptParams
-  ): Promise<ApiResponse<Receipt[]>> => {
+  ): Promise<ApiResponse<Receipt[]> & { pagination?: Pagination }> => {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", String(params.page));
     if (params?.limit) queryParams.append("limit", String(params.limit));
     if (params?.branchId) queryParams.append("branchId", params.branchId);
     if (params?.status) queryParams.append("status", params.status);
-    if (params?.paymentMethod)
-      queryParams.append("paymentMethod", params.paymentMethod);
+    if (params?.paymentMethod) queryParams.append("paymentMethod", params.paymentMethod);
+    if (params?.search) queryParams.append("search", params.search);
 
     const query = queryParams.toString();
     return apiGet<Receipt[]>(`/receipt${query ? `?${query}` : ""}`);

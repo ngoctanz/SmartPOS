@@ -26,13 +26,32 @@ export interface SearchBranchParams {
   name?: string;
 }
 
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface PaginationParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+}
+
 const branchService = {
   /**
-   * Lấy tất cả chi nhánh
+   * Lấy tất cả chi nhánh (có phân trang)
    * GET /api/v1/branch
    */
-  getAll: async (): Promise<ApiResponse<Branch[]>> => {
-    return apiGet<Branch[]>("/branch");
+  getAll: async (params?: PaginationParams): Promise<ApiResponse<Branch[]> & { pagination?: Pagination }> => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append("page", String(params.page));
+    if (params?.limit) queryParams.append("limit", String(params.limit));
+    if (params?.search) queryParams.append("search", params.search);
+    
+    const query = queryParams.toString();
+    return apiGet<Branch[]>(`/branch${query ? `?${query}` : ""}`);
   },
 
   /**

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CommonTable } from "@/components/common/common-table";
+import { CommonTable, ServerPagination } from "@/components/common/common-table";
 import { mockCategories } from "@/mock/categories";
 import { Category } from "@/types/category";
 import { ColumnDef } from "@tanstack/react-table";
@@ -16,12 +16,11 @@ import { format } from "date-fns";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { categoryService } from "@/service";
+import { Loader2 } from "lucide-react";
 
 export default function Page() {
   const [data, setData] = useState<Category[]>([])
   const [loading, setLoading] = useState(false)
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(10)
   
   const [selectedItem, setSelectedItem] = useState<Category | null>(null)
   const [selectedItems, setSelectedItems] = useState<Category[]>([])
@@ -31,12 +30,38 @@ export default function Page() {
   
   const [formData, setFormData] = useState<{ name: string; desc: string }>({ name: "", desc: "" })
 
+  // Server pagination state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [pagination, setPagination] = useState<ServerPagination>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPagination((prev) => ({ ...prev, page: 1 }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await categoryService.getAll({ page, limit });
+      const res = await categoryService.getAll({
+        page: pagination.page,
+        limit: pagination.limit,
+        search: debouncedSearch || undefined,
+      });
       if (res.data) {
         setData(res.data);
+      }
+      if (res.pagination) {
+        setPagination(res.pagination);
       }
     } catch (error) {
       toast.error("Không thể tải danh sách loại sản phẩm");
@@ -44,11 +69,19 @@ export default function Page() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit]);
+  }, [pagination.page, pagination.limit, debouncedSearch]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handlePageChange = (page: number) => {
+    setPagination((prev) => ({ ...prev, page }));
+  };
+
+  const handleSearch = (search: string) => {
+    setSearchTerm(search);
+  };
 
   const handleCreate = () => {
     setSelectedItem(null);
@@ -195,15 +228,26 @@ export default function Page() {
                 <Button onClick={handleCreate}>+ Thêm mới</Button>
             </div>
       </div>
-      <CommonTable 
-        columns={columns} 
-        data={data} 
-        filterCol="name" 
-        filterPlaceholder="Tìm loại sản phẩm..." 
-        onBulkAction={handleDeleteMany}
-        bulkActionLabel="Xóa đã chọn"
-        bulkActionIcon="trash"
-      />
+
+      {loading ? (
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <CommonTable 
+          columns={columns} 
+          data={data} 
+          filterCol="name" 
+          filterPlaceholder="Tìm loại sản phẩm..." 
+          onBulkAction={handleDeleteMany}
+          bulkActionLabel="Xóa đã chọn"
+          bulkActionIcon="trash"
+          serverPagination={pagination}
+          onPageChange={handlePageChange}
+          onSearch={handleSearch}
+          searchValue={searchTerm}
+        />
+      )}
       
        <ConfirmDeleteDialog 
         open={isDeleteOpen}

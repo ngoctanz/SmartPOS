@@ -27,22 +27,32 @@ export interface SearchCategoryParams {
 }
 
 
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 export interface PaginationParams {
   page?: number;
   limit?: number;
+  search?: string;
 }
 
 const categoryService = {
   /**
-   * Lấy tất cả loại sản phẩm
+   * Lấy tất cả loại sản phẩm (có phân trang)
    * GET /api/v1/category
    */
-  getAll: async (params?: PaginationParams): Promise<ApiResponse<Category[]>> => {
+  getAll: async (params?: PaginationParams): Promise<ApiResponse<Category[]> & { pagination?: Pagination }> => {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", String(params.page));
     if (params?.limit) queryParams.append("limit", String(params.limit));
+    if (params?.search) queryParams.append("search", params.search);
     
-    return apiGet<Category[]>(`/category?${queryParams.toString()}`);
+    const query = queryParams.toString();
+    return apiGet<Category[]>(`/category${query ? `?${query}` : ""}`);
   },
 
   /**

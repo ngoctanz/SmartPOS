@@ -50,11 +50,32 @@ const update = async (req, res, next) => {
 
 const getAll = async (req, res, next) => {
   try {
+    const { search, branchId, status, paymentMethod, page, limit } = req.query;
+    
+    // Nếu có params phân trang thì dùng paginated
+    if (page || limit || search) {
+      const options = {
+        search,
+        branchId,
+        status,
+        paymentMethod,
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 20,
+      };
+      const result = await receiptService.getAllPaginated(options);
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: "Get receipts successfully",
+        data: result.data,
+        pagination: result.pagination,
+      });
+    }
+    
+    // Fallback: lấy tất cả (cho các API cũ)
     const filter = {};
-    if (req.query.status) filter.status = req.query.status;
-    // branchId đã được inject từ middleware cho staff
-    if (req.query.branchId) filter.branchId = req.query.branchId;
-    if (req.query.paymentMethod) filter.paymentMethod = req.query.paymentMethod;
+    if (status) filter.status = status;
+    if (branchId) filter.branchId = branchId;
+    if (paymentMethod) filter.paymentMethod = paymentMethod;
 
     const receipts = await receiptService.getAll(filter);
     res.status(StatusCodes.OK).json({

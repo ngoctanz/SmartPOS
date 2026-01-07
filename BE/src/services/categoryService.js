@@ -17,6 +17,14 @@ const getAll = async () => {
   }
 };
 
+const getAllPaginated = async (options = {}) => {
+  try {
+    return await Category.findAllCategoriesPaginated(options);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 const getById = async (id) => {
   try {
     if (!id || id.trim() === "") {
@@ -74,6 +82,7 @@ const hardDelete = async (id) => {
 export const categoryService = {
   create,
   getAll,
+  getAllPaginated,
   getById,
   getByName,
   update,

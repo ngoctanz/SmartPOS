@@ -118,6 +118,53 @@ receiptSchema.statics = {
       .lean();
   },
 
+  async findAllReceiptsPaginated(options = {}) {
+    const { search, branchId, status, paymentMethod, page = 1, limit = 20 } = options;
+    
+    const query = {};
+    
+    // Search by code
+    if (search && search.trim()) {
+      query.code = { $regex: search, $options: "i" };
+    }
+    
+    // Filter by branch
+    if (branchId) {
+      query.branchId = new mongoose.Types.ObjectId(branchId);
+    }
+    
+    // Filter by status
+    if (status) {
+      query.status = status;
+    }
+    
+    // Filter by payment method
+    if (paymentMethod) {
+      query.paymentMethod = paymentMethod;
+    }
+
+    const total = await this.countDocuments(query);
+    const skip = (page - 1) * limit;
+    
+    const data = await this.find(query)
+      .populate("branchId", "branchName")
+      .populate("createdBy", "userName name")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+
   async findReceiptById(id) {
     const receipt = await this.findById(id)
       .populate("branchId", "branchName address")

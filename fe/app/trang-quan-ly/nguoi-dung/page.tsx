@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CommonTable } from "@/components/common/common-table";
+import { CommonTable, ServerPagination } from "@/components/common/common-table";
 import { User } from "@/types/user";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -57,21 +57,42 @@ export default function Page() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [itemsToLock, setItemsToLock] = React.useState<User[]>([]);
 
-  // Fetch data on mount
-  React.useEffect(() => {
-    fetchData();
-  }, []);
+  // Server pagination state
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
+  const [pagination, setPagination] = React.useState<ServerPagination>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
 
-  const fetchData = async () => {
+  // Debounce search
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPagination((prev) => ({ ...prev, page: 1 }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const fetchData = React.useCallback(async () => {
     try {
       setLoading(true);
       const [usersRes, branchesRes] = await Promise.all([
-        userService.getAll(),
+        userService.getAll({
+          page: pagination.page,
+          limit: pagination.limit,
+          search: debouncedSearch || undefined,
+        }),
         branchService.getAll(),
       ]);
 
       if (usersRes.data) {
         setData(usersRes.data);
+      }
+      if (usersRes.pagination) {
+        setPagination(usersRes.pagination);
       }
       if (branchesRes.data) {
         setBranches(branchesRes.data);
@@ -82,6 +103,19 @@ export default function Page() {
     } finally {
       setLoading(false);
     }
+  }, [pagination.page, pagination.limit, debouncedSearch]);
+
+  // Fetch data on mount
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handlePageChange = (page: number) => {
+    setPagination((prev) => ({ ...prev, page }));
+  };
+
+  const handleSearch = (search: string) => {
+    setSearchTerm(search);
   };
 
   // Lấy tên chi nhánh từ ID
@@ -354,6 +388,10 @@ export default function Page() {
           canSelectRow={canSelectRow}
           bulkActionLabel="Khóa đã chọn"
           bulkActionIcon="lock"
+          serverPagination={pagination}
+          onPageChange={handlePageChange}
+          onSearch={handleSearch}
+          searchValue={searchTerm}
         />
       )}
 

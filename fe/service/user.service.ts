@@ -24,13 +24,38 @@ export interface SearchUserParams {
   name?: string;
 }
 
+export interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface UserQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  role?: string;
+  status?: string;
+  branchId?: string;
+}
+
 const userService = {
   /**
-   * Lấy tất cả người dùng
+   * Lấy tất cả người dùng (có phân trang)
    * GET /api/v1/user
    */
-  getAll: async (): Promise<ApiResponse<User[]>> => {
-    return apiGet<User[]>("/user");
+  getAll: async (params?: UserQueryParams): Promise<ApiResponse<User[]> & { pagination?: Pagination }> => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append("page", String(params.page));
+    if (params?.limit) queryParams.append("limit", String(params.limit));
+    if (params?.search) queryParams.append("search", params.search);
+    if (params?.role) queryParams.append("role", params.role);
+    if (params?.status) queryParams.append("status", params.status);
+    if (params?.branchId) queryParams.append("branchId", params.branchId);
+    
+    const query = queryParams.toString();
+    return apiGet<User[]>(`/user${query ? `?${query}` : ""}`);
   },
 
   /**

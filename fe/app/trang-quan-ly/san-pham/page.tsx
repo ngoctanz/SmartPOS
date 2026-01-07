@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CommonTable } from "@/components/common/common-table";
+import { CommonTable, ServerPagination } from "@/components/common/common-table";
 import { Product } from "@/service/product.service";
 import { Category } from "@/service/category.service";
 import { ColumnDef } from "@tanstack/react-table";
@@ -43,17 +43,43 @@ export default function Page() {
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
+  // Server pagination state
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
+  const [pagination, setPagination] = React.useState<ServerPagination>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
+
+  // Debounce search
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPagination((prev) => ({ ...prev, page: 1 }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   // Fetch data
   const fetchData = React.useCallback(async () => {
     try {
       setLoading(true);
       const [productsRes, categoriesRes] = await Promise.all([
-        productService.getAll(),
+        productService.getAll({
+          page: pagination.page,
+          limit: pagination.limit,
+          search: debouncedSearch || undefined,
+        }),
         categoryService.getAll(),
       ]);
 
       if (productsRes.data) {
         setData(productsRes.data);
+      }
+      if (productsRes.pagination) {
+        setPagination(productsRes.pagination);
       }
       if (categoriesRes.data) {
         setCategories(categoriesRes.data);
@@ -64,11 +90,19 @@ export default function Page() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pagination.page, pagination.limit, debouncedSearch]);
 
   React.useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handlePageChange = (page: number) => {
+    setPagination((prev) => ({ ...prev, page }));
+  };
+
+  const handleSearch = (search: string) => {
+    setSearchTerm(search);
+  };
 
   // Handlers
   const handleView = (item: Product) => {
@@ -320,6 +354,10 @@ export default function Page() {
           onBulkAction={handleDeleteMany}
           bulkActionLabel="Xóa đã chọn"
           bulkActionIcon="trash"
+          serverPagination={pagination}
+          onPageChange={handlePageChange}
+          onSearch={handleSearch}
+          searchValue={searchTerm}
         />
       )}
 

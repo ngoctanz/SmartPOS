@@ -130,6 +130,14 @@ const getAll = async (filter = {}) => {
   }
 };
 
+const getAllPaginated = async (options = {}) => {
+  try {
+    return await Receipt.findAllReceiptsPaginated(options);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 const getById = async (id) => {
   try {
     if (!id || id.trim() === "") {
@@ -423,6 +431,7 @@ export const receiptService = {
   cancel,
   update,
   getAll,
+  getAllPaginated,
   getById,
   getByCode,
   getByBranch,

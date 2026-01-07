@@ -16,6 +16,25 @@ const create = async (req, res, next) => {
 
 const getAll = async (req, res, next) => {
   try {
+    const { search, page, limit } = req.query;
+    
+    // Nếu có params phân trang thì dùng paginated
+    if (page || limit || search) {
+      const options = {
+        search,
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 20,
+      };
+      const result = await branchService.getAllPaginated(options);
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: "Get branches successfully",
+        data: result.data,
+        pagination: result.pagination,
+      });
+    }
+    
+    // Fallback: lấy tất cả (cho các API cũ)
     const branches = await branchService.getAll();
     res.status(StatusCodes.OK).json({
       success: true,

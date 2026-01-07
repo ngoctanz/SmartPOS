@@ -135,6 +135,54 @@ userSchema.statics = {
   async findAllUsers() {
     return this.find().lean();
   },
+
+  async findAllUsersPaginated(options = {}) {
+    const { search, role, status, branchId, page = 1, limit = 20 } = options;
+    
+    const query = {};
+    
+    // Search by userName or name
+    if (search && search.trim()) {
+      query.$or = [
+        { userName: { $regex: search, $options: "i" } },
+        { name: { $regex: search, $options: "i" } },
+      ];
+    }
+    
+    // Filter by role
+    if (role) {
+      query.role = role;
+    }
+    
+    // Filter by status
+    if (status) {
+      query.status = status;
+    }
+    
+    // Filter by branch
+    if (branchId) {
+      query.branchId = branchId;
+    }
+
+    const total = await this.countDocuments(query);
+    const skip = (page - 1) * limit;
+    
+    const data = await this.find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
   async findUserByEmail(email) {
     return this.findOne({ email: email.toLowerCase() })
       .select("+password")

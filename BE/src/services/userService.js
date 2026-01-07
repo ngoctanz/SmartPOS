@@ -18,6 +18,14 @@ const getAllUser = async () => {
     throw new Error(error.message || error);
   }
 };
+
+const getAllUserPaginated = async (options = {}) => {
+  try {
+    return await User.findAllUsersPaginated(options);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
 const getUserById = async (id) => {
   try {
     if (!id || id.trim() === "") {
@@ -135,6 +143,7 @@ export const userService = {
   getUserById,
   getUserByName,
   getAllUser,
+  getAllUserPaginated,
   updateUser,
   deleteUser,
   toggleUserStatus,

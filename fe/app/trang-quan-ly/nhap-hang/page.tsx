@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CommonTable } from "@/components/common/common-table";
+import { CommonTable, ServerPagination } from "@/components/common/common-table";
 import { ImportReceipt } from "@/service/import-receipt.service";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -76,6 +76,25 @@ export default function Page() {
   const [cancelReason, setCancelReason] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
+  // Server pagination state
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
+  const [pagination, setPagination] = React.useState<ServerPagination>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
+
+  // Debounce search
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPagination((prev) => ({ ...prev, page: 1 }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
   // ... (keep fetchData) ...
 
   const handleDeleteMany = (items: ImportReceipt[]) => {
@@ -119,12 +138,19 @@ export default function Page() {
     try {
       setLoading(true);
       const [receiptsRes, branchesRes] = await Promise.all([
-        importReceiptService.getAll(),
+        importReceiptService.getAll({
+          page: pagination.page,
+          limit: pagination.limit,
+          search: debouncedSearch || undefined,
+        }),
         branchService.getAll(),
       ]);
 
       if (receiptsRes.data) {
         setData(receiptsRes.data);
+      }
+      if (receiptsRes.pagination) {
+        setPagination(receiptsRes.pagination);
       }
       if (branchesRes.data) {
         setBranches(branchesRes.data);
@@ -135,11 +161,19 @@ export default function Page() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pagination.page, pagination.limit, debouncedSearch]);
 
   React.useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const handlePageChange = (page: number) => {
+    setPagination((prev) => ({ ...prev, page }));
+  };
+
+  const handleSearch = (search: string) => {
+    setSearchTerm(search);
+  };
 
   // Handlers
   const handleView = (item: ImportReceipt) => {
@@ -335,6 +369,10 @@ export default function Page() {
           onBulkAction={handleDeleteMany}
           bulkActionLabel="Hủy đã chọn"
           bulkActionIcon="trash"
+          serverPagination={pagination}
+          onPageChange={handlePageChange}
+          onSearch={handleSearch}
+          searchValue={searchTerm}
         />
       )}
 

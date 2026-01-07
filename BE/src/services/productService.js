@@ -20,6 +20,14 @@ const getAll = async (filter = {}) => {
   }
 };
 
+const getAllPaginated = async (options = {}) => {
+  try {
+    return await Product.findAllProductsPaginated(options);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 const getById = async (id) => {
   try {
     if (!id || id.trim() === "") {
@@ -113,6 +121,7 @@ const removeMany = async (ids) => {
 export const productService = {
   create,
   getAll,
+  getAllPaginated,
   getById,
   getByBarcode,
   getByName,

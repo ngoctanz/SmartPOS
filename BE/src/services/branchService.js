@@ -17,6 +17,14 @@ const getAll = async () => {
   }
 };
 
+const getAllPaginated = async (options = {}) => {
+  try {
+    return await Branch.findAllBranchesPaginated(options);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 const getById = async (id) => {
   try {
     if (!id || id.trim() === "") {
@@ -66,6 +74,7 @@ const deleteMany = async (ids) => {
 export const branchService = {
   create,
   getAll,
+  getAllPaginated,
   getById,
   getByName,
   update,

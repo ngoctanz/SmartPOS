@@ -16,10 +16,29 @@ const create = async (req, res, next) => {
 
 const getAll = async (req, res, next) => {
   try {
-    const filter = {};
-    if (req.query.categoryId) {
-      filter.categoryId = req.query.categoryId;
+    const { search, categoryId, status, page, limit } = req.query;
+    
+    // Nếu có params phân trang thì dùng paginated
+    if (page || limit || search) {
+      const options = {
+        search,
+        categoryId,
+        status,
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 20,
+      };
+      const result = await productService.getAllPaginated(options);
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: "Get products successfully",
+        data: result.data,
+        pagination: result.pagination,
+      });
     }
+    
+    // Fallback: lấy tất cả (cho các API cũ)
+    const filter = {};
+    if (categoryId) filter.categoryId = categoryId;
     const products = await productService.getAll(filter);
     res.status(StatusCodes.OK).json({
       success: true,
