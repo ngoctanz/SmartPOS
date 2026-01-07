@@ -91,7 +91,6 @@ productSchema.statics = {
     ]);
     return { total, active, inactive };
   },
-
   async findProductById(id) {
     const product = await this.findOne({ _id: id })
       .populate("categoryId", "name")

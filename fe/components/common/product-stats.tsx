@@ -15,7 +15,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { Label, Pie, PieChart, Bar, BarChart, XAxis, YAxis } from "recharts";
-import { Product } from "@/service/product.service";
+import productService, { Product } from "@/service/product.service";
 import { Category } from "@/service/category.service";
 import {
   Package,
@@ -24,6 +24,8 @@ import {
   Tags,
   BarChart3,
 } from "lucide-react";
+import { StatsCard } from "@/components/common/stats-card";
+import { useMemo, useState, useEffect } from "react";
 
 interface ProductStatsProps {
   products: Product[];
@@ -31,15 +33,33 @@ interface ProductStatsProps {
 }
 
 export function ProductStats({ products, categories }: ProductStatsProps) {
-  // Calculate statistics
-  const stats = React.useMemo(() => {
-    const totalProducts = products.length;
-    const activeProducts = products.filter((p) => p.status === "active").length;
-    const inactiveProducts = totalProducts - activeProducts;
+  // State for stats
+  const [stats, setStats] = useState({
+    total: 0,
+    active: 0,
+    inactive: 0,
+  });
 
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await productService.getStats();
+        if (res.data) {
+          setStats(res.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch product stats:", error);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  // Calculate chart data from products prop (still needed for charts as API only returns summary)
+  const chartStats = useMemo(() => {
     // Count products by category
     const categoryCount = categories.map((cat) => {
       const count = products.filter((p) => {
+        if (!p.categoryId) return false;
         const catId =
           typeof p.categoryId === "object" ? p.categoryId._id : p.categoryId;
         return catId === cat._id;
@@ -56,16 +76,13 @@ export function ProductStats({ products, categories }: ProductStatsProps) {
       .slice(0, 5);
 
     return {
-      totalProducts,
-      activeProducts,
-      inactiveProducts,
       categoryCount,
       topCategories,
     };
   }, [products, categories]);
 
   // Pie chart data
-  const pieChartData = React.useMemo(() => {
+  const pieChartData = useMemo(() => {
     const colors = [
       "var(--chart-1)",
       "var(--chart-2)",
@@ -73,32 +90,32 @@ export function ProductStats({ products, categories }: ProductStatsProps) {
       "var(--chart-4)",
       "var(--chart-5)",
     ];
-    return stats.topCategories.map((cat, idx) => ({
+    return chartStats.topCategories.map((cat, idx) => ({
       category: cat.name,
       value: cat.value,
       fill: colors[idx % colors.length],
     }));
-  }, [stats.topCategories]);
+  }, [chartStats.topCategories]);
 
-  const pieChartConfig = React.useMemo(() => {
+  const pieChartConfig = useMemo(() => {
     const config: ChartConfig = {
       value: { label: "Sản phẩm" },
     };
-    stats.topCategories.forEach((cat, idx) => {
+    chartStats.topCategories.forEach((cat, idx) => {
       config[`cat${idx + 1}`] = {
         label: cat.name,
         color: `var(--chart-${idx + 1})`,
       };
     });
     return config;
-  }, [stats.topCategories]);
+  }, [chartStats.topCategories]);
 
   // Bar chart data (status distribution)
   const barChartData = [
-    { name: "Đang bán", value: stats.activeProducts, fill: "var(--chart-1)" },
+    { name: "Đang bán", value: stats.active, fill: "var(--chart-1)" },
     {
       name: "Ngừng bán",
-      value: stats.inactiveProducts,
+      value: stats.inactive,
       fill: "var(--chart-3)",
     },
   ];
@@ -112,70 +129,46 @@ export function ProductStats({ products, categories }: ProductStatsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-4 mb-6">
       {/* Total Products */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Tổng sản phẩm</CardTitle>
-          <Package className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{stats.totalProducts}</div>
-          <p className="text-xs text-muted-foreground">
-            {stats.activeProducts} đang bán
-          </p>
-        </CardContent>
-      </Card>
+      <StatsCard
+        title="Tổng sản phẩm"
+        value={stats.total}
+        icon={Package}
+        description={`${stats.active} đang bán`}
+      />
 
       {/* Active Products */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Đang bán</CardTitle>
-          <TrendingUp className="h-4 w-4 text-green-500" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-green-600">
-            {stats.activeProducts}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {stats.totalProducts > 0
-              ? Math.round((stats.activeProducts / stats.totalProducts) * 100)
-              : 0}
-            % tổng sản phẩm
-          </p>
-        </CardContent>
-      </Card>
+      <StatsCard
+        title="Đang bán"
+        value={stats.active}
+        icon={TrendingUp}
+        className="text-emerald-600"
+        description={`${
+            stats.total > 0
+            ? Math.round((stats.active / stats.total) * 100)
+            : 0
+        }% tổng sản phẩm`}
+      />
 
       {/* Inactive Products */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Ngừng bán</CardTitle>
-          <AlertTriangle className="h-4 w-4 text-yellow-500" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-yellow-600">
-            {stats.inactiveProducts}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {stats.totalProducts > 0
-              ? Math.round((stats.inactiveProducts / stats.totalProducts) * 100)
-              : 0}
-            % tổng sản phẩm
-          </p>
-        </CardContent>
-      </Card>
+      <StatsCard
+        title="Ngừng bán"
+        value={stats.inactive}
+        icon={AlertTriangle}
+        className="text-amber-600"
+        description={`${
+            stats.total > 0
+            ? Math.round((stats.inactive / stats.total) * 100)
+            : 0
+        }% tổng sản phẩm`}
+      />
 
       {/* Categories */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-sm font-medium">Danh mục</CardTitle>
-          <Tags className="h-4 w-4 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{categories.length}</div>
-          <p className="text-xs text-muted-foreground">
-            Top: {stats.topCategories[0]?.name || "N/A"}
-          </p>
-        </CardContent>
-      </Card>
+      <StatsCard
+        title="Danh mục"
+        value={categories.length}
+        icon={Tags}
+        description={`Top: ${chartStats.topCategories[0]?.name || "N/A"}`}
+      />
 
       {/* Pie Chart - Products by Category */}
       <Card className="md:col-span-2">
@@ -221,7 +214,7 @@ export function ProductStats({ products, categories }: ProductStatsProps) {
                               y={viewBox.cy}
                               className="fill-foreground text-2xl font-bold"
                             >
-                              {stats.totalProducts}
+                              {stats.total}
                             </tspan>
                             <tspan
                               x={viewBox.cx}

@@ -18,6 +18,10 @@ import {
   Eye,
   ExternalLink,
   MoreHorizontal,
+  FileText,
+  Clock,
+  CheckCircle,
+  DollarSign,
 } from "lucide-react";
 import { toast } from "sonner";
 import receiptService, { Receipt, ReceiptStats } from "@/service/receipt.service";

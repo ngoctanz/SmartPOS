@@ -1,8 +1,8 @@
 "use client";
 
-import * as React from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { CommonTable } from "@/components/common/common-table";
-import { Product, ProductStats } from "@/service/product.service";
+import { Product, ProductStats as ProductStatsType } from "@/service/product.service";
 import { Category } from "@/service/category.service";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,7 +29,7 @@ import productService, {
 } from "@/service/product.service";
 import categoryService from "@/service/category.service";
 import Barcode from "react-barcode";
-import { StatsCard } from "@/components/common/stats-card";
+
 import {
   Select,
   SelectContent,
@@ -37,8 +37,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { useState, useEffect, useCallback, useMemo } from "react";
 
 const getCategoryName = (categoryId: Product["categoryId"]): string => {
   if (typeof categoryId === "object" && categoryId?.name) {
@@ -53,7 +51,7 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<Product | null>(null);
   const [selectedItems, setSelectedItems] = useState<Product[]>([]);
-  const [stats, setStats] = useState<ProductStats>({ total: 0, active: 0, inactive: 0 });
+  const [showStats, setShowStats] = useState(true);
 
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -63,19 +61,17 @@ export default function Page() {
   // Filters
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
-  const [searchTerm, setSearchTerm] = useState("");
 
   // Fetch data
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [productsRes, categoriesRes, statsRes] = await Promise.all([
+      const [productsRes, categoriesRes] = await Promise.all([
         productService.getAll({
             status: filterStatus as "active" | "inactive" | "all",
             categoryId: filterCategory
         }),
         categoryService.getAll(),
-        productService.getStats(),
       ]);
 
       if (productsRes.data) {
@@ -83,9 +79,6 @@ export default function Page() {
       }
       if (categoriesRes.data) {
         setCategories(categoriesRes.data);
-      }
-      if (statsRes.data) {
-        setStats(statsRes.data);
       }
     } catch (error) {
       console.error("Failed to fetch data:", error);
@@ -331,43 +324,25 @@ export default function Page() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Quản lý sản phẩm</h1>
         <div className="flex items-center gap-2">
-          <Button
+            <Button
             variant={showStats ? "secondary" : "outline"}
             size="sm"
             onClick={() => setShowStats(!showStats)}
-          >
+            >
             <ChartBar className="mr-2 h-4 w-4" />
             {showStats ? "Ẩn thống kê" : "Hiện thống kê"}
-          </Button>
-          <Button onClick={handleCreate}>
+            </Button>
+            <Button onClick={handleCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Thêm sản phẩm
-          </Button>
+            </Button>
         </div>
       </div>
 
        {/* Stats Cards */}
-       <div className="grid gap-4 md:grid-cols-3">
-        <StatsCard
-          title="Tổng sản phẩm"
-          value={stats.total}
-          icon={Package}
-          description="Tổng số sản phẩm trong hệ thống"
-        />
-        <StatsCard
-          title="Đang kinh doanh"
-          value={stats.active}
-          icon={CheckCircle2}
-          className="text-emerald-600"
-          description="Sản phẩm đang được bán"
-        />
-        <StatsCard
-          title="Ngừng kinh doanh"
-          value={stats.inactive}
-          icon={XCircle}
-          description="Sản phẩm tạm ngưng hoặc hết hàng"
-        />
-      </div>
+       {showStats && (
+            <ProductStats products={data} categories={categories} />
+       )}
 
       {loading ? (
         <div className="flex flex-1 items-center justify-center">
@@ -412,6 +387,7 @@ export default function Page() {
           }
         />
       )}
+
 
       {/* Form Modal */}
       <ProductFormModal

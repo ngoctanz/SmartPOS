@@ -41,6 +41,9 @@ interface CommonTableProps<TData, TValue> {
   filterPlaceholder?: string;
   onBulkAction?: (selectedRows: TData[]) => void;
   onSelectionChange?: (selectedRows: TData[]) => void;
+  canSelectRow?: (row: TData) => boolean;
+  bulkActionLabel?: string;
+  bulkActionIcon?: "trash" | "lock";
   // Server-side pagination props
   serverPagination?: ServerPagination;
   onPageChange?: (page: number) => void;

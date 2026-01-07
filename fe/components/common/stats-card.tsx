@@ -8,11 +8,15 @@ interface StatsCardProps {
   icon: LucideIcon;
   description?: string;
   className?: string;
-  trend?: {
-    value: number;
-    label: string;
-    positive?: boolean;
-  };
+  trend?:
+    | {
+        value: number;
+        label: string;
+        positive?: boolean;
+      }
+    | "neutral"
+    | "positive"
+    | "critical";
 }
 
 export function StatsCard({
@@ -23,6 +27,31 @@ export function StatsCard({
   className,
   trend,
 }: StatsCardProps) {
+  // Helper to determine trend color/style if it's a string
+  const getTrendStyle = (type: string) => {
+    switch (type) {
+      case "positive":
+        return "text-emerald-500";
+      case "critical":
+        return "text-rose-500 font-bold";
+      case "neutral":
+      default:
+        return "text-muted-foreground";
+    }
+  };
+
+  const getTrendLabel = (type: string) => {
+     switch (type) {
+      case "positive":
+        return "Tốt";
+      case "critical":
+        return "Cảnh báo";
+      case "neutral":
+      default:
+        return "";
+    }
+  };
+
   return (
     <Card className={cn("overflow-hidden", className)}>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -33,7 +62,7 @@ export function StatsCard({
         <div className="text-2xl font-bold">{value}</div>
         {(description || trend) && (
           <p className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
-            {trend && (
+            {trend && typeof trend === "object" ? (
               <span
                 className={cn(
                   "font-medium",
@@ -43,7 +72,16 @@ export function StatsCard({
                 {trend.positive ? "+" : ""}
                 {trend.value}% {trend.label}
               </span>
-            )}
+            ) : trend && typeof trend === "string" ? (
+               <span
+                className={cn(
+                  "font-medium",
+                  getTrendStyle(trend)
+                )}
+              >
+                {getTrendLabel(trend)}
+              </span>
+            ) : null}
             {description}
           </p>
         )}
