@@ -14,13 +14,8 @@ import receiptService, {
 import branchService, { Branch } from "@/service/branch.service";
 import { useAuthContext } from "@/contexts/auth-context";
 import { ROUTES } from "@/configs/routes.config";
-import {
-  BarcodeScanner,
-  ProductSearch,
-  CartItemsTable,
-  PaymentSummary,
-  CartItem,
-} from "@/components/receipt";
+import { CartItemsTable, PaymentSummary, CartItem } from "@/components/receipt";
+import { SmartProductInput } from "@/components/common/smart-product-input";
 import {
   Dialog,
   DialogContent,
@@ -115,6 +110,22 @@ export default function CreateReceiptPage() {
     const response = await productService.search({ name: term });
     return response.success && response.data ? response.data : [];
   }, []);
+
+  // Get product by barcode for SmartProductInput
+  const getProductByBarcode = React.useCallback(
+    async (barcode: string): Promise<Product | null> => {
+      try {
+        const response = await productService.getByBarcode(barcode);
+        if (response.success && response.data) {
+          return response.data;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    },
+    []
+  );
 
   // Handle product select from search
   const handleProductSelect = React.useCallback(
@@ -271,11 +282,13 @@ export default function CreateReceiptPage() {
         {/* Left Panel */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Search Section */}
-          <div className="bg-muted/50 rounded-lg p-4 mb-4 space-y-3">
-            <BarcodeScanner onBarcodeScanned={handleBarcodeScanned} />
-            <ProductSearch
+          <div className="bg-muted/50 rounded-lg p-4 mb-4">
+            <SmartProductInput
               onProductSelect={handleProductSelect}
               searchFn={handleSearch}
+              getByBarcodeFn={getProductByBarcode}
+              placeholder="Quét mã barcode hoặc nhập tên sản phẩm..."
+              autoFocus
             />
           </div>
 
@@ -311,52 +324,133 @@ export default function CreateReceiptPage() {
               Thanh toán chuyển khoản
             </DialogTitle>
             <DialogDescription className="text-center">
-              Quét mã QR bên dưới để thanh toán
+              Mở app ngân hàng và quét mã QR bên dưới
             </DialogDescription>
           </DialogHeader>
           {paymentData && (
             <div className="flex flex-col items-center gap-4 py-4">
-              {paymentData.paymentInfo?.checkoutUrl && (
+              {/* VietQR - Direct bank app scanning */}
+              {paymentData.paymentInfo?.qrCode ? (
+                <div className="p-3 bg-white rounded-xl border-2 shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={paymentData.paymentInfo.qrCode}
+                    alt="QR Thanh toán"
+                    className="w-56 h-56 object-contain"
+                    onError={(e) => {
+                      // Fallback: regenerate QR from saved info
+                      const info = paymentData.paymentInfo;
+                      if (info?.bin && info?.accountNumber && info?.amount) {
+                        (
+                          e.target as HTMLImageElement
+                        ).src = `https://img.vietqr.io/image/${info.bin}-${
+                          info.accountNumber
+                        }-compact2.png?amount=${
+                          info.amount
+                        }&addInfo=${encodeURIComponent(
+                          info.description || ""
+                        )}&accountName=${encodeURIComponent(
+                          info.accountName || ""
+                        )}`;
+                      }
+                    }}
+                  />
+                </div>
+              ) : paymentData.paymentInfo?.bin &&
+                paymentData.paymentInfo?.accountNumber ? (
+                <div className="p-3 bg-white rounded-xl border-2 shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`https://img.vietqr.io/image/${
+                      paymentData.paymentInfo.bin
+                    }-${
+                      paymentData.paymentInfo.accountNumber
+                    }-compact2.png?amount=${
+                      paymentData.paymentInfo.amount || paymentData.totalAmount
+                    }&addInfo=${encodeURIComponent(
+                      paymentData.paymentInfo.description || paymentData.code
+                    )}&accountName=${encodeURIComponent(
+                      paymentData.paymentInfo.accountName || ""
+                    )}`}
+                    alt="QR Thanh toán"
+                    className="w-56 h-56 object-contain"
+                  />
+                </div>
+              ) : (
                 <div className="p-4 bg-white rounded-lg border">
                   <QRCodeSVG
-                    value={paymentData.paymentInfo.checkoutUrl}
+                    value={paymentData.paymentInfo?.checkoutUrl || ""}
                     size={220}
                     level="H"
                     includeMargin
                   />
                 </div>
               )}
+
+              {/* Bank account info */}
+              {paymentData.paymentInfo?.accountNumber && (
+                <div className="w-full p-3 bg-muted/50 rounded-lg text-sm space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Ngân hàng:</span>
+                    <span className="font-medium">
+                      {paymentData.paymentInfo.accountName}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Số TK:</span>
+                    <span className="font-mono font-medium">
+                      {paymentData.paymentInfo.accountNumber}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Nội dung:</span>
+                    <span className="font-medium">
+                      {paymentData.paymentInfo.description}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               <div className="text-center space-y-2">
                 <p className="font-medium">
                   Mã hóa đơn:{" "}
                   <span className="text-primary">{paymentData.code}</span>
                 </p>
-                <p className="text-lg font-bold text-primary">
+                <p className="text-2xl font-bold text-primary">
                   {new Intl.NumberFormat("vi-VN", {
                     style: "currency",
                     currency: "VND",
                   }).format(paymentData.totalAmount)}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Trạng thái thanh toán:{" "}
-                  <Badge variant="secondary">
+                  Trạng thái:{" "}
+                  <Badge
+                    variant={
+                      paymentData.paymentInfo?.status === "paid"
+                        ? "default"
+                        : paymentData.paymentInfo?.status === "expired"
+                        ? "destructive"
+                        : "secondary"
+                    }
+                  >
                     {paymentData.paymentInfo?.status === "pending"
                       ? "Chờ thanh toán"
+                      : paymentData.paymentInfo?.status === "paid"
+                      ? "Đã thanh toán"
+                      : paymentData.paymentInfo?.status === "expired"
+                      ? "Hết hạn"
+                      : paymentData.paymentInfo?.status === "cancelled"
+                      ? "Đã hủy"
                       : paymentData.paymentInfo?.status}
                   </Badge>
                 </p>
               </div>
-              {paymentData.paymentInfo?.checkoutUrl && (
-                <a
-                  href={paymentData.paymentInfo.checkoutUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline text-sm"
-                >
-                  Mở trang thanh toán PayOS
-                </a>
-              )}
-              <div className="flex gap-2 mt-4">
+
+              <p className="text-xs text-muted-foreground text-center">
+                💡 Mở ứng dụng ngân hàng bất kỳ → Quét QR → Xác nhận thanh toán
+              </p>
+
+              <div className="flex gap-2 mt-2">
                 <Button
                   variant="outline"
                   onClick={() => {

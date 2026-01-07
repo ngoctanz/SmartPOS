@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Button } from "@/components/ui/button";
-import { Trash2, X, Lock } from "lucide-react";
+import { Trash2, X, Lock, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BulkActionsProps {
@@ -11,7 +11,7 @@ interface BulkActionsProps {
   onClearSelection: () => void;
   className?: string;
   actionLabel?: string;
-  actionIcon?: "trash" | "lock";
+  actionIcon?: "trash" | "lock" | "printer";
 }
 
 export function BulkActions({
@@ -22,7 +22,10 @@ export function BulkActions({
   actionLabel = "Khóa đã chọn",
   actionIcon = "lock",
 }: BulkActionsProps) {
-  const ActionIcon = actionIcon === "lock" ? Lock : Trash2;
+  const ActionIcon =
+    actionIcon === "lock" ? Lock : actionIcon === "printer" ? Printer : Trash2;
+  const buttonVariant = actionIcon === "printer" ? "default" : "destructive";
+
   if (selectedCount === 0) return null;
 
   return (
@@ -43,7 +46,7 @@ export function BulkActions({
 
       <div className="flex items-center gap-2">
         {onAction && (
-          <Button variant="destructive" size="sm" onClick={onAction}>
+          <Button variant={buttonVariant} size="sm" onClick={onAction}>
             <ActionIcon className="mr-2 h-4 w-4" />
             {actionLabel}
           </Button>

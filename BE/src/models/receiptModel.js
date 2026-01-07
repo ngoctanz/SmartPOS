@@ -73,6 +73,12 @@ const receiptSchema = new mongoose.Schema(
       linkId: { type: String },
       qrCode: { type: String },
       checkoutUrl: { type: String },
+      accountNumber: { type: String },
+      accountName: { type: String },
+      bin: { type: String },
+      // Store amount and description to regenerate VietQR later
+      amount: { type: Number },
+      description: { type: String },
       status: {
         type: String,
         enum: ["pending", "paid", "cancelled", "expired", ""],
@@ -99,36 +105,42 @@ receiptSchema.statics = {
     const pipeline = [
       {
         $group: {
-            _id: null,
-            totalReceipts: { $sum: 1 },
-            pendingCount: {
-                $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] }
+          _id: null,
+          totalReceipts: { $sum: 1 },
+          pendingCount: {
+            $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] },
+          },
+          completedCount: {
+            $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] },
+          },
+          cancelledCount: {
+            $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] },
+          },
+          totalRevenue: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "completed"] }, "$totalAmount", 0],
             },
-            completedCount: {
-                $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] }
-            },
-            cancelledCount: {
-                $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] }
-            },
-            totalRevenue: {
-                 $sum: { $cond: [{ $eq: ["$status", "completed"] }, "$totalAmount", 0] }
-            }
-        }
-    }
+          },
+        },
+      },
     ];
 
     if (branchId) {
-        pipeline.unshift({ $match: { branchId: new mongoose.Types.ObjectId(branchId) } });
+      pipeline.unshift({
+        $match: { branchId: new mongoose.Types.ObjectId(branchId) },
+      });
     }
 
     const result = await this.aggregate(pipeline);
-    return result[0] || { 
-        totalReceipts: 0, 
-        pendingCount: 0, 
-        completedCount: 0, 
-        cancelledCount: 0, 
-        totalRevenue: 0 
-    };
+    return (
+      result[0] || {
+        totalReceipts: 0,
+        pendingCount: 0,
+        completedCount: 0,
+        cancelledCount: 0,
+        totalRevenue: 0,
+      }
+    );
   },
 
   async generateCode() {
@@ -155,25 +167,49 @@ receiptSchema.statics = {
   },
 
   async findAllReceiptsPaginated(options = {}) {
-    const { search, branchId, status, paymentMethod, page = 1, limit = 20 } = options;
-    
+    const {
+      search,
+      branchId,
+      status,
+      paymentMethod,
+      page = 1,
+      limit = 20,
+    } = options;
+
+    // Auto-expire pending transfer payments older than 15 minutes
+    const expirationTime = new Date(Date.now() - 15 * 60 * 1000);
+    await this.updateMany(
+      {
+        paymentMethod: "transfer",
+        status: "pending",
+        "paymentInfo.status": "pending",
+        createdAt: { $lt: expirationTime },
+      },
+      {
+        $set: {
+          status: "cancelled",
+          "paymentInfo.status": "expired",
+        },
+      }
+    );
+
     const query = {};
-    
+
     // Search by code
     if (search && search.trim()) {
       query.code = { $regex: search, $options: "i" };
     }
-    
+
     // Filter by branch
     if (branchId) {
       query.branchId = new mongoose.Types.ObjectId(branchId);
     }
-    
+
     // Filter by status
     if (status) {
       query.status = status;
     }
-    
+
     // Filter by payment method
     if (paymentMethod) {
       query.paymentMethod = paymentMethod;
@@ -181,7 +217,7 @@ receiptSchema.statics = {
 
     const total = await this.countDocuments(query);
     const skip = (page - 1) * limit;
-    
+
     const data = await this.find(query)
       .populate("branchId", "branchName")
       .populate("createdBy", "userName name")

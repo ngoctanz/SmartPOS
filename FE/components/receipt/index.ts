@@ -3,4 +3,4 @@ export { ProductSearch } from "../common/product-search";
 export { CartItemsTable, type CartItem } from "./cart-items-table";
 export { PaymentSummary } from "./payment-summary";
 export { ConfirmDialog } from "./confirm-dialog";
-export { PrintBill, printStyles } from "./print-bill";
+export { PrintBill, MultiplePrintBill, printStyles } from "./print-bill";

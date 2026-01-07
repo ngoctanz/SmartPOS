@@ -25,13 +25,12 @@ import receiptService, { Receipt } from "@/service/receipt.service";
 import productService, { Product } from "@/service/product.service";
 import { ROUTES } from "@/configs/routes.config";
 import {
-  BarcodeScanner,
-  ProductSearch,
   CartItemsTable,
   CartItem,
   PrintBill,
   printStyles,
 } from "@/components/receipt";
+import { SmartProductInput } from "@/components/common/smart-product-input";
 import {
   Dialog,
   DialogContent,
@@ -172,6 +171,22 @@ export default function ReceiptDetailPage() {
     const response = await productService.search({ name: term });
     return response.success && response.data ? response.data : [];
   }, []);
+
+  // Get product by barcode for SmartProductInput
+  const getProductByBarcode = React.useCallback(
+    async (barcode: string): Promise<Product | null> => {
+      try {
+        const response = await productService.getByBarcode(barcode);
+        if (response.success && response.data) {
+          return response.data;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    },
+    []
+  );
 
   // Handle product select from search
   const handleProductSelect = React.useCallback(
@@ -444,11 +459,13 @@ export default function ReceiptDetailPage() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">Thêm sản phẩm</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <BarcodeScanner onBarcodeScanned={handleBarcodeScanned} />
-                <ProductSearch
+              <CardContent>
+                <SmartProductInput
                   onProductSelect={handleProductSelect}
                   searchFn={handleSearch}
+                  getByBarcodeFn={getProductByBarcode}
+                  placeholder="Quét mã barcode hoặc nhập tên sản phẩm..."
+                  autoFocus
                 />
               </CardContent>
             </Card>
@@ -560,39 +577,99 @@ export default function ReceiptDetailPage() {
               </div>
 
               {/* Payment QR for transfer */}
-              {receipt.paymentMethod === "transfer" &&
-                receipt.paymentInfo?.qrCode && (
-                  <div className="mt-4 p-3 border rounded-lg bg-muted/30">
-                    <h4 className="text-sm font-medium text-center mb-2">
-                      Mã QR Thanh toán
-                    </h4>
-                    <div className="flex justify-center">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+              {receipt.paymentMethod === "transfer" && (
+                <div className="mt-4 p-3 border rounded-lg bg-muted/30">
+                  <h4 className="text-sm font-medium text-center mb-2">
+                    Mã QR Thanh toán
+                  </h4>
+                  <div className="flex justify-center">
+                    {/* VietQR - Direct bank app scanning */}
+                    {receipt.paymentInfo?.qrCode ? (
+                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={receipt.paymentInfo.qrCode}
                         alt="Payment QR"
-                        className="w-32 h-32 rounded-lg"
+                        className="w-40 h-40 rounded-lg object-contain bg-white p-1"
+                        onError={(e) => {
+                          // Fallback: regenerate QR from saved info
+                          const info = receipt.paymentInfo;
+                          if (
+                            info?.bin &&
+                            info?.accountNumber &&
+                            info?.amount
+                          ) {
+                            (
+                              e.target as HTMLImageElement
+                            ).src = `https://img.vietqr.io/image/${info.bin}-${
+                              info.accountNumber
+                            }-compact2.png?amount=${
+                              info.amount
+                            }&addInfo=${encodeURIComponent(
+                              info.description || ""
+                            )}&accountName=${encodeURIComponent(
+                              info.accountName || ""
+                            )}`;
+                          }
+                        }}
                       />
-                    </div>
-                    <p className="text-xs text-center text-muted-foreground mt-2">
-                      Trạng thái:{" "}
-                      <Badge
-                        variant={
-                          receipt.paymentInfo.status === "paid"
-                            ? "default"
-                            : "secondary"
-                        }
-                        className="text-xs"
-                      >
-                        {receipt.paymentInfo.status === "paid"
-                          ? "Đã thanh toán"
-                          : receipt.paymentInfo.status === "pending"
-                          ? "Chờ thanh toán"
-                          : receipt.paymentInfo.status}
-                      </Badge>
-                    </p>
+                    ) : receipt.paymentInfo?.bin &&
+                      receipt.paymentInfo?.accountNumber ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={`https://img.vietqr.io/image/${
+                          receipt.paymentInfo.bin
+                        }-${
+                          receipt.paymentInfo.accountNumber
+                        }-compact2.png?amount=${
+                          receipt.paymentInfo.amount || receipt.totalAmount
+                        }&addInfo=${encodeURIComponent(
+                          receipt.paymentInfo.description || receipt.code
+                        )}&accountName=${encodeURIComponent(
+                          receipt.paymentInfo.accountName || ""
+                        )}`}
+                        alt="Payment QR"
+                        className="w-40 h-40 rounded-lg object-contain bg-white p-1"
+                      />
+                    ) : (
+                      <div className="w-40 h-40 bg-muted flex items-center justify-center rounded-lg">
+                        <span className="text-xs text-muted-foreground">
+                          Không có QR
+                        </span>
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  {/* Bank account info */}
+                  {receipt.paymentInfo?.accountNumber && (
+                    <div className="mt-2 text-xs space-y-1 text-center">
+                      <p className="text-muted-foreground">
+                        {receipt.paymentInfo.accountName}
+                      </p>
+                      <p className="font-mono font-medium">
+                        {receipt.paymentInfo.accountNumber}
+                      </p>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-center text-muted-foreground mt-2">
+                    Trạng thái:{" "}
+                    <Badge
+                      variant={
+                        receipt.paymentInfo?.status === "paid"
+                          ? "default"
+                          : "secondary"
+                      }
+                      className="text-xs"
+                    >
+                      {receipt.paymentInfo?.status === "paid"
+                        ? "Đã thanh toán"
+                        : receipt.paymentInfo?.status === "pending"
+                        ? "Chờ thanh toán"
+                        : receipt.paymentInfo?.status || "N/A"}
+                    </Badge>
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

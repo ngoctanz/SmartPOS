@@ -32,6 +32,7 @@ Router.use("/stock", stockRouter);
 // Receipts
 Router.use("/import-receipt", importReceiptRouter);
 Router.use("/receipt", receiptRouter);
+Router.use("/receipts", receiptRouter); // Alias with 's' for PayOS webhook compatibility
 
 // Dashboard
 Router.use("/dashboard", dashboardRouter);
