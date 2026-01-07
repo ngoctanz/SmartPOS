@@ -336,9 +336,92 @@ const getPaymentInfo = async (orderCode) => {
   }
 };
 
+/**
+ * Update receipt products and total
+ */
+const update = async (id, data) => {
+  try {
+    const receipt = await Receipt.findReceiptById(id);
+
+    if (!receipt) {
+      throw new ApiError(404, "Receipt not found");
+    }
+
+    if (receipt.status === "cancelled") {
+      throw new ApiError(400, "Cannot update cancelled receipt");
+    }
+
+    const branchId = receipt.branchId._id || receipt.branchId;
+
+    // If updating products, validate stock for new/increased items
+    if (data.listProduct) {
+      // Calculate stock adjustments needed
+      const oldProducts = new Map(
+        receipt.listProduct.map((p) => [p.productId.toString(), p.quantity])
+      );
+
+      for (const item of data.listProduct) {
+        const product = await Product.findProductById(item.productId);
+        const oldQty = oldProducts.get(item.productId.toString()) || 0;
+        const qtyDiff = item.quantity - oldQty;
+
+        // Only check stock if quantity is increasing
+        if (qtyDiff > 0 && receipt.status === "completed") {
+          const stock = await BranchProduct.getStock(branchId, item.productId);
+          if (stock < qtyDiff) {
+            throw new ApiError(
+              400,
+              `Insufficient stock for ${product.name}. Available: ${stock}, Additional needed: ${qtyDiff}`
+            );
+          }
+        }
+      }
+
+      // Adjust stock based on changes (only for completed receipts)
+      if (receipt.status === "completed") {
+        // Restore old stock
+        for (const item of receipt.listProduct) {
+          await BranchProduct.increaseStock(
+            branchId,
+            item.productId,
+            item.quantity
+          );
+        }
+
+        // Decrease new stock
+        for (const item of data.listProduct) {
+          await BranchProduct.decreaseStock(
+            branchId,
+            item.productId,
+            item.quantity
+          );
+        }
+      }
+    }
+
+    // Update receipt
+    const updatedReceipt = await Receipt.findByIdAndUpdate(
+      id,
+      {
+        listProduct: data.listProduct,
+        totalAmount: data.totalAmount,
+      },
+      { new: true, runValidators: true }
+    )
+      .populate("branchId", "branchName address")
+      .populate("createdBy", "userName name")
+      .lean();
+
+    return updatedReceipt;
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 export const receiptService = {
   create,
   cancel,
+  update,
   getAll,
   getById,
   getByCode,

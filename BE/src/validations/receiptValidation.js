@@ -3,6 +3,7 @@ import ApiError from "../utils/apiError.js";
 
 const productItemSchema = Joi.object({
   productId: Joi.string().required().hex().length(24),
+  productName: Joi.string().allow(""), // Optional product name
   quantity: Joi.number().integer().min(1).required(),
   salePrice: Joi.number().min(0), // Optional custom price
 });
@@ -10,7 +11,8 @@ const productItemSchema = Joi.object({
 const createReceiptSchema = Joi.object({
   branchId: Joi.string().required().hex().length(24),
   listProduct: Joi.array().items(productItemSchema).min(1).required(),
-  paymentMethod: Joi.string().valid("cash", "card", "transfer").default("cash"),
+  totalAmount: Joi.number().min(0), // Optional total amount
+  paymentMethod: Joi.string().valid("cash", "transfer").default("cash"),
 });
 
 const importProductItemSchema = Joi.object({
@@ -32,18 +34,22 @@ const createReceipt = async (req, res, next) => {
     next();
   } catch (error) {
     const errorMessage =
-      error.details?.map((detail) => detail.message).join(", ") || error.message;
+      error.details?.map((detail) => detail.message).join(", ") ||
+      error.message;
     return next(new ApiError(400, errorMessage));
   }
 };
 
 const createImportReceipt = async (req, res, next) => {
   try {
-    await createImportReceiptSchema.validateAsync(req.body, { abortEarly: false });
+    await createImportReceiptSchema.validateAsync(req.body, {
+      abortEarly: false,
+    });
     next();
   } catch (error) {
     const errorMessage =
-      error.details?.map((detail) => detail.message).join(", ") || error.message;
+      error.details?.map((detail) => detail.message).join(", ") ||
+      error.message;
     return next(new ApiError(400, errorMessage));
   }
 };

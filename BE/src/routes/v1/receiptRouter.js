@@ -27,6 +27,9 @@ Router.get("/:id", receiptController.getById);
 // Create receipt (all authenticated staff can sell)
 Router.post("/", receiptValidation.createReceipt, receiptController.create);
 
+// Update receipt - Admin only
+Router.patch("/:id", authorize("admin"), receiptController.update);
+
 // Cancel receipt - Admin only
 Router.patch("/:id/cancel", authorize("admin"), receiptController.cancel);
 

@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Banknote, CreditCard, Building2, ShoppingCart } from "lucide-react";
+import { Banknote, Building2, ShoppingCart } from "lucide-react";
 import { CartItem } from "./cart-items-table";
 import { Branch } from "@/service/branch.service";
 import { formatCurrency } from "@/utils/format.utils";
@@ -20,11 +20,12 @@ interface PaymentSummaryProps {
   branches: Branch[];
   selectedBranch: string;
   onBranchChange: (branchId: string) => void;
-  paymentMethod: "cash" | "card" | "transfer";
-  onPaymentMethodChange: (method: "cash" | "card" | "transfer") => void;
+  paymentMethod: "cash" | "transfer";
+  onPaymentMethodChange: (method: "cash" | "transfer") => void;
   isAdmin: boolean;
   onSubmit: () => void;
   disabled: boolean;
+  isSubmitting?: boolean;
 }
 
 export function PaymentSummary({
@@ -37,6 +38,7 @@ export function PaymentSummary({
   isAdmin,
   onSubmit,
   disabled,
+  isSubmitting = false,
 }: PaymentSummaryProps) {
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalAmount = items.reduce(
@@ -68,26 +70,18 @@ export function PaymentSummary({
       {/* Payment Method */}
       <div className="bg-muted/50 rounded-lg p-4">
         <Label className="text-sm font-medium mb-2 block">Thanh toán</Label>
-        <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
           <Button
             variant={paymentMethod === "cash" ? "default" : "outline"}
-            className="justify-start h-9"
+            className="flex-1 h-10"
             onClick={() => onPaymentMethodChange("cash")}
           >
             <Banknote className="h-4 w-4 mr-2" />
             Tiền mặt
           </Button>
           <Button
-            variant={paymentMethod === "card" ? "default" : "outline"}
-            className="justify-start h-9"
-            onClick={() => onPaymentMethodChange("card")}
-          >
-            <CreditCard className="h-4 w-4 mr-2" />
-            Thẻ
-          </Button>
-          <Button
             variant={paymentMethod === "transfer" ? "default" : "outline"}
-            className="justify-start h-9"
+            className="flex-1 h-10"
             onClick={() => onPaymentMethodChange("transfer")}
           >
             <Building2 className="h-4 w-4 mr-2" />
@@ -121,12 +115,18 @@ export function PaymentSummary({
 
       {/* Submit Button */}
       <Button
-        className="h-12 text-base"
-        disabled={disabled}
+        className="h-14 text-lg font-bold"
+        disabled={disabled || isSubmitting}
         onClick={onSubmit}
       >
-        <ShoppingCart className="h-5 w-5 mr-2" />
-        Thanh toán (F9)
+        {isSubmitting ? (
+          <span className="animate-pulse">Đang xử lý...</span>
+        ) : (
+          <>
+            <ShoppingCart className="h-5 w-5 mr-2" />
+            THANH TOÁN (F9)
+          </>
+        )}
       </Button>
     </div>
   );

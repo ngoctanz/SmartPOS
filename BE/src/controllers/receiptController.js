@@ -35,6 +35,19 @@ const cancel = async (req, res, next) => {
   }
 };
 
+const update = async (req, res, next) => {
+  try {
+    const receipt = await receiptService.update(req.params.id, req.body);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Receipt updated successfully!",
+      data: receipt,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getAll = async (req, res, next) => {
   try {
     const filter = {};
@@ -210,6 +223,7 @@ const checkPaymentStatus = async (req, res, next) => {
 export const receiptController = {
   create,
   cancel,
+  update,
   getAll,
   getById,
   getByCode,

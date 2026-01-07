@@ -204,6 +204,25 @@ const receiptService = {
   },
 
   /**
+   * Cập nhật hóa đơn
+   * PATCH /api/v1/receipt/:id
+   */
+  update: async (
+    id: string,
+    data: {
+      listProduct: {
+        productId: string;
+        productName: string;
+        quantity: number;
+        salePrice: number;
+      }[];
+      totalAmount: number;
+    }
+  ): Promise<ApiResponse<Receipt>> => {
+    return apiPatch<Receipt>(`/receipt/${id}`, data);
+  },
+
+  /**
    * Kiểm tra trạng thái thanh toán
    * GET /api/v1/receipt/payment-status/:orderCode
    */

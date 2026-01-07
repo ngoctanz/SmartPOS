@@ -18,7 +18,6 @@ import {
   ProductSearch,
   CartItemsTable,
   PaymentSummary,
-  ConfirmDialog,
   CartItem,
 } from "@/components/receipt";
 import {
@@ -38,10 +37,9 @@ export default function CreateReceiptPage() {
   const [branches, setBranches] = React.useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = React.useState<string>("");
   const [cartItems, setCartItems] = React.useState<CartItem[]>([]);
-  const [paymentMethod, setPaymentMethod] = React.useState<
-    "cash" | "card" | "transfer"
-  >("cash");
-  const [showConfirmDialog, setShowConfirmDialog] = React.useState(false);
+  const [paymentMethod, setPaymentMethod] = React.useState<"cash" | "transfer">(
+    "cash"
+  );
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Payment QR Dialog state
@@ -177,10 +175,15 @@ export default function CreateReceiptPage() {
     setCartItems([]);
   };
 
-  // Submit
-  const handleSubmit = async () => {
+  // Submit - Direct without confirmation for speed
+  const handleSubmit = React.useCallback(async () => {
     if (!selectedBranch) {
       toast.error("Vui lòng chọn chi nhánh");
+      return;
+    }
+
+    if (cartItems.length === 0) {
+      toast.error("Vui lòng thêm sản phẩm vào giỏ hàng");
       return;
     }
 
@@ -217,7 +220,6 @@ export default function CreateReceiptPage() {
           toast.success("Tạo hóa đơn thành công!");
         }
         setCartItems([]);
-        setShowConfirmDialog(false);
       } else {
         toast.error(response.message || "Tạo hóa đơn thất bại");
       }
@@ -226,23 +228,20 @@ export default function CreateReceiptPage() {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [selectedBranch, cartItems, paymentMethod]);
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts - F9 to submit directly
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "F9" && cartItems.length > 0) {
+      if (e.key === "F9" && cartItems.length > 0 && !isSubmitting) {
         e.preventDefault();
-        setShowConfirmDialog(true);
-      }
-      if (e.key === "Escape") {
-        setShowConfirmDialog(false);
+        handleSubmit();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [cartItems.length]);
+  }, [cartItems.length, isSubmitting, handleSubmit]);
 
   return (
     <div className="flex flex-col h-full p-4 pt-0">
@@ -294,19 +293,11 @@ export default function CreateReceiptPage() {
           paymentMethod={paymentMethod}
           onPaymentMethodChange={setPaymentMethod}
           isAdmin={isAdmin}
-          onSubmit={() => setShowConfirmDialog(true)}
+          onSubmit={handleSubmit}
           disabled={cartItems.length === 0 || !selectedBranch}
+          isSubmitting={isSubmitting}
         />
       </div>
-
-      <ConfirmDialog
-        open={showConfirmDialog}
-        onOpenChange={setShowConfirmDialog}
-        items={cartItems}
-        paymentMethod={paymentMethod}
-        onConfirm={handleSubmit}
-        isSubmitting={isSubmitting}
-      />
 
       {/* Payment QR Code Dialog */}
       <Dialog open={showQRDialog} onOpenChange={setShowQRDialog}>

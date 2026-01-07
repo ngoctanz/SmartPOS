@@ -8,14 +8,35 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
-import { RowActions } from "@/components/common/row-actions";
-import { DetailModal } from "@/components/common/detail-modal";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Plus, Loader2 } from "lucide-react";
+import {
+  Plus,
+  Loader2,
+  Printer,
+  Eye,
+  ExternalLink,
+  MoreHorizontal,
+} from "lucide-react";
 import { toast } from "sonner";
 import receiptService, { Receipt } from "@/service/receipt.service";
 import branchService, { Branch } from "@/service/branch.service";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { PrintBill, printStyles } from "@/components/receipt";
 
 export default function Page() {
   const router = useRouter();
@@ -24,6 +45,8 @@ export default function Page() {
   const [isLoading, setIsLoading] = React.useState(true);
   const [selectedItem, setSelectedItem] = React.useState<Receipt | null>(null);
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
+  const [showPrintDialog, setShowPrintDialog] = React.useState(false);
+  const printRef = React.useRef<HTMLDivElement>(null);
 
   // Fetch data on mount
   React.useEffect(() => {
@@ -53,6 +76,30 @@ export default function Page() {
   const handleView = (item: Receipt) => {
     setSelectedItem(item);
     setIsDetailOpen(true);
+  };
+
+  const handlePrint = (item: Receipt) => {
+    setSelectedItem(item);
+    setShowPrintDialog(true);
+  };
+
+  const handleViewDetail = (item: Receipt) => {
+    router.push(`/trang-quan-ly/hoa-don/${item.code}`);
+  };
+
+  const executePrint = () => {
+    // Add print styles
+    const styleSheet = document.createElement("style");
+    styleSheet.innerHTML = printStyles;
+    document.head.appendChild(styleSheet);
+
+    window.print();
+
+    // Cleanup
+    setTimeout(() => {
+      document.head.removeChild(styleSheet);
+      setShowPrintDialog(false);
+    }, 1000);
   };
 
   const getBranchName = (
@@ -99,6 +146,18 @@ export default function Page() {
       {
         accessorKey: "code",
         header: "Mã hóa đơn",
+        cell: ({ row }) => {
+          const code = row.getValue("code") as string;
+          return (
+            <Button
+              variant="link"
+              className="p-0 h-auto font-medium text-primary"
+              onClick={() => handleViewDetail(row.original)}
+            >
+              {code}
+            </Button>
+          );
+        },
       },
       {
         accessorKey: "branchId",
@@ -184,15 +243,34 @@ export default function Page() {
       {
         id: "actions",
         cell: ({ row }) => (
-          <RowActions
-            onView={() => handleView(row.original)}
-            // Disable edit/delete for receipts in this context or implement specific logic (e.g., cancel)
-          />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">Menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handleView(row.original)}>
+                <Eye className="h-4 w-4 mr-2" />
+                Xem nhanh
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleViewDetail(row.original)}>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Xem chi tiết
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handlePrint(row.original)}>
+                <Printer className="h-4 w-4 mr-2" />
+                In hóa đơn
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         ),
       },
     ],
-    [branches]
-  ); // eslint-disable-line react-hooks/exhaustive-deps
+    [branches] // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   if (isLoading) {
     return (
@@ -218,142 +296,198 @@ export default function Page() {
         filterPlaceholder="Tìm mã hóa đơn..."
       />
 
-      <DetailModal
-        open={isDetailOpen}
-        onOpenChange={setIsDetailOpen}
-        title="Chi tiết hóa đơn"
-        footer={<div />} // Hide default edit button
-      >
-        {selectedItem && (
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Mã HĐ</Label>
-              <Input
-                defaultValue={selectedItem.code}
-                className="col-span-3"
-                readOnly
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Ngày lập</Label>
-              <Input
-                defaultValue={format(
-                  new Date(selectedItem.createdAt),
-                  "dd/MM/yyyy HH:mm"
-                )}
-                className="col-span-3"
-                readOnly
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Tổng tiền</Label>
-              <Input
-                defaultValue={new Intl.NumberFormat("vi-VN", {
-                  style: "currency",
-                  currency: "VND",
-                }).format(selectedItem.totalAmount)}
-                className="col-span-3"
-                readOnly
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Trạng thái</Label>
-              <div className="col-span-3">
-                <Badge
-                  variant={
-                    selectedItem.status === "completed"
-                      ? "default"
-                      : selectedItem.status === "pending"
-                      ? "secondary"
-                      : "destructive"
-                  }
-                >
-                  {selectedItem.status === "completed"
-                    ? "Hoàn thành"
-                    : selectedItem.status === "pending"
-                    ? "Chờ thanh toán"
-                    : "Đã hủy"}
-                </Badge>
+      {/* Quick View Modal */}
+      <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Chi tiết hóa đơn</DialogTitle>
+            <DialogDescription>Xem nhanh thông tin hóa đơn</DialogDescription>
+          </DialogHeader>
+          {selectedItem && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Mã HĐ</Label>
+                <Input
+                  defaultValue={selectedItem.code}
+                  className="col-span-3"
+                  readOnly
+                />
               </div>
-            </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Ngày lập</Label>
+                <Input
+                  defaultValue={format(
+                    new Date(selectedItem.createdAt),
+                    "dd/MM/yyyy HH:mm"
+                  )}
+                  className="col-span-3"
+                  readOnly
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Tổng tiền</Label>
+                <Input
+                  defaultValue={new Intl.NumberFormat("vi-VN", {
+                    style: "currency",
+                    currency: "VND",
+                  }).format(selectedItem.totalAmount)}
+                  className="col-span-3"
+                  readOnly
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Trạng thái</Label>
+                <div className="col-span-3">
+                  <Badge
+                    variant={
+                      selectedItem.status === "completed"
+                        ? "default"
+                        : selectedItem.status === "pending"
+                        ? "secondary"
+                        : "destructive"
+                    }
+                  >
+                    {selectedItem.status === "completed"
+                      ? "Hoàn thành"
+                      : selectedItem.status === "pending"
+                      ? "Chờ thanh toán"
+                      : "Đã hủy"}
+                  </Badge>
+                </div>
+              </div>
 
-            {/* Payment QR Code for transfer payments */}
-            {selectedItem.paymentMethod === "transfer" &&
-              selectedItem.paymentInfo?.qrCode && (
-                <div className="mt-4 p-4 border rounded-lg bg-muted/50">
-                  <h4 className="mb-3 font-medium text-center">
-                    Mã QR Thanh toán
-                  </h4>
-                  <div className="flex flex-col items-center gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={selectedItem.paymentInfo.qrCode}
-                      alt="Payment QR Code"
-                      className="w-48 h-48 border rounded-lg"
-                    />
-                    <div className="text-center text-sm">
-                      <p className="text-muted-foreground">
-                        Trạng thái thanh toán:{" "}
-                        <Badge
-                          variant={
-                            selectedItem.paymentInfo.status === "paid"
-                              ? "default"
-                              : selectedItem.paymentInfo.status === "pending"
-                              ? "secondary"
-                              : "destructive"
-                          }
-                        >
-                          {selectedItem.paymentInfo.status === "paid"
-                            ? "Đã thanh toán"
-                            : selectedItem.paymentInfo.status === "pending"
-                            ? "Chờ thanh toán"
-                            : selectedItem.paymentInfo.status === "cancelled"
-                            ? "Đã hủy"
-                            : selectedItem.paymentInfo.status === "expired"
-                            ? "Hết hạn"
-                            : "Chưa xác định"}
-                        </Badge>
-                      </p>
-                      {selectedItem.paymentInfo.checkoutUrl &&
-                        selectedItem.paymentInfo.status === "pending" && (
-                          <a
-                            href={selectedItem.paymentInfo.checkoutUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-primary hover:underline mt-2 inline-block"
+              {/* Payment QR Code for transfer payments */}
+              {selectedItem.paymentMethod === "transfer" &&
+                selectedItem.paymentInfo?.qrCode && (
+                  <div className="mt-4 p-4 border rounded-lg bg-muted/50">
+                    <h4 className="mb-3 font-medium text-center">
+                      Mã QR Thanh toán
+                    </h4>
+                    <div className="flex flex-col items-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={selectedItem.paymentInfo.qrCode}
+                        alt="Payment QR Code"
+                        className="w-48 h-48 border rounded-lg"
+                      />
+                      <div className="text-center text-sm">
+                        <p className="text-muted-foreground">
+                          Trạng thái thanh toán:{" "}
+                          <Badge
+                            variant={
+                              selectedItem.paymentInfo.status === "paid"
+                                ? "default"
+                                : selectedItem.paymentInfo.status === "pending"
+                                ? "secondary"
+                                : "destructive"
+                            }
                           >
-                            Mở trang thanh toán
-                          </a>
-                        )}
+                            {selectedItem.paymentInfo.status === "paid"
+                              ? "Đã thanh toán"
+                              : selectedItem.paymentInfo.status === "pending"
+                              ? "Chờ thanh toán"
+                              : selectedItem.paymentInfo.status === "cancelled"
+                              ? "Đã hủy"
+                              : selectedItem.paymentInfo.status === "expired"
+                              ? "Hết hạn"
+                              : "Chưa xác định"}
+                          </Badge>
+                        </p>
+                        {selectedItem.paymentInfo.checkoutUrl &&
+                          selectedItem.paymentInfo.status === "pending" && (
+                            <a
+                              href={selectedItem.paymentInfo.checkoutUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline mt-2 inline-block"
+                            >
+                              Mở trang thanh toán
+                            </a>
+                          )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-            <div className="mt-4">
-              <h4 className="mb-2 font-medium">Danh sách sản phẩm</h4>
-              <div className="border rounded-md p-2 text-sm">
-                {selectedItem.listProduct.map((p, index) => (
-                  <div
-                    key={index}
-                    className="flex justify-between py-1 border-b last:border-0"
-                  >
-                    <span>
-                      {p.productName} (x{p.quantity})
-                    </span>
-                    <span>
-                      {new Intl.NumberFormat("vi-VN", {
-                        style: "currency",
-                        currency: "VND",
-                      }).format(p.salePrice * p.quantity)}
-                    </span>
-                  </div>
-                ))}
+              <div className="mt-4">
+                <h4 className="mb-2 font-medium">Danh sách sản phẩm</h4>
+                <div className="border rounded-md p-2 text-sm max-h-40 overflow-y-auto">
+                  {selectedItem.listProduct.map((p, index) => (
+                    <div
+                      key={index}
+                      className="flex justify-between py-1 border-b last:border-0"
+                    >
+                      <span>
+                        {p.productName} (x{p.quantity})
+                      </span>
+                      <span>
+                        {new Intl.NumberFormat("vi-VN", {
+                          style: "currency",
+                          currency: "VND",
+                        }).format(p.salePrice * p.quantity)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </DetailModal>
+          )}
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsDetailOpen(false);
+                if (selectedItem) handlePrint(selectedItem);
+              }}
+            >
+              <Printer className="h-4 w-4 mr-2" />
+              In hóa đơn
+            </Button>
+            <Button
+              onClick={() => {
+                setIsDetailOpen(false);
+                if (selectedItem) handleViewDetail(selectedItem);
+              }}
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Xem chi tiết
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Print Preview Dialog */}
+      <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
+        <DialogContent className="sm:max-w-[400px] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Xem trước hóa đơn</DialogTitle>
+            <DialogDescription>
+              Xem trước trước khi in hóa đơn
+            </DialogDescription>
+          </DialogHeader>
+          {selectedItem && (
+            <div className="flex justify-center py-4 bg-gray-100 rounded-lg">
+              <PrintBill ref={printRef} receipt={selectedItem} />
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
+              Hủy
+            </Button>
+            <Button onClick={executePrint}>
+              <Printer className="h-4 w-4 mr-2" />
+              In hóa đơn
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hidden Print Component */}
+      {selectedItem && (
+        <div className="hidden">
+          <PrintBill ref={printRef} receipt={selectedItem} />
+        </div>
+      )}
     </div>
   );
 }
