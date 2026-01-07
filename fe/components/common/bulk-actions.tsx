@@ -28,33 +28,28 @@ export function BulkActions({
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-2",
+        "flex items-center justify-between gap-4 rounded-xl border-2 border-primary/20 bg-primary/5 px-4 py-3 shadow-sm",
         className
       )}
     >
-      <span className="text-sm font-medium">
-        Đã chọn <strong>{selectedCount}</strong> mục
-      </span>
+      <div className="flex items-center gap-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-sm font-bold">
+          {selectedCount}
+        </div>
+        <span className="text-sm font-medium text-foreground">
+          mục được chọn
+        </span>
+      </div>
 
       <div className="flex items-center gap-2">
         {onAction && (
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={onAction}
-            className="h-8"
-          >
+          <Button variant="destructive" size="sm" onClick={onAction}>
             <ActionIcon className="mr-2 h-4 w-4" />
             {actionLabel}
           </Button>
         )}
 
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onClearSelection}
-          className="h-8"
-        >
+        <Button variant="outline" size="sm" onClick={onClearSelection}>
           <X className="mr-2 h-4 w-4" />
           Bỏ chọn
         </Button>

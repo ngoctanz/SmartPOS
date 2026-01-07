@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-// import { ScrollArea } from "@/components/ui/scroll-area"
+import { Edit } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -35,15 +35,22 @@ export function DetailModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className={cn("max-h-[90vh] overflow-y-auto", className)}
+        className={cn("max-h-[90vh] overflow-y-auto sm:max-w-lg", className)}
       >
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+        <DialogHeader className="pb-4 border-b">
+          <DialogTitle className="text-lg">{title}</DialogTitle>
         </DialogHeader>
         <div className="py-4">{children}</div>
         {(onEdit || footer) && (
-          <DialogFooter>
-            {footer ? footer : <Button onClick={onEdit}>Chỉnh sửa</Button>}
+          <DialogFooter className="pt-4 border-t">
+            {footer ? (
+              footer
+            ) : (
+              <Button onClick={onEdit}>
+                <Edit className="mr-2 h-4 w-4" />
+                Chỉnh sửa
+              </Button>
+            )}
           </DialogFooter>
         )}
       </DialogContent>

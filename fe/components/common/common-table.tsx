@@ -155,9 +155,7 @@ export function CommonTable<TData, TValue>({
   };
 
   // Get current search value
-  const currentSearchValue = isServerSide
-    ? searchValue ?? ""
-    : localSearch;
+  const currentSearchValue = isServerSide ? searchValue ?? "" : localSearch;
 
   // Pagination handlers
   const handlePreviousPage = () => {
@@ -192,25 +190,22 @@ export function CommonTable<TData, TValue>({
   const selectedRowCount = table.getFilteredSelectedRowModel().rows.length;
 
   return (
-    <div className="w-full">
+    <div className="w-full space-y-4">
       {/* Bulk Actions Bar */}
       {onBulkAction && (
         <BulkActions
           selectedCount={selectedCount}
           onAction={handleBulkAction}
           onClearSelection={clearSelection}
-          className="mb-4"
           actionLabel={bulkActionLabel}
           actionIcon={bulkActionIcon}
         />
       )}
 
       {(filterCol || toolbarActions) && (
-        <div className="flex flex-col sm:flex-row items-center gap-4 py-4">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
           {toolbarActions && (
-            <div className="flex items-center gap-2">
-              {toolbarActions}
-            </div>
+            <div className="flex items-center gap-2">{toolbarActions}</div>
           )}
           {filterCol && (
             <Input
@@ -222,11 +217,14 @@ export function CommonTable<TData, TValue>({
           )}
         </div>
       )}
-      <div className="rounded-md border">
+      <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
         <Table>
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
+              <TableRow
+                key={headerGroup.id}
+                className="border-b bg-muted/30 hover:bg-muted/30"
+              >
                 {headerGroup.headers.map((header) => {
                   return (
                     <TableHead key={header.id}>
@@ -248,6 +246,7 @@ export function CommonTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  className="transition-colors"
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
@@ -263,7 +262,7 @@ export function CommonTable<TData, TValue>({
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="h-24 text-center"
+                  className="h-32 text-center text-muted-foreground"
                 >
                   Không có dữ liệu.
                 </TableCell>
@@ -272,21 +271,24 @@ export function CommonTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <div className="flex-1 text-sm text-muted-foreground">
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
           {selectedRowCount > 0 ? (
-            <>
+            <span className="font-medium text-primary">
               {selectedRowCount}/{totalRows} hàng được chọn
-            </>
+            </span>
           ) : isServerSide ? (
             <>
-              Trang {serverPagination.page}/{serverPagination.totalPages} ({totalRows} kết quả)
+              Trang <span className="font-medium">{serverPagination.page}</span>
+              /
+              <span className="font-medium">{serverPagination.totalPages}</span>{" "}
+              ({totalRows} kết quả)
             </>
           ) : (
             <>{totalRows} kết quả</>
           )}
         </div>
-        <div className="space-x-2">
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"
