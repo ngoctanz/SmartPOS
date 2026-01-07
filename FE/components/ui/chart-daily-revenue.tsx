@@ -1,12 +1,9 @@
 "use client"
 
-import * as React from "react"
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
-import { useIsMobile } from "@/hooks/use-mobile"
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -18,17 +15,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/ui/toggle-group"
 import { DailyStats } from "@/service/dashboard.service"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -36,7 +22,6 @@ interface ChartDailyRevenueProps {
   data: DailyStats[]
   loading?: boolean
   period: string
-  onPeriodChange: (period: string) => void
 }
 
 const chartConfig = {
@@ -50,11 +35,24 @@ const chartConfig = {
   },
 } satisfies ChartConfig
 
-export function ChartDailyRevenue({ data, loading, period, onPeriodChange }: ChartDailyRevenueProps) {
-  const isMobile = useIsMobile()
-
+export function ChartDailyRevenue({ data, loading, period }: ChartDailyRevenueProps) {
+  // Format tiền VND đầy đủ cho tooltip
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', notation: 'compact' }).format(value)
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)
+  }
+
+  // Format ngắn gọn cho trục Y (tự động chọn đơn vị phù hợp)
+  const formatYAxis = (value: number) => {
+    if (value >= 1000000000) {
+      return `${(value / 1000000000).toFixed(1)}B`
+    }
+    if (value >= 1000000) {
+      return `${(value / 1000000).toFixed(1)}M`
+    }
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(0)}K`
+    }
+    return value.toString()
   }
 
   const chartData = data.map(item => ({
@@ -98,39 +96,6 @@ export function ChartDailyRevenue({ data, loading, period, onPeriodChange }: Cha
           </span>
           <span className="@[540px]/card:hidden">{getPeriodLabel()}</span>
         </CardDescription>
-        <CardAction>
-          <ToggleGroup
-            type="single"
-            value={period}
-            onValueChange={(value) => value && onPeriodChange(value)}
-            variant="outline"
-            className="hidden *:data-[slot=toggle-group-item]:!px-4 @[767px]/card:flex"
-          >
-            <ToggleGroupItem value="month">Tháng này</ToggleGroupItem>
-            <ToggleGroupItem value="3month">3 tháng</ToggleGroupItem>
-            <ToggleGroupItem value="6month">6 tháng</ToggleGroupItem>
-          </ToggleGroup>
-          <Select value={period} onValueChange={onPeriodChange}>
-            <SelectTrigger
-              className="flex w-40 **:data-[slot=select-value]:block **:data-[slot=select-value]:truncate @[767px]/card:hidden"
-              size="sm"
-              aria-label="Select a value"
-            >
-              <SelectValue placeholder="Tháng này" />
-            </SelectTrigger>
-            <SelectContent className="rounded-xl">
-              <SelectItem value="month" className="rounded-lg">
-                Tháng này
-              </SelectItem>
-              <SelectItem value="3month" className="rounded-lg">
-                3 tháng
-              </SelectItem>
-              <SelectItem value="6month" className="rounded-lg">
-                6 tháng
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </CardAction>
       </CardHeader>
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
         {chartData.length === 0 ? (
@@ -176,7 +141,8 @@ export function ChartDailyRevenue({ data, loading, period, onPeriodChange }: Cha
                 tickLine={false}
                 axisLine={false}
                 tickMargin={8}
-                tickFormatter={(value) => `${(value / 1000000).toFixed(0)}M`}
+                tickFormatter={formatYAxis}
+                width={60}
               />
               <ChartTooltip
                 cursor={false}

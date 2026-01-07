@@ -7,6 +7,7 @@ import { ChartTopProducts } from "@/components/ui/chart-top-products"
 import { ChartLeastSellingProducts } from "@/components/ui/chart-least-selling"
 import { ChartRevenueByBranch } from "@/components/ui/chart-revenue-by-branch"
 import { ChartSalesByCategory } from "@/components/ui/chart-sales-by-category"
+import { TableTopProducts } from "@/components/ui/table-top-products"
 import dashboardService, {
   DashboardSummary,
   DailyStats,
@@ -14,10 +15,38 @@ import dashboardService, {
   BranchRevenue,
   CategorySales,
 } from "@/service/dashboard.service"
-import { toast } from "sonner"
+import branchService, { Branch } from "@/service/branch.service"
+import { useAuth } from "@/hooks/useAuth"
 import { eventBus, Events } from "@/lib/data-events"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
+type PeriodType = "week" | "month" | "3month" | "6month" | "year"
 
 export default function DashboardPage() {
+  const { user } = useAuth()
+  const isAdmin = user?.role === "admin"
+
+  // Branch filter state (admin only)
+  const [branches, setBranches] = React.useState<Branch[]>([])
+  const [filterBranchId, setFilterBranchId] = React.useState<string>("all")
+
+  // Single global period for all dashboard data
+  const [period, setPeriod] = React.useState<PeriodType>("month")
+
+  // Effective branchId for API calls
+  const effectiveBranchId = React.useMemo(() => {
+    if (isAdmin) {
+      return filterBranchId !== "all" ? filterBranchId : undefined
+    }
+    return user?.branchId 
+  }, [isAdmin, filterBranchId, user?.branchId])
+
   // States
   const [loading, setLoading] = React.useState(true)
   const [summary, setSummary] = React.useState<DashboardSummary | undefined>()
@@ -27,197 +56,176 @@ export default function DashboardPage() {
   const [revenueByBranch, setRevenueByBranch] = React.useState<BranchRevenue[]>([])
   const [salesByCategory, setSalesByCategory] = React.useState<CategorySales[]>([])
 
-  // Period states
-  const [summaryPeriod] = React.useState<"month" | "3month" | "6month">("month")
-  const [dailyPeriod, setDailyPeriod] = React.useState<"month" | "3month" | "6month">("month")
-  const [topProductsPeriod, setTopProductsPeriod] = React.useState<"month" | "3month" | "6month">("month")
-  const [leastSellingPeriod, setLeastSellingPeriod] = React.useState<"month" | "3month" | "6month">("month")
-
-  // Loading states for individual sections
-  const [dailyLoading, setDailyLoading] = React.useState(false)
-  const [topProductsLoading, setTopProductsLoading] = React.useState(false)
-  const [leastSellingLoading, setLeastSellingLoading] = React.useState(false)
-
-  // Fetch summary data
-  const fetchSummary = React.useCallback(async () => {
-    try {
-      const response = await dashboardService.getSummary({ period: summaryPeriod })
-      if (response.success && response.data) {
-        setSummary(response.data)
-      }
-    } catch (error) {
-      console.error("Error fetching summary:", error)
-      toast.error("Không thể tải dữ liệu tổng quan")
-    }
-  }, [summaryPeriod])
-
-  // Fetch daily stats
-  const fetchDailyStats = React.useCallback(async () => {
-    setDailyLoading(true)
-    try {
-      const response = await dashboardService.getDailyStats({ period: dailyPeriod })
-      if (response.success && response.data) {
-        setDailyStats(response.data)
-      }
-    } catch (error) {
-      console.error("Error fetching daily stats:", error)
-    } finally {
-      setDailyLoading(false)
-    }
-  }, [dailyPeriod])
-
-  // Fetch top products
-  const fetchTopProducts = React.useCallback(async () => {
-    setTopProductsLoading(true)
-    try {
-      const response = await dashboardService.getTopProducts({ period: topProductsPeriod, limit: 10 })
-      if (response.success && response.data) {
-        setTopProducts(response.data)
-      }
-    } catch (error) {
-      console.error("Error fetching top products:", error)
-    } finally {
-      setTopProductsLoading(false)
-    }
-  }, [topProductsPeriod])
-
-  // Fetch least selling products
-  const fetchLeastSellingProducts = React.useCallback(async () => {
-    setLeastSellingLoading(true)
-    try {
-      const response = await dashboardService.getLeastSellingProducts({ period: leastSellingPeriod, limit: 10 })
-      if (response.success && response.data) {
-        setLeastSellingProducts(response.data)
-      }
-    } catch (error) {
-      console.error("Error fetching least selling products:", error)
-    } finally {
-      setLeastSellingLoading(false)
-    }
-  }, [leastSellingPeriod])
-
-  // Fetch revenue by branch
-  const fetchRevenueByBranch = React.useCallback(async () => {
-    try {
-      const response = await dashboardService.getRevenueByBranch({ period: summaryPeriod })
-      if (response.success && response.data) {
-        setRevenueByBranch(response.data)
-      }
-    } catch (error) {
-      console.error("Error fetching revenue by branch:", error)
-    }
-  }, [summaryPeriod])
-
-  // Fetch sales by category
-  const fetchSalesByCategory = React.useCallback(async () => {
-    try {
-      const response = await dashboardService.getSalesByCategory({ period: summaryPeriod })
-      if (response.success && response.data) {
-        setSalesByCategory(response.data)
-      }
-    } catch (error) {
-      console.error("Error fetching sales by category:", error)
-    }
-  }, [summaryPeriod])
-
-  // Initial data fetch and subscribe to events
+  // Fetch branches (admin only)
   React.useEffect(() => {
-    const fetchAllData = async () => {
-      await Promise.all([
-        fetchSummary(),
-        fetchDailyStats(),
-        fetchTopProducts(),
-        fetchLeastSellingProducts(),
-        fetchRevenueByBranch(),
-        fetchSalesByCategory(),
-      ])
+    if (!isAdmin) return
+    
+    const fetchBranches = async () => {
+      try {
+        const res = await branchService.getAll()
+        if (res.data) setBranches(res.data)
+      } catch (error) {
+        console.error("Failed to fetch branches", error)
+      }
     }
+    
+    fetchBranches()
+  }, [isAdmin])
 
+  // Single fetch function for all dashboard data
+  const fetchDashboardData = React.useCallback(async () => {
+    if (user === undefined) return
 
+    setLoading(true)
+    
+    try {
+      // Fetch all data in parallel
+      const results = await Promise.allSettled([
+        dashboardService.getSummary({ period, branchId: effectiveBranchId }),
+        dashboardService.getDailyStats({ period, branchId: effectiveBranchId }),
+        dashboardService.getTopProducts({ period, limit: 10, branchId: effectiveBranchId }),
+        dashboardService.getLeastSellingProducts({ period, limit: 10, branchId: effectiveBranchId }),
+        isAdmin ? dashboardService.getRevenueByBranch({ period }) : Promise.resolve(null),
+        dashboardService.getSalesByCategory({ period, branchId: effectiveBranchId }),
+      ])
 
-
-    const fetchInitialData = async () => {
-      setLoading(true)
-      await fetchAllData()
+      // Process results
+      if (results[0].status === "fulfilled" && results[0].value?.data) {
+        setSummary(results[0].value.data)
+      }
+      if (results[1].status === "fulfilled" && results[1].value?.data) {
+        setDailyStats(results[1].value.data)
+      }
+      if (results[2].status === "fulfilled" && results[2].value?.data) {
+        setTopProducts(results[2].value.data)
+      }
+      if (results[3].status === "fulfilled" && results[3].value?.data) {
+        setLeastSellingProducts(results[3].value.data)
+      }
+      if (results[4].status === "fulfilled" && results[4].value?.data) {
+        setRevenueByBranch(results[4].value.data)
+      }
+      if (results[5].status === "fulfilled" && results[5].value?.data) {
+        setSalesByCategory(results[5].value.data)
+      }
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error)
+    } finally {
       setLoading(false)
     }
+  }, [user, period, effectiveBranchId, isAdmin])
 
-    fetchInitialData()
+  // Fetch data when dependencies change
+  React.useEffect(() => {
+    fetchDashboardData()
+  }, [fetchDashboardData])
 
-    // Subscribe to events
+  // Subscribe to data change events
+  React.useEffect(() => {
     const unsubscribe = eventBus.on(Events.DATA_CHANGED, () => {
       console.log("Data changed event received, refreshing dashboard...")
-      fetchAllData()
+      fetchDashboardData()
     })
-
     return () => unsubscribe()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchDashboardData])
 
-  // Refetch when periods change
-  React.useEffect(() => {
-    if (!loading) {
-      fetchDailyStats()
+  // Get current branch name for display
+  const currentBranchName = React.useMemo(() => {
+    if (isAdmin && filterBranchId !== "all") {
+      return branches.find(b => b._id === filterBranchId)?.branchName
     }
-  }, [dailyPeriod]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  React.useEffect(() => {
-    if (!loading) {
-      fetchTopProducts()
-    }
-  }, [topProductsPeriod]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  React.useEffect(() => {
-    if (!loading) {
-      fetchLeastSellingProducts()
-    }
-  }, [leastSellingPeriod]) // eslint-disable-line react-hooks/exhaustive-deps
+    return null
+  }, [isAdmin, filterBranchId, branches])
 
   return (
     <div className="@container/main flex flex-1 flex-col gap-2">
       <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-        {/* Stats Cards */}
-        <SectionCards stats={summary} loading={loading} />
+        {/* Header with branch filter */}
+        <div className="px-4 lg:px-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+            {!isAdmin && (
+              <p className="text-sm text-muted-foreground">
+                Thống kê chi nhánh của bạn
+              </p>
+            )}
+            {isAdmin && currentBranchName && (
+              <p className="text-sm text-muted-foreground">
+                Đang xem: {currentBranchName}
+              </p>
+            )}
+          </div>
+          {isAdmin && (
+            <Select value={filterBranchId} onValueChange={setFilterBranchId}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Tất cả chi nhánh" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tất cả chi nhánh</SelectItem>
+                {branches.map((branch) => (
+                  <SelectItem key={branch._id} value={branch._id}>
+                    {branch.branchName}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
+        {/* Stats Cards with period selector */}
+        <SectionCards 
+          stats={summary} 
+          loading={loading} 
+          period={period}
+          onPeriodChange={(p) => setPeriod(p as PeriodType)}
+        />
 
         {/* Daily Revenue Chart */}
         <div className="px-4 lg:px-6">
           <ChartDailyRevenue
             data={dailyStats}
-            loading={dailyLoading || loading}
-            period={dailyPeriod}
-            onPeriodChange={(period) => setDailyPeriod(period as "month" | "3month" | "6month")}
+            loading={loading}
+            period={period}
           />
         </div>
 
-        {/* Top Products & Least Selling Products */}
+        {/* Top Products & Least Selling Products Charts */}
         <div className="px-4 lg:px-6 grid gap-4 lg:grid-cols-2">
           <ChartTopProducts
             data={topProducts}
-            loading={topProductsLoading || loading}
-            period={topProductsPeriod}
-            onPeriodChange={(period) => setTopProductsPeriod(period as "month" | "3month" | "6month")}
+            loading={loading}
           />
           <ChartLeastSellingProducts
             data={leastSellingProducts}
-            loading={leastSellingLoading || loading}
-            period={leastSellingPeriod}
-            onPeriodChange={(period) => setLeastSellingPeriod(period as "month" | "3month" | "6month")}
+            loading={loading}
           />
         </div>
 
         {/* Revenue by Branch & Sales by Category */}
-        <div className="px-4 lg:px-6 grid gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-2">
-            <ChartRevenueByBranch
-              data={revenueByBranch}
-              loading={loading}
-            />
-          </div>
-          <div className="lg:col-span-1">
+        <div className={`px-4 lg:px-6 grid gap-4 ${isAdmin ? 'lg:grid-cols-3' : 'lg:grid-cols-1'}`}>
+          {isAdmin && (
+            <div className="lg:col-span-2">
+              <ChartRevenueByBranch
+                data={revenueByBranch}
+                loading={loading}
+              />
+            </div>
+          )}
+          <div className={isAdmin ? "lg:col-span-1" : ""}>
             <ChartSalesByCategory
               data={salesByCategory}
               loading={loading}
             />
           </div>
+        </div>
+
+        {/* Top Products Table */}
+        <div className="px-4 lg:px-6">
+          <TableTopProducts
+            data={topProducts}
+            loading={loading}
+            period={period}
+          />
         </div>
       </div>
     </div>

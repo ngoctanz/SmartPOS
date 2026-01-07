@@ -144,17 +144,19 @@ export function UserFormModal({
     data: CreateUserFormData | UpdateUserFormData
   ) => {
     const processedData = { ...data };
+    
+    // Convert empty branchId to undefined (don't send to BE)
     if (!processedData.branchId || processedData.branchId === "") {
-      processedData.branchId = null as any;
+      delete processedData.branchId;
     }
 
-    // Remove empty password when updating
     if (isEditMode) {
       const updateData = processedData as UpdateUserFormData;
+      // Remove empty password when updating
       if (!updateData.password || updateData.password === "") {
         delete updateData.password;
       }
-      // Remove userName if present
+      // Remove userName if present (backend doesn't allow it)
       if ("userName" in updateData) {
         delete (updateData as any).userName;
       }
@@ -162,16 +164,6 @@ export function UserFormModal({
     } else {
       await onSubmit(processedData as CreateUserFormData);
     }
-
-    // Remove userName when updating (backend doesn't allow it)
-    if (isEditMode && "userName" in data) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { userName, ...updateData } = data as CreateUserFormData;
-      await onSubmit(updateData as UpdateUserFormData);
-      return;
-    }
-
-    await onSubmit(data);
   };
 
   return (

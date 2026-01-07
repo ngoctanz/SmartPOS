@@ -116,9 +116,9 @@ export default function Page() {
   // Lấy tên chi nhánh từ ID
   const getBranchName = React.useCallback(
     (branchId?: string) => {
-      if (!branchId) return "---";
+      if (!branchId) return "—";
       const branch = branches.find((b) => b._id === branchId);
-      return branch?.branchName || branchId;
+      return branch?.branchName || "—";
     },
     [branches]
   );

@@ -40,4 +40,25 @@ Router.post(
   branchController.deleteMany
 );
 
+// Restore soft-deleted branch
+Router.patch(
+  "/:id/restore",
+  authorize("admin"),
+  branchController.restore
+);
+
+// Check if branch can be permanently deleted
+Router.get(
+  "/:id/can-delete",
+  authorize("admin"),
+  branchController.checkCanDelete
+);
+
+// Hard delete - permanently delete branch (only if no related data)
+Router.delete(
+  "/:id/permanent",
+  authorize("admin"),
+  branchController.hardDelete
+);
+
 export const branchRouter = Router;

@@ -94,10 +94,10 @@ export default function ReceiptDetailPage() {
 
   // Get branch name
   const getBranchName = () => {
-    if (!receipt) return "";
-    if (typeof receipt.branchId === "object")
+    if (!receipt) return "—";
+    if (typeof receipt.branchId === "object" && receipt.branchId?.branchName)
       return receipt.branchId.branchName;
-    return receipt.branchId;
+    return "—";
   };
 
   // Get cashier name

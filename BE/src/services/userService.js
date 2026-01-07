@@ -3,6 +3,10 @@ import ApiError from "../utils/apiError.js";
 
 const createdNew = async (reqBody) => {
   try {
+    // Handle empty branchId
+    if (reqBody.branchId === "" || reqBody.branchId === null) {
+      delete reqBody.branchId;
+    }
     return await User.createUser(reqBody);
   } catch (error) {
     // Throw original error to preserve MongoDB error codes

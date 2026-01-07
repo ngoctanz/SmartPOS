@@ -1,11 +1,9 @@
 "use client"
 
-import * as React from "react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from "recharts"
 
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -17,13 +15,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { TopProduct } from "@/service/dashboard.service"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TrendingUp } from "lucide-react"
@@ -31,8 +22,7 @@ import { TrendingUp } from "lucide-react"
 interface ChartTopProductsProps {
   data: TopProduct[]
   loading?: boolean
-  period: string
-  onPeriodChange: (period: string) => void
+  period?: string
 }
 
 const chartConfig = {
@@ -50,7 +40,7 @@ const COLORS = [
   "hsl(221 83% 73%)",
 ]
 
-export function ChartTopProducts({ data, loading, period, onPeriodChange }: ChartTopProductsProps) {
+export function ChartTopProducts({ data, loading }: ChartTopProductsProps) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', notation: 'compact' }).format(value)
   }
@@ -87,18 +77,6 @@ export function ChartTopProducts({ data, loading, period, onPeriodChange }: Char
           </span>
         </CardTitle>
         <CardDescription>Sản phẩm có số lượng bán cao nhất</CardDescription>
-        <CardAction>
-          <Select value={period} onValueChange={onPeriodChange}>
-            <SelectTrigger className="w-[140px]" size="sm">
-              <SelectValue placeholder="Chọn kỳ" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="month">Tháng này</SelectItem>
-              <SelectItem value="3month">3 tháng</SelectItem>
-              <SelectItem value="6month">6 tháng</SelectItem>
-            </SelectContent>
-          </Select>
-        </CardAction>
       </CardHeader>
       <CardContent>
         {chartData.length === 0 ? (

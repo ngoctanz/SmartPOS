@@ -184,11 +184,12 @@ export default function Page() {
   };
 
   const getBranchName = (
-    branchId: string | { _id: string; branchName: string }
+    branchId: string | { _id: string; branchName: string } | null | undefined
   ) => {
-    if (typeof branchId === "object") return branchId.branchName;
+    if (!branchId) return "—";
+    if (typeof branchId === "object" && branchId?.branchName) return branchId.branchName;
     const branch = branches.find((b) => b._id === branchId);
-    return branch ? branch.branchName : branchId;
+    return branch ? branch.branchName : "—";
   };
 
   const getCashierName = (
