@@ -2,33 +2,33 @@ import { apiGet } from "./api.service";
 import { ApiResponse } from "./api.config";
 
 export interface DashboardSummary {
-  totalRevenue: number;
-  totalReceipts: number;
+  period: string;
+  startDate: string;
+  endDate: string;
+  revenue: number;
+  totalImportCost: number;
+  totalOrders: number;
+  totalImportReceipts: number;
   totalProducts: number;
-  totalBranches: number;
-  revenueGrowth?: number;
-  receiptsGrowth?: number;
 }
 
 export interface DailyStats {
-  date: string;
+  _id: string; // date string YYYY-MM-DD
   revenue: number;
-  receipts: number;
-  profit?: number;
+  orders: number;
 }
 
 export interface TopProduct {
-  productId: string;
+  _id: string;
   productName: string;
   totalQuantity: number;
   totalRevenue: number;
 }
 
-export interface PaymentStats {
-  cash: number;
-  card: number;
-  transfer: number;
+export interface PaymentMethodStats {
+  _id: string; // 'cash' | 'card' | 'transfer'
   totalAmount: number;
+  count: number;
 }
 
 export interface LowStockProduct {
@@ -38,17 +38,33 @@ export interface LowStockProduct {
   minStock: number;
 }
 
+export interface BranchRevenue {
+  _id: string;
+  branchName: string;
+  totalRevenue: number;
+  totalOrders: number;
+}
+
+export interface CategorySales {
+  _id: string;
+  categoryName: string;
+  totalQuantity: number;
+  totalRevenue: number;
+}
+
 export interface FullDashboard {
   summary: DashboardSummary;
   dailyStats: DailyStats[];
   topProducts: TopProduct[];
-  paymentStats: PaymentStats;
-  lowStockAlerts: LowStockProduct[];
+  leastSellingProducts: TopProduct[];
+  paymentStats: PaymentMethodStats[];
+  revenueByBranch: BranchRevenue[];
+  salesByCategory: CategorySales[];
+  lowStockAlert: LowStockProduct[];
 }
 
 export interface DashboardParams {
-  startDate?: string;
-  endDate?: string;
+  period?: "today" | "week" | "month" | "3month" | "6month" | "year";
   branchId?: string;
 }
 
@@ -61,8 +77,7 @@ const dashboardService = {
     params?: DashboardParams
   ): Promise<ApiResponse<FullDashboard>> => {
     const queryParams = new URLSearchParams();
-    if (params?.startDate) queryParams.append("startDate", params.startDate);
-    if (params?.endDate) queryParams.append("endDate", params.endDate);
+    if (params?.period) queryParams.append("period", params.period);
     if (params?.branchId) queryParams.append("branchId", params.branchId);
 
     const query = queryParams.toString();
@@ -77,8 +92,7 @@ const dashboardService = {
     params?: DashboardParams
   ): Promise<ApiResponse<DashboardSummary>> => {
     const queryParams = new URLSearchParams();
-    if (params?.startDate) queryParams.append("startDate", params.startDate);
-    if (params?.endDate) queryParams.append("endDate", params.endDate);
+    if (params?.period) queryParams.append("period", params.period);
     if (params?.branchId) queryParams.append("branchId", params.branchId);
 
     const query = queryParams.toString();
@@ -95,8 +109,7 @@ const dashboardService = {
     params?: DashboardParams
   ): Promise<ApiResponse<DailyStats[]>> => {
     const queryParams = new URLSearchParams();
-    if (params?.startDate) queryParams.append("startDate", params.startDate);
-    if (params?.endDate) queryParams.append("endDate", params.endDate);
+    if (params?.period) queryParams.append("period", params.period);
     if (params?.branchId) queryParams.append("branchId", params.branchId);
 
     const query = queryParams.toString();
@@ -113,8 +126,7 @@ const dashboardService = {
     params?: DashboardParams & { limit?: number }
   ): Promise<ApiResponse<TopProduct[]>> => {
     const queryParams = new URLSearchParams();
-    if (params?.startDate) queryParams.append("startDate", params.startDate);
-    if (params?.endDate) queryParams.append("endDate", params.endDate);
+    if (params?.period) queryParams.append("period", params.period);
     if (params?.branchId) queryParams.append("branchId", params.branchId);
     if (params?.limit) queryParams.append("limit", String(params.limit));
 
@@ -125,19 +137,69 @@ const dashboardService = {
   },
 
   /**
+   * Lấy sản phẩm bán ít nhất
+   * GET /api/v1/dashboard/least-selling-products
+   */
+  getLeastSellingProducts: async (
+    params?: DashboardParams & { limit?: number }
+  ): Promise<ApiResponse<TopProduct[]>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.period) queryParams.append("period", params.period);
+    if (params?.branchId) queryParams.append("branchId", params.branchId);
+    if (params?.limit) queryParams.append("limit", String(params.limit));
+
+    const query = queryParams.toString();
+    return apiGet<TopProduct[]>(
+      `/dashboard/least-selling-products${query ? `?${query}` : ""}`
+    );
+  },
+
+  /**
+   * Lấy doanh thu theo chi nhánh
+   * GET /api/v1/dashboard/revenue-by-branch
+   */
+  getRevenueByBranch: async (
+    params?: DashboardParams
+  ): Promise<ApiResponse<BranchRevenue[]>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.period) queryParams.append("period", params.period);
+
+    const query = queryParams.toString();
+    return apiGet<BranchRevenue[]>(
+      `/dashboard/revenue-by-branch${query ? `?${query}` : ""}`
+    );
+  },
+
+  /**
+   * Lấy doanh số theo danh mục
+   * GET /api/v1/dashboard/sales-by-category
+   */
+  getSalesByCategory: async (
+    params?: DashboardParams
+  ): Promise<ApiResponse<CategorySales[]>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.period) queryParams.append("period", params.period);
+    if (params?.branchId) queryParams.append("branchId", params.branchId);
+
+    const query = queryParams.toString();
+    return apiGet<CategorySales[]>(
+      `/dashboard/sales-by-category${query ? `?${query}` : ""}`
+    );
+  },
+
+  /**
    * Lấy thống kê phương thức thanh toán
    * GET /api/v1/dashboard/payment-stats
    */
   getPaymentStats: async (
     params?: DashboardParams
-  ): Promise<ApiResponse<PaymentStats>> => {
+  ): Promise<ApiResponse<PaymentMethodStats[]>> => {
     const queryParams = new URLSearchParams();
-    if (params?.startDate) queryParams.append("startDate", params.startDate);
-    if (params?.endDate) queryParams.append("endDate", params.endDate);
+    if (params?.period) queryParams.append("period", params.period);
     if (params?.branchId) queryParams.append("branchId", params.branchId);
 
     const query = queryParams.toString();
-    return apiGet<PaymentStats>(
+    return apiGet<PaymentMethodStats[]>(
       `/dashboard/payment-stats${query ? `?${query}` : ""}`
     );
   },
