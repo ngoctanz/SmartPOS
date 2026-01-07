@@ -5,7 +5,9 @@ import { CommonTable, ServerPagination } from "@/components/common/common-table"
 import { BranchProduct as IBranchProduct } from "@/service/stock.service";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RowActions } from "@/components/common/row-actions";
+import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
 import { DetailModal } from "@/components/common/detail-modal";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -45,7 +47,10 @@ export default function Page() {
   });
 
   const [selectedItem, setSelectedItem] = React.useState<IBranchProduct | null>(null);
+  const [selectedItems, setSelectedItems] = React.useState<IBranchProduct[]>([]);
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Debounce search
   React.useEffect(() => {
@@ -60,6 +65,29 @@ export default function Page() {
   React.useEffect(() => {
     setPagination((prev) => ({ ...prev, page: 1 }));
   }, [filterBranchId]);
+
+  const handleDeleteMany = (items: IBranchProduct[]) => {
+    setSelectedItems(items);
+    setSelectedItem(null);
+    setIsDeleteOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      setIsSubmitting(true);
+      const promises = selectedItems.map(item => stockService.delete(item._id));
+      await Promise.all(promises);
+      toast.success(`Đã xóa ${selectedItems.length} sản phẩm khỏi kho`);
+      setSelectedItems([]);
+      setIsDeleteOpen(false);
+      fetchData();
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast.error("Có lỗi xảy ra khi xóa");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Fetch stock data
   const fetchData = React.useCallback(async () => {
@@ -131,6 +159,31 @@ export default function Page() {
 
   const columns = React.useMemo<ColumnDef<IBranchProduct>[]>(
     () => [
+      {
+        id: "select",
+        header: ({ table }) => (
+          <Checkbox
+            checked={
+              table.getIsAllPageRowsSelected() ||
+              (table.getIsSomePageRowsSelected() && "indeterminate")
+            }
+            onCheckedChange={(value) =>
+              table.toggleAllPageRowsSelected(!!value)
+            }
+            aria-label="Select all"
+          />
+        ),
+        cell: ({ row }) => (
+          <Checkbox
+            checked={row.getIsSelected()}
+            onCheckedChange={(value) => row.toggleSelected(!!value)}
+            aria-label="Select row"
+          />
+        ),
+        enableSorting: false,
+        enableHiding: false,
+        size: 40,
+      },
       {
         accessorKey: "productId",
         header: "Sản phẩm",
@@ -210,9 +263,15 @@ export default function Page() {
       },
       {
         id: "actions",
-        cell: ({ row }) => (
-          <RowActions onView={() => handleView(row.original)} />
-        ),
+        cell: ({ row, table }) => {
+          const isAnyRowSelected = table.getFilteredSelectedRowModel().rows.length > 0;
+          return (
+            <RowActions 
+              onView={() => handleView(row.original)} 
+              disabled={isAnyRowSelected}
+            />
+          );
+        },
       },
     ],
     [showBranchColumn]
@@ -270,8 +329,20 @@ export default function Page() {
           onPageChange={handlePageChange}
           onSearch={handleSearch}
           searchValue={searchTerm}
+          onBulkAction={handleDeleteMany}
+          bulkActionLabel="Xóa đã chọn"
+          bulkActionIcon="trash"
         />
       )}
+
+      <ConfirmDeleteDialog 
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        onConfirm={confirmDelete}
+        isSubmitting={isSubmitting}
+        title={`Xóa ${selectedItems.length} mục tồn kho?`}
+        description="Hành động này sẽ xóa dữ liệu tồn kho của các sản phẩm đã chọn khỏi chi nhánh."
+      />
 
       {/* Detail Modal */}
       <DetailModal

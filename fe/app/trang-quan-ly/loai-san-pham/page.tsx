@@ -76,10 +76,11 @@ export default function Page() {
     setIsDeleteOpen(true);
   };
 
-  const handleDeleteMany = () => {
-    setSelectedItem(null)
-    setIsDeleteOpen(true)
-  }
+  const handleDeleteMany = (items: Category[]) => {
+    setSelectedItems(items);
+    setSelectedItem(null);
+    setIsDeleteOpen(true);
+  };
 
   const confirmDelete = async () => {
     try {
@@ -148,6 +149,7 @@ export default function Page() {
         ),
         enableSorting: false,
         enableHiding: false,
+        size: 40,
       },
       {
         accessorKey: "name",
@@ -170,13 +172,16 @@ export default function Page() {
       },
       {
         id: "actions",
-        cell: ({ row }) => (
+        cell: ({ row, table }) => {
+          const isAnyRowSelected = table.getFilteredSelectedRowModel().rows.length > 0;
+          return (
           <RowActions
             onView={() => handleView(row.original)}
             onEdit={() => handleEdit(row.original)}
             onDelete={() => handleDelete(row.original)}
+            disabled={isAnyRowSelected}
           />
-        ),
+        )},
       },
     ],
     []
@@ -187,11 +192,6 @@ export default function Page() {
       <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold tracking-tight">Quản lý loại sản phẩm</h1>
             <div className="flex gap-2">
-                {selectedItems.length > 0 && (
-                    <Button variant="destructive" onClick={handleDeleteMany}>
-                        Xóa ({selectedItems.length})
-                    </Button>
-                )}
                 <Button onClick={handleCreate}>+ Thêm mới</Button>
             </div>
       </div>
@@ -200,7 +200,9 @@ export default function Page() {
         data={data} 
         filterCol="name" 
         filterPlaceholder="Tìm loại sản phẩm..." 
-        onSelectionChange={setSelectedItems}
+        onBulkAction={handleDeleteMany}
+        bulkActionLabel="Xóa đã chọn"
+        bulkActionIcon="trash"
       />
       
        <ConfirmDeleteDialog 

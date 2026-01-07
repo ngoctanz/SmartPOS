@@ -66,13 +66,53 @@ export default function Page() {
   const [selectedItem, setSelectedItem] = React.useState<ImportReceipt | null>(
     null
   );
+  const [selectedItems, setSelectedItems] = React.useState<ImportReceipt[]>([]);
 
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = React.useState(false);
   const [isCancelOpen, setIsCancelOpen] = React.useState(false);
+  const [isBulkCancelOpen, setIsBulkCancelOpen] = React.useState(false);
   const [cancelReason, setCancelReason] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  // ... (keep fetchData) ...
+
+  const handleDeleteMany = (items: ImportReceipt[]) => {
+    // Filter only pending items
+    const pendingItems = items.filter(i => i.status === "pending");
+    if (pendingItems.length === 0) {
+      toast.error("Chỉ có thể hủy các phiếu đang ở trạng thái chờ xử lý");
+      return;
+    }
+    if (pendingItems.length < items.length) {
+      toast.warning("Một số phiếu không ở trạng thái chờ xử lý đã bị bỏ qua");
+    }
+    
+    setSelectedItems(pendingItems);
+    setSelectedItem(null);
+    setCancelReason("");
+    setIsBulkCancelOpen(true);
+  };
+
+  const confirmBulkCancel = async () => {
+    try {
+      setIsSubmitting(true);
+      const promises = selectedItems.map(item => 
+        importReceiptService.cancel(item._id, cancelReason || "Hủy hàng loạt")
+      );
+      await Promise.all(promises);
+      toast.success(`Đã hủy ${selectedItems.length} phiếu nhập`);
+      setSelectedItems([]);
+      setIsBulkCancelOpen(false);
+      fetchData();
+    } catch (error) {
+      console.error("Bulk cancel error:", error);
+      toast.error("Có lỗi xảy ra khi hủy phiếu");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // Fetch data
   const fetchData = React.useCallback(async () => {
@@ -251,9 +291,10 @@ export default function Page() {
       },
       {
         id: "actions",
-        cell: ({ row }) => {
+        cell: ({ row, table }) => {
           const item = row.original;
           const isPending = item.status === "pending";
+          const isAnyRowSelected = table.getFilteredSelectedRowModel().rows.length > 0;
 
           return (
             <RowActions
@@ -262,6 +303,7 @@ export default function Page() {
               actionLabel="Xác nhận"
               actionIcon="check"
               onDelete={isPending ? () => handleCancel(item) : undefined}
+              disabled={isAnyRowSelected}
             />
           );
         },
@@ -290,6 +332,9 @@ export default function Page() {
           data={data}
           filterCol="code"
           filterPlaceholder="Tìm mã phiếu nhập..."
+          onBulkAction={handleDeleteMany}
+          bulkActionLabel="Hủy đã chọn"
+          bulkActionIcon="trash"
         />
       )}
 
@@ -332,6 +377,29 @@ export default function Page() {
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
                 placeholder="Nhập lý do hủy phiếu..."
+                rows={2}
+              />
+            </div>
+          </div>
+        }
+      />
+
+      {/* Bulk Cancel Dialog */}
+      <ConfirmDeleteDialog
+        open={isBulkCancelOpen}
+        onOpenChange={setIsBulkCancelOpen}
+        onConfirm={confirmBulkCancel}
+        isSubmitting={isSubmitting}
+        title={`Hủy ${selectedItems.length} phiếu nhập?`}
+        description={
+          <div className="space-y-4">
+            <p>Bạn có chắc chắn muốn hủy các phiếu đã chọn? Hành động này không thể hoàn tác.</p>
+            <div className="space-y-2">
+              <Label>Lý do hủy chung</Label>
+              <Textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Nhập lý do hủy..."
                 rows={2}
               />
             </div>
