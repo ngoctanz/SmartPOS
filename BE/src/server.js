@@ -13,11 +13,29 @@ const app = express();
 const port = process.env.APP_PORT;
 const host = process.env.APP_HOST;
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://noibo.lanchuyenhangsale.com",
+  "https://www.noibo.lanchuyenhangsale.com",
+  process.env.CLIENT_URL,
+].filter(Boolean);
+
 const START_SERVER = () => {
   app.use(
     cors({
-      origin: process.env.CLIENT_URL || "http://localhost:3000",
+      origin: function (origin, callback) {
+        // Allow requests with no origin (mobile apps, curl, etc.)
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error("Not allowed by CORS"));
+        }
+      },
       credentials: true, // Allow cookies
+      methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
     })
   );
   app.use(express.json());
