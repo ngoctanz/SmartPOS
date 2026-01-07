@@ -46,13 +46,8 @@ const createUserSchema = z.object({
   status: z.enum(["active", "inactive"]),
 });
 
-// Schema cập nhật user (không có password bắt buộc)
+// Schema cập nhật user (không có password và userName)
 const updateUserSchema = z.object({
-  userName: z
-    .string()
-    .min(3, "Tên đăng nhập phải có ít nhất 3 ký tự")
-    .max(15, "Tên đăng nhập tối đa 15 ký tự")
-    .regex(/^\S+$/, "Tên đăng nhập không được có khoảng trắng"),
   name: z.string().max(100, "Họ tên tối đa 100 ký tự").optional(),
   role: z.enum(["admin", "staff"]),
   branchId: z.string().optional(),
@@ -142,6 +137,14 @@ export function UserFormModal({
     if (!data.branchId) {
       delete data.branchId;
     }
+
+    // Remove userName when updating (backend doesn't allow it)
+    if (isEditMode && "userName" in data) {
+      const { userName, ...updateData } = data as CreateUserFormData;
+      await onSubmit(updateData as UpdateUserFormData);
+      return;
+    }
+
     await onSubmit(data);
   };
 
