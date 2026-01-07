@@ -49,6 +49,15 @@ class SocketService {
     this.socket.on("connect", () => {
       this.reconnectAttempts = 0;
       console.log("[Socket] ✓ Connected successfully", this.socket?.id);
+      
+      // Re-setup payment success listener after reconnection
+      // (socket.io automatically re-registers listeners, but we ensure it's set)
+      if (this.listeners.has("payment:success") && this.socket) {
+        this.socket.on("payment:success", (data) => {
+          console.log("[Socket] 💰 Payment success received:", data);
+          this.notifyListeners("payment:success", data);
+        });
+      }
     });
 
     this.socket.on("connected", (data) => {
@@ -57,6 +66,7 @@ class SocketService {
 
     this.socket.on("disconnect", (reason) => {
       console.log("[Socket] ✗ Disconnected:", reason);
+      // Don't clear listeners on disconnect - they'll be restored on reconnect
     });
 
     this.socket.on("connect_error", (error) => {
@@ -68,7 +78,8 @@ class SocketService {
 
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
         console.error("[Socket] Max reconnection attempts reached");
-        this.disconnect();
+        // Don't disconnect - let socket.io handle reconnection
+        // Just log the error
       }
     });
 

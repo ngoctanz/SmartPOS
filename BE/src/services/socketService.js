@@ -69,6 +69,12 @@ export const initializeSocket = (server) => {
     // Join branch room
     socket.join(`branch:${branchId}`);
 
+    // Admin users also join "all" room to receive notifications from all branches
+    if (socket.user.role === "admin") {
+      socket.join("branch:all");
+      console.log(`[Socket] Admin user joined 'all' room`);
+    }
+
     console.log(
       `[Socket] ✓ Client connected: ${username} (${socket.id}) - Branch: ${branchId}`
     );
@@ -118,14 +124,19 @@ export const broadcastPaymentSuccess = (branchId, paymentData) => {
   };
 
   // Broadcast to all clients in the branch room
-  const room = `branch:${branchId}`;
-  io.to(room).emit("payment:success", notification);
+  const branchRoom = `branch:${branchId}`;
+  io.to(branchRoom).emit("payment:success", notification);
 
-  // Get room size for logging
-  const roomSize = io.sockets.adapter.rooms.get(room)?.size || 0;
+  // Also broadcast to admin "all" room so admins receive notifications from all branches
+  const adminRoom = "branch:all";
+  io.to(adminRoom).emit("payment:success", notification);
+
+  // Get room sizes for logging
+  const branchRoomSize = io.sockets.adapter.rooms.get(branchRoom)?.size || 0;
+  const adminRoomSize = io.sockets.adapter.rooms.get(adminRoom)?.size || 0;
 
   console.log(
-    `[Socket] 📢 Broadcasting payment success to branch ${branchId} (${roomSize} clients):`,
+    `[Socket] 📢 Broadcasting payment success to branch ${branchId} (${branchRoomSize} branch clients, ${adminRoomSize} admin clients):`,
     notification
   );
 };

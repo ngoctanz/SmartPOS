@@ -350,7 +350,7 @@ const handlePaymentWebhook = async (webhookData) => {
       // Broadcast payment success via WebSocket
       socketService.broadcastPaymentSuccess(branchId.toString(), {
         receiptCode: receipt.code,
-        amount: receipt.total,
+        amount: receipt.totalAmount,
         timestamp: new Date().toISOString(),
       });
 

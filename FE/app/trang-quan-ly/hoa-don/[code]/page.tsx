@@ -40,11 +40,14 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { formatCurrency } from "@/utils/format.utils";
+import { useSocket } from "@/hooks/useSocket";
+import { useAuthContext } from "@/contexts/auth-context";
 
 export default function ReceiptDetailPage() {
   const params = useParams();
   const router = useRouter();
   const code = params.code as string;
+  const { user } = useAuthContext();
 
   const [receipt, setReceipt] = React.useState<Receipt | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -56,6 +59,35 @@ export default function ReceiptDetailPage() {
   // Edit mode state
   const [cartItems, setCartItems] = React.useState<CartItem[]>([]);
   const printRef = React.useRef<HTMLDivElement>(null);
+
+  // Real-time payment notifications via WebSocket
+  useSocket({
+    onPaymentSuccess: (data) => {
+      // Only refresh if this receipt was paid
+      if (receipt && data.receiptCode === receipt.code) {
+        toast.success(
+          `Hóa đơn ${data.receiptCode} đã thanh toán thành công: ${formatCurrency(data.amount)}`,
+          {
+            duration: 5000,
+            position: "top-right",
+          }
+        );
+        // Refresh receipt data
+        const fetchReceipt = async () => {
+          try {
+            const response = await receiptService.getByCode(code);
+            if (response.success && response.data) {
+              setReceipt(response.data);
+            }
+          } catch (error) {
+            console.error("Failed to refresh receipt:", error);
+          }
+        };
+        fetchReceipt();
+      }
+    },
+    enabled: true,
+  });
 
   // Fetch receipt data
   React.useEffect(() => {

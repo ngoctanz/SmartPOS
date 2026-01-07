@@ -36,6 +36,8 @@ export const useSocket = (options: UseSocketOptions = {}) => {
       return;
     }
 
+    let handlePaymentSuccess: ((data: PaymentSuccessData) => void) | null = null;
+
     const connect = async () => {
       try {
         // Get access token from cookie (automatically sent by browser)
@@ -50,11 +52,11 @@ export const useSocket = (options: UseSocketOptions = {}) => {
           return;
         }
 
-        console.log("[Socket] Connecting with user:", user.username);
+        console.log("[Socket] Connecting with user:", user.userName);
         socketService.connect(token);
 
         // Setup payment success listener
-        const handlePaymentSuccess = (data: PaymentSuccessData) => {
+        handlePaymentSuccess = (data: PaymentSuccessData) => {
           console.log("[Socket] Payment success in hook:", data);
           onPaymentSuccessRef.current?.(data);
         };
@@ -64,11 +66,6 @@ export const useSocket = (options: UseSocketOptions = {}) => {
         connectAttemptedRef.current = true;
 
         console.log("[Socket] ✓ Hook connected");
-
-        // Cleanup listener on unmount
-        return () => {
-          socketService.off("payment:success", handlePaymentSuccess);
-        };
       } catch (error) {
         console.error("[Socket] Connection error:", error);
         setIsConnected(false);
@@ -76,6 +73,13 @@ export const useSocket = (options: UseSocketOptions = {}) => {
     };
 
     connect();
+
+    // Cleanup listener on unmount or dependency change
+    return () => {
+      if (handlePaymentSuccess) {
+        socketService.off("payment:success", handlePaymentSuccess);
+      }
+    };
   }, [enabled, isAuthenticated, user]);
 
   // Disconnect when auth changes
@@ -88,15 +92,32 @@ export const useSocket = (options: UseSocketOptions = {}) => {
     }
   }, [isAuthenticated]);
 
-  // Update connection status
+  // Update connection status and handle reconnection
   useEffect(() => {
     const checkConnection = () => {
-      setIsConnected(socketService.isConnected());
+      const connected = socketService.isConnected();
+      setIsConnected(connected);
+
+      // Auto-reconnect if disconnected but should be connected
+      if (!connected && enabled && isAuthenticated && user && connectAttemptedRef.current) {
+        console.log("[Socket] Connection lost, attempting to reconnect...");
+        connectAttemptedRef.current = false;
+        
+        const token = document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("access_token="))
+          ?.split("=")[1];
+
+        if (token) {
+          socketService.connect(token);
+          connectAttemptedRef.current = true;
+        }
+      }
     };
 
     const interval = setInterval(checkConnection, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [enabled, isAuthenticated, user]);
 
   // Disconnect on unmount
   useEffect(() => {
