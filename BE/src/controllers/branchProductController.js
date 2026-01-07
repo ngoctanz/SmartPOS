@@ -23,6 +23,23 @@ const getByBranch = async (req, res, next) => {
   }
 };
 
+const getStats = async (req, res, next) => {
+    try {
+        const { branchId } = req.query;
+        // If user is staff, force branchId
+        const effectiveBranchId = req.user.role === 'staff' ? req.user.branchId : branchId;
+
+        const stats = await branchProductService.getStats(effectiveBranchId);
+        res.status(StatusCodes.OK).json({
+            success: true,
+            message: "Get stock stats successfully",
+            data: stats,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
 const getByProduct = async (req, res, next) => {
   try {
     const stocks = await branchProductService.getByProduct(req.params.productId);
@@ -164,6 +181,7 @@ const remove = async (req, res, next) => {
 };
 
 export const branchProductController = {
+  getStats,
   getAll,
   getByBranch,
   getByProduct,

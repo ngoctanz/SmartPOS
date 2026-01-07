@@ -5,6 +5,14 @@ import { Branch } from "../models/branchModel.js";
 import ApiError from "../utils/apiError.js";
 import { getDateRange } from "../utils/calculators.js";
 
+const getStats = async (branchId) => {
+    try {
+        return await ImportReceipt.getStats(branchId);
+    } catch (error) {
+        throw new Error(error.message || error);
+    }
+};
+
 const create = async (data, userId) => {
   try {
     // Validate branch
@@ -172,6 +180,7 @@ const getTotalImport = async (period, branchId = null) => {
 };
 
 export const importReceiptService = {
+  getStats,
   create,
   confirm,
   cancel,

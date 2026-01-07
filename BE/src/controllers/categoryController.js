@@ -16,12 +16,25 @@ const create = async (req, res, next) => {
 
 const getAll = async (req, res, next) => {
   try {
-    const categories = await categoryService.getAll();
+    const categories = await categoryService.getAll(req.query);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get categories successfully",
       results: categories.length,
       data: categories,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getStats = async (req, res, next) => {
+  try {
+    const stats = await categoryService.getStats();
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get category stats successfully",
+      data: stats,
     });
   } catch (error) {
     next(error);
@@ -96,6 +109,7 @@ const deleteMany = async (req, res, next) => {
 export const categoryController = {
   create,
   getAll,
+  getStats,
   getById,
   search,
   update,

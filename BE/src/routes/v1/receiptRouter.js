@@ -19,6 +19,7 @@ Router.get("/date-range", receiptController.getByDateRange);
 Router.get("/revenue", receiptController.getRevenue);
 Router.get("/daily-revenue", receiptController.getDailyRevenue);
 Router.get("/top-products", receiptController.getTopProducts);
+Router.get("/stats", receiptController.getStats);
 Router.get("/payment-status/:orderCode", receiptController.checkPaymentStatus);
 Router.get("/code/:code", receiptController.getByCode);
 Router.get("/branch/:branchId", receiptController.getByBranch);

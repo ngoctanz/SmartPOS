@@ -8,6 +8,7 @@ const Router = express.Router();
 Router.use(authMiddleware);
 
 // Get routes (all authenticated users)
+Router.get("/stats", branchController.getStats);
 Router.get("/", branchController.getAll);
 Router.get("/search", branchController.search);
 Router.get("/:id", branchController.getById);

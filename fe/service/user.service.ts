@@ -24,13 +24,40 @@ export interface SearchUserParams {
   name?: string;
 }
 
+export interface UserStats {
+  total: number;
+  active: number;
+  inactive: number;
+}
+
+export interface GetAllUserParams {
+  status?: UserStatus;
+  role?: UserRole;
+  page?: number;
+  limit?: number;
+}
+
+
 const userService = {
   /**
    * Lấy tất cả người dùng
    * GET /api/v1/user
    */
-  getAll: async (): Promise<ApiResponse<User[]>> => {
-    return apiGet<User[]>("/user");
+  getAll: async (params?: GetAllUserParams): Promise<ApiResponse<User[]>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.status) queryParams.append("status", params.status);
+    if (params?.role) queryParams.append("role", params.role);
+    if (params?.page) queryParams.append("page", String(params.page));
+    if (params?.limit) queryParams.append("limit", String(params.limit));
+    return apiGet<User[]>(`/user?${queryParams.toString()}`);
+  },
+
+  /**
+   * Lấy thống kê người dùng
+   * GET /api/v1/user/stats
+   */
+  getStats: async (): Promise<ApiResponse<UserStats>> => {
+    return apiGet<UserStats>("/user/stats");
   },
 
   /**

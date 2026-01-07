@@ -18,6 +18,14 @@ const getAllUser = async () => {
     throw new Error(error.message || error);
   }
 };
+
+const getStats = async () => {
+  try {
+    return await User.getUserStats();
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
 const getUserById = async (id) => {
   try {
     if (!id || id.trim() === "") {
@@ -135,6 +143,7 @@ export const userService = {
   getUserById,
   getUserByName,
   getAllUser,
+  getStats,
   updateUser,
   deleteUser,
   toggleUserStatus,

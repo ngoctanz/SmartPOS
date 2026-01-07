@@ -9,6 +9,7 @@ Router.use(authMiddleware);
 Router.use(injectUserBranch); 
 
 // Get stock info
+Router.get("/stats", authorize("admin", "staff"), branchProductController.getStats);
 Router.get("/branch/:branchId", branchProductController.getByBranch);
 Router.get("/product/:productId", branchProductController.getByProduct);
 Router.get("/branch/:branchId/product/:productId", branchProductController.getStock);

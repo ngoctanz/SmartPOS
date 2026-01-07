@@ -6,6 +6,14 @@ import ApiError from "../utils/apiError.js";
 import { getDateRange } from "../utils/calculators.js";
 import { payosService } from "./payosService.js";
 
+const getStats = async (branchId) => {
+    try {
+        return await Receipt.getStats(branchId);
+    } catch (error) {
+        throw new Error(error.message || error);
+    }
+};
+
 const create = async (data, userId) => {
   // Validate branch
   await Branch.findBranchById(data.branchId);
@@ -423,6 +431,7 @@ const update = async (id, data) => {
 };
 
 export const receiptService = {
+  getStats,
   create,
   cancel,
   update,

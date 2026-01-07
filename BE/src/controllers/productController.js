@@ -20,6 +20,10 @@ const getAll = async (req, res, next) => {
     if (req.query.categoryId) {
       filter.categoryId = req.query.categoryId;
     }
+    if (req.query.status) {
+      filter.status = req.query.status;
+    }
+
     const products = await productService.getAll(filter);
     res.status(StatusCodes.OK).json({
       success: true,
@@ -31,6 +35,20 @@ const getAll = async (req, res, next) => {
     next(error);
   }
 };
+
+const getStats = async (req, res, next) => {
+  try {
+    const stats = await productService.getStats();
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get product stats successfully",
+      data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 const getById = async (req, res, next) => {
   try {
@@ -143,6 +161,7 @@ const removeMany = async (req, res, next) => {
 export const productController = {
   create,
   getAll,
+  getStats,
   getById,
   getByBarcode,
   search,

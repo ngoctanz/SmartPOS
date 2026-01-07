@@ -12,6 +12,7 @@ Router.use(authMiddleware);
 Router.get("/", injectUserBranch, importReceiptController.getAll);
 Router.get("/date-range", injectUserBranch, importReceiptController.getByDateRange);
 Router.get("/total", injectUserBranch, importReceiptController.getTotalImport);
+Router.get("/stats", injectUserBranch, importReceiptController.getStats);
 Router.get("/code/:code", importReceiptController.getByCode);
 Router.get("/barcode/:barcode", importReceiptController.getByBarcode);
 Router.get("/branch/:branchId", importReceiptController.getByBranch);

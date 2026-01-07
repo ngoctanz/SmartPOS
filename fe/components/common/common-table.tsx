@@ -40,15 +40,13 @@ interface CommonTableProps<TData, TValue> {
   filterCol?: string;
   filterPlaceholder?: string;
   onBulkAction?: (selectedRows: TData[]) => void;
-  canSelectRow?: (row: TData) => boolean;
-  bulkActionLabel?: string;
-  bulkActionIcon?: "trash" | "lock";
   onSelectionChange?: (selectedRows: TData[]) => void;
   // Server-side pagination props
   serverPagination?: ServerPagination;
   onPageChange?: (page: number) => void;
   onSearch?: (search: string) => void;
   searchValue?: string;
+  toolbarActions?: React.ReactNode;
 }
 
 export function CommonTable<TData, TValue>({
@@ -66,6 +64,7 @@ export function CommonTable<TData, TValue>({
   onPageChange,
   onSearch,
   searchValue,
+  toolbarActions,
 }: CommonTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -203,14 +202,21 @@ export function CommonTable<TData, TValue>({
         />
       )}
 
-      {filterCol && (
-        <div className="flex items-center py-4">
-          <Input
-            placeholder={filterPlaceholder}
-            value={currentSearchValue}
-            onChange={(event) => handleSearchChange(event.target.value)}
-            className="max-w-sm"
-          />
+      {(filterCol || toolbarActions) && (
+        <div className="flex flex-col sm:flex-row items-center gap-4 py-4">
+          {toolbarActions && (
+            <div className="flex items-center gap-2">
+              {toolbarActions}
+            </div>
+          )}
+          {filterCol && (
+            <Input
+              placeholder={filterPlaceholder}
+              value={currentSearchValue}
+              onChange={(event) => handleSearchChange(event.target.value)}
+              className="max-w-sm"
+            />
+          )}
         </div>
       )}
       <div className="rounded-md border">
