@@ -85,7 +85,8 @@ export default function Page() {
     setIsDeleteOpen(true)
   }
 
-  const handleDeleteMany = () => {
+  const handleDeleteMany = (items: Branch[]) => {
+    setSelectedItems(items)
     setSelectedItem(null)
     setIsDeleteOpen(true)
   }
@@ -176,13 +177,15 @@ export default function Page() {
     {
         id: "actions",
         enableHiding: false,
-        cell: ({ row }) => {
+        cell: ({ row, table }) => {
             const item = row.original
+            const isAnyRowSelected = table.getFilteredSelectedRowModel().rows.length > 0;
             return (
                 <RowActions 
                     onView={() => handleView(item)}
                     onEdit={() => handleEdit(item)}
                     onDelete={() => handleDelete(item)}
+                    disabled={isAnyRowSelected}
                 />
             )
         }
@@ -194,16 +197,6 @@ export default function Page() {
       <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold tracking-tight">Quản lý chi nhánh</h1>
             <div className="flex gap-2">
-                {selectedItems.length > 0 && (
-                    <div className="flex gap-2">
-                        <button 
-                            onClick={handleDeleteMany}
-                            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors"
-                        >
-                            Xóa ({selectedItems.length})
-                        </button>
-                    </div>
-                )}
                 <button 
                     onClick={handleCreate}
                     className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded transition-colors"
@@ -217,7 +210,9 @@ export default function Page() {
         data={data} 
         filterCol="branchName" 
         filterPlaceholder="Tìm chi nhánh..." 
-        onSelectionChange={setSelectedItems}
+        onBulkAction={handleDeleteMany}
+        bulkActionLabel="Xóa đã chọn"
+        bulkActionIcon="trash"
       />
 
       <ConfirmDeleteDialog 
