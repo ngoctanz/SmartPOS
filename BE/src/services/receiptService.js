@@ -7,61 +7,61 @@ import { getDateRange } from "../utils/calculators.js";
 import { payosService } from "./payosService.js";
 
 const create = async (data, userId) => {
-  try {
-    // Validate branch
-    await Branch.findBranchById(data.branchId);
+  // Validate branch
+  await Branch.findBranchById(data.branchId);
 
-    const listProduct = [];
-    let totalAmount = 0;
+  const listProduct = [];
+  let totalAmount = 0;
 
-    // Validate stock và prepare list
-    for (const item of data.listProduct) {
-      const product = await Product.findProductById(item.productId);
-      const stock = await BranchProduct.getStock(data.branchId, item.productId);
+  // Validate stock và prepare list
+  for (const item of data.listProduct) {
+    const product = await Product.findProductById(item.productId);
+    const stock = await BranchProduct.getStock(data.branchId, item.productId);
 
-      if (stock < item.quantity) {
-        throw new ApiError(
-          400,
-          `Insufficient stock for ${product.name}. Available: ${stock}, Requested: ${item.quantity}`
-        );
-      }
-
-      const salePrice = item.salePrice || product.currentSalePrice;
-      const subtotal = salePrice * item.quantity;
-
-      listProduct.push({
-        productId: product._id,
-        productName: product.name,
-        quantity: item.quantity,
-        salePrice,
-      });
-
-      totalAmount += subtotal;
+    if (stock < item.quantity) {
+      throw new ApiError(
+        400,
+        `Không đủ hàng cho "${product.name}". Tồn kho: ${stock}, Yêu cầu: ${item.quantity}`
+      );
     }
 
-    // Determine initial status based on payment method
-    const isTransfer = data.paymentMethod === "transfer";
-    const initialStatus = isTransfer ? "pending" : "completed";
+    const salePrice = item.salePrice || product.currentSalePrice;
+    const subtotal = salePrice * item.quantity;
 
-    // Create receipt data
-    const receiptData = {
-      branchId: data.branchId,
-      createdBy: userId,
-      listProduct,
-      totalAmount,
-      paymentMethod: data.paymentMethod || "cash",
-      status: initialStatus,
-    };
+    listProduct.push({
+      productId: product._id,
+      productName: product.name,
+      quantity: item.quantity,
+      salePrice,
+    });
 
-    // If transfer payment, create PayOS payment link
-    if (isTransfer) {
+    totalAmount += subtotal;
+  }
+
+  // Determine initial status based on payment method
+  const isTransfer = data.paymentMethod === "transfer";
+  const initialStatus = isTransfer ? "pending" : "completed";
+
+  // Create receipt data
+  const receiptData = {
+    branchId: data.branchId,
+    createdBy: userId,
+    listProduct,
+    totalAmount,
+    paymentMethod: data.paymentMethod || "cash",
+    status: initialStatus,
+  };
+
+  // If transfer payment, create PayOS payment link
+  if (isTransfer) {
+    try {
       const orderCode = payosService.generateOrderCode();
       const baseUrl = process.env.CLIENT_URL || "http://localhost:3000";
 
       const paymentResult = await payosService.createPaymentLink({
         orderCode,
         amount: Math.round(totalAmount),
-        description: `Thanh toan don hang SmartPOS`,
+        description: `${orderCode}`.slice(0, 25), // Max 25 chars
         returnUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
         cancelUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
         expiredAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
@@ -76,25 +76,29 @@ const create = async (data, userId) => {
           status: "pending",
         };
       }
+    } catch (payosError) {
+      console.error("PayOS Error:", payosError);
+      throw new ApiError(
+        500,
+        `Lỗi tạo thanh toán PayOS: ${payosError.message}`
+      );
     }
-
-    const receipt = await Receipt.createReceipt(receiptData);
-
-    // Only decrease stock if payment is completed (not transfer)
-    if (!isTransfer) {
-      for (const item of listProduct) {
-        await BranchProduct.decreaseStock(
-          data.branchId,
-          item.productId,
-          item.quantity
-        );
-      }
-    }
-
-    return receipt;
-  } catch (error) {
-    throw new Error(error.message || error);
   }
+
+  const receipt = await Receipt.createReceipt(receiptData);
+
+  // Only decrease stock if payment is completed (not transfer)
+  if (!isTransfer) {
+    for (const item of listProduct) {
+      await BranchProduct.decreaseStock(
+        data.branchId,
+        item.productId,
+        item.quantity
+      );
+    }
+  }
+
+  return receipt;
 };
 
 const cancel = async (id) => {

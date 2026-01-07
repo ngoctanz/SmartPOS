@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { QRCodeSVG } from "qrcode.react";
 import productService, { Product } from "@/service/product.service";
 import receiptService, {
   CreateReceiptRequest,
@@ -312,13 +313,15 @@ export default function CreateReceiptPage() {
           </DialogHeader>
           {paymentData && (
             <div className="flex flex-col items-center gap-4 py-4">
-              {paymentData.paymentInfo?.qrCode && (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={paymentData.paymentInfo.qrCode}
-                  alt="Payment QR Code"
-                  className="w-64 h-64 border rounded-lg"
-                />
+              {paymentData.paymentInfo?.checkoutUrl && (
+                <div className="p-4 bg-white rounded-lg border">
+                  <QRCodeSVG
+                    value={paymentData.paymentInfo.checkoutUrl}
+                    size={220}
+                    level="H"
+                    includeMargin
+                  />
+                </div>
               )}
               <div className="text-center space-y-2">
                 <p className="font-medium">

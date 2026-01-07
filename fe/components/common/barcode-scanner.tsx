@@ -9,12 +9,14 @@ interface BarcodeScannerProps {
   onBarcodeScanned: (barcode: string) => void | Promise<void>;
   placeholder?: string;
   showButton?: boolean;
+  autoFocusOnMount?: boolean;
 }
 
 export function BarcodeScanner({
   onBarcodeScanned,
   placeholder = "Quét hoặc nhập mã barcode sản phẩm...",
   showButton = true,
+  autoFocusOnMount = true,
 }: BarcodeScannerProps) {
   const [barcodeInput, setBarcodeInput] = React.useState("");
   const [lastScannedTime, setLastScannedTime] = React.useState(0);
@@ -23,7 +25,34 @@ export function BarcodeScanner({
   const barcodeBufferRef = React.useRef<string>("");
   const lastKeyTimeRef = React.useRef<number>(0);
 
+  // Auto focus on mount with retry mechanism
   React.useEffect(() => {
+    if (!autoFocusOnMount) return;
+
+    const focusInput = () => {
+      if (barcodeInputRef.current) {
+        barcodeInputRef.current.focus();
+      }
+    };
+
+    // Focus immediately
+    focusInput();
+
+    // Retry focus after small delay (in case of animations/transitions)
+    const timer = setTimeout(focusInput, 100);
+
+    // Focus when window regains focus
+    const handleFocus = () => focusInput();
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [autoFocusOnMount]);
+
+  // Focus helper function for external use
+  const focusInput = React.useCallback(() => {
     barcodeInputRef.current?.focus();
   }, []);
 

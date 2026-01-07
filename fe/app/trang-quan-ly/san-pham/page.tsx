@@ -11,10 +11,17 @@ import { RowActions } from "@/components/common/row-actions";
 import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
 import { DetailModal } from "@/components/common/detail-modal";
 import { ProductFormModal } from "@/components/forms/product-form-modal";
+import { ProductStats } from "@/components/common/product-stats";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Loader2, Plus, Package, Barcode as BarcodeIcon } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  Package,
+  Barcode as BarcodeIcon,
+  ChartBar,
+} from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import productService, {
   CreateProductRequest,
@@ -37,6 +44,7 @@ export default function Page() {
   const [loading, setLoading] = React.useState(true);
   const [selectedItem, setSelectedItem] = React.useState<Product | null>(null);
   const [selectedItems, setSelectedItems] = React.useState<Product[]>([]);
+  const [showStats, setShowStats] = React.useState(true);
 
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
@@ -301,10 +309,20 @@ export default function Page() {
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Quản lý sản phẩm</h1>
-        <Button onClick={handleCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Thêm sản phẩm
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={showStats ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => setShowStats(!showStats)}
+          >
+            <ChartBar className="mr-2 h-4 w-4" />
+            {showStats ? "Ẩn thống kê" : "Hiện thống kê"}
+          </Button>
+          <Button onClick={handleCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Thêm sản phẩm
+          </Button>
+        </div>
       </div>
 
       {loading ? (
@@ -312,15 +330,22 @@ export default function Page() {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : (
-        <CommonTable
-          columns={columns}
-          data={data}
-          filterCol="name"
-          filterPlaceholder="Tìm sản phẩm..."
-          onBulkAction={handleDeleteMany}
-          bulkActionLabel="Xóa đã chọn"
-          bulkActionIcon="trash"
-        />
+        <>
+          {/* Product Statistics */}
+          {showStats && (
+            <ProductStats products={data} categories={categories} />
+          )}
+
+          <CommonTable
+            columns={columns}
+            data={data}
+            filterCol="name"
+            filterPlaceholder="Tìm sản phẩm..."
+            onBulkAction={handleDeleteMany}
+            bulkActionLabel="Xóa đã chọn"
+            bulkActionIcon="trash"
+          />
+        </>
       )}
 
       {/* Form Modal */}
@@ -429,9 +454,17 @@ export default function Page() {
                     Trạng thái
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className={`flex h-2 w-2 rounded-full ${selectedItem.status === "active" ? "bg-green-500" : "bg-gray-400"}`} />
+                    <span
+                      className={`flex h-2 w-2 rounded-full ${
+                        selectedItem.status === "active"
+                          ? "bg-green-500"
+                          : "bg-gray-400"
+                      }`}
+                    />
                     <span className="font-medium">
-                      {selectedItem.status === "active" ? "Đang bán" : "Ngừng bán"}
+                      {selectedItem.status === "active"
+                        ? "Đang bán"
+                        : "Ngừng bán"}
                     </span>
                   </div>
                 </div>

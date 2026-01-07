@@ -1,18 +1,16 @@
-import { createRequire } from "module";
-const require = createRequire(import.meta.url);
-const { PayOS } = require("@payos/node");
-import crypto from "crypto";
+import { PayOS } from "@payos/node";
 
-// Initialize PayOS client
-const payos = new PayOS(
-  process.env.PAYOS_CLIENT_ID,
-  process.env.PAYOS_API_KEY,
-  process.env.PAYOS_CHECKSUM_KEY
-);
+// Initialize PayOS client (v2.0.4 syntax)
+const payos = new PayOS({
+  clientId: process.env.PAYOS_CLIENT_ID,
+  apiKey: process.env.PAYOS_API_KEY,
+  checksumKey: process.env.PAYOS_CHECKSUM_KEY,
+});
 
 /**
  * PayOS Service
  * Handles online payment via PayOS payment gateway
+ * Updated for @payos/node v2.0.4+
  */
 export const payosService = {
   /**
@@ -25,14 +23,15 @@ export const payosService = {
   },
 
   /**
-   * Create PayOS payment link
+   * Create PayOS payment link using v2 API
    */
   async createPaymentLink(params) {
     const { orderCode, amount, description, returnUrl, cancelUrl, expiredAt } =
       params;
 
     try {
-      const paymentLink = await payos.createPaymentLink({
+      // Use paymentRequests.create() in v2
+      const paymentLink = await payos.paymentRequests.create({
         orderCode,
         amount,
         description,
@@ -43,12 +42,22 @@ export const payosService = {
           : undefined,
       });
 
+      // Log để debug response structure
+      console.log("PayOS Response:", JSON.stringify(paymentLink, null, 2));
+
+      // Generate QR code URL from checkoutUrl if qrCode not provided
+      const qrCodeUrl =
+        paymentLink.qrCode ||
+        `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
+          paymentLink.checkoutUrl
+        )}`;
+
       return {
         success: true,
         data: {
           paymentLinkId: paymentLink.paymentLinkId,
           checkoutUrl: paymentLink.checkoutUrl,
-          qrCode: paymentLink.qrCode,
+          qrCode: qrCodeUrl,
           accountNumber: paymentLink.accountNumber,
           accountName: paymentLink.accountName,
           bin: paymentLink.bin,
@@ -65,7 +74,7 @@ export const payosService = {
    */
   async cancelPaymentLink(orderCode, reason = "User cancelled") {
     try {
-      await payos.cancelPaymentLink(orderCode, reason);
+      await payos.paymentRequests.cancel(orderCode, reason);
       return { success: true };
     } catch (error) {
       console.error("PayOS cancelPaymentLink error:", error);
@@ -78,7 +87,7 @@ export const payosService = {
    */
   async getPaymentInfo(orderCode) {
     try {
-      return await payos.getPaymentLinkInformation(orderCode);
+      return await payos.paymentRequests.get(orderCode);
     } catch (error) {
       console.error("PayOS getPaymentInfo error:", error);
       throw error;
@@ -86,7 +95,32 @@ export const payosService = {
   },
 
   /**
-   * Verify PayOS webhook signature
+   * Verify PayOS webhook using v2 SDK
+   */
+  async verifyWebhook(webhookData) {
+    try {
+      return await payos.webhooks.verify(webhookData);
+    } catch (error) {
+      console.error("Verify webhook error:", error);
+      return null;
+    }
+  },
+
+  /**
+   * Confirm webhook URL with PayOS
+   */
+  async confirmWebhookUrl(webhookUrl) {
+    try {
+      return await payos.webhooks.confirm(webhookUrl);
+    } catch (error) {
+      console.error("Confirm webhook URL error:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Legacy: Verify PayOS webhook signature (manual verification)
+   * @deprecated Use verifyWebhook() instead
    */
   verifyWebhookSignature(data, signature) {
     try {
@@ -115,11 +149,11 @@ export const payosService = {
   },
 
   /**
-   * Verify webhook data using PayOS SDK
+   * @deprecated Use verifyWebhook() method instead for v2 SDK
    */
-  verifyPaymentWebhookData(webhookData) {
+  async verifyPaymentWebhookData(webhookData) {
     try {
-      return payos.verifyPaymentWebhookData(webhookData);
+      return await payos.webhooks.verify(webhookData);
     } catch (error) {
       console.error("Verify webhook data error:", error);
       return null;

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Plus,
   Loader2,
@@ -358,18 +359,20 @@ export default function Page() {
 
               {/* Payment QR Code for transfer payments */}
               {selectedItem.paymentMethod === "transfer" &&
-                selectedItem.paymentInfo?.qrCode && (
+                selectedItem.paymentInfo?.checkoutUrl && (
                   <div className="mt-4 p-4 border rounded-lg bg-muted/50">
                     <h4 className="mb-3 font-medium text-center">
                       Mã QR Thanh toán
                     </h4>
                     <div className="flex flex-col items-center gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={selectedItem.paymentInfo.qrCode}
-                        alt="Payment QR Code"
-                        className="w-48 h-48 border rounded-lg"
-                      />
+                      <div className="p-3 bg-white rounded-lg border">
+                        <QRCodeSVG
+                          value={selectedItem.paymentInfo.checkoutUrl}
+                          size={180}
+                          level="H"
+                          includeMargin
+                        />
+                      </div>
                       <div className="text-center text-sm">
                         <p className="text-muted-foreground">
                           Trạng thái thanh toán:{" "}
