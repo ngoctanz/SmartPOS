@@ -25,7 +25,6 @@ interface RowActionsProps {
   onView?: () => void;
   onEdit?: () => void;
   onAction?: () => void;
-  /** @deprecated Use onAction instead */
   onDelete?: () => void;
   actionLabel?: string;
   actionIcon?: "trash" | "lock" | "unlock" | "check" | "cancel";
@@ -50,8 +49,6 @@ export function RowActions({
   actionIcon = "trash",
   disabled = false,
 }: RowActionsProps) {
-  // Support both onAction and onDelete (backward compatibility)
-  const handleAction = onAction || onDelete;
   const ActionIcon = ACTION_ICONS[actionIcon];
   const isDestructive = actionIcon === "trash" || actionIcon === "cancel";
 
@@ -77,11 +74,11 @@ export function RowActions({
             Chỉnh sửa
           </DropdownMenuItem>
         )}
-        {handleAction && (
+        {onAction && (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={handleAction}
+              onClick={onAction}
               className={
                 isDestructive
                   ? "text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/50"
@@ -90,6 +87,18 @@ export function RowActions({
             >
               <ActionIcon className="mr-2 h-4 w-4" />
               {actionLabel}
+            </DropdownMenuItem>
+          </>
+        )}
+        {onDelete && (
+          <>
+            {!onAction && <DropdownMenuSeparator />}
+            <DropdownMenuItem
+              onClick={onDelete}
+              className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/50"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Xóa
             </DropdownMenuItem>
           </>
         )}

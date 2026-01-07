@@ -46,7 +46,7 @@ const createUserSchema = z.object({
   status: z.enum(["active", "inactive"]),
 });
 
-// Schema cập nhật user (không có userName, password optional)
+// Schema cập nhật user (không có password và userName)
 const updateUserSchema = z.object({
   name: z.string().max(100, "Họ tên tối đa 100 ký tự").optional(),
   password: z
@@ -163,6 +163,15 @@ export function UserFormModal({
     } else {
       await onSubmit(processedData as CreateUserFormData);
     }
+
+    // Remove userName when updating (backend doesn't allow it)
+    if (isEditMode && "userName" in data) {
+      const { userName, ...updateData } = data as CreateUserFormData;
+      await onSubmit(updateData as UpdateUserFormData);
+      return;
+    }
+
+    await onSubmit(data);
   };
 
   return (

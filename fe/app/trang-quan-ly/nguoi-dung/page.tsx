@@ -14,7 +14,14 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { userService, branchService } from "@/service";
-import { Loader2, Plus, ShieldAlert, LayoutGrid, CheckCircle, XCircle } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  ShieldAlert,
+  LayoutGrid,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 import {
   UserFormModal,
   CreateUserFormData,
@@ -57,22 +64,26 @@ const getStatusLabel = (status: string) => {
 
 export default function Page() {
   // Use custom hooks
-  const { 
-    data, 
-    loading, 
-    searchTerm, 
-    pagination, 
+  const {
+    data,
+    loading,
+    searchTerm,
+    pagination,
     filters,
-    handlePageChange, 
+    handlePageChange,
     handleSearch,
     updateFilter,
-    refetch 
+    refetch,
   } = useFilteredTableData<User, { role?: UserRole; status?: UserStatus }>({
     fetchFn: userService.getAll,
     initialFilters: { role: undefined, status: undefined },
   });
 
-  const { stats } = useStats<{ total: number; active: number; inactive: number }>({
+  const { stats } = useStats<{
+    total: number;
+    active: number;
+    inactive: number;
+  }>({
     fetchFn: userService.getStats,
   });
 
@@ -82,8 +93,10 @@ export default function Page() {
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [isBulkActionOpen, setIsBulkActionOpen] = React.useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [itemsToLock, setItemsToLock] = React.useState<User[]>([]);
+  const [itemToDelete, setItemToDelete] = React.useState<User | null>(null);
 
   // Fetch branches
   React.useEffect(() => {
@@ -148,6 +161,34 @@ export default function Page() {
       toast.error("Không thể thay đổi trạng thái người dùng");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Delete handler
+  const handleDelete = (item: User) => {
+    if (isAdminAccount(item)) {
+      toast.error("Không thể xóa tài khoản admin");
+      return;
+    }
+    setItemToDelete(item);
+    setIsDeleteOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+
+    try {
+      setIsSubmitting(true);
+      await userService.delete(itemToDelete._id);
+      refetch();
+      toast.success("Xóa người dùng thành công");
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast.error("Có lỗi khi xóa người dùng");
+    } finally {
+      setIsSubmitting(false);
+      setIsDeleteOpen(false);
+      setItemToDelete(null);
     }
   };
 
@@ -312,6 +353,7 @@ export default function Page() {
               onView={() => handleView(user)}
               onEdit={isAdmin ? undefined : () => handleEdit(user)}
               onAction={isAdmin ? undefined : () => handleToggleStatus(user)}
+              onDelete={isAdmin ? undefined : () => handleDelete(user)}
               actionLabel={isActive ? "Khóa" : "Mở khóa"}
               actionIcon={isActive ? "lock" : "unlock"}
               disabled={isAnyRowSelected}
@@ -328,7 +370,12 @@ export default function Page() {
     <>
       <Select
         value={filters.role || "ALL"}
-        onValueChange={(value) => updateFilter("role", value === "ALL" ? undefined : value as UserRole)}
+        onValueChange={(value) =>
+          updateFilter(
+            "role",
+            value === "ALL" ? undefined : (value as UserRole)
+          )
+        }
       >
         <SelectTrigger className="w-[150px]">
           <SelectValue placeholder="Vai trò" />
@@ -341,7 +388,12 @@ export default function Page() {
       </Select>
       <Select
         value={filters.status || "ALL"}
-        onValueChange={(value) => updateFilter("status", value === "ALL" ? undefined : value as UserStatus)}
+        onValueChange={(value) =>
+          updateFilter(
+            "status",
+            value === "ALL" ? undefined : (value as UserStatus)
+          )
+        }
       >
         <SelectTrigger className="w-[150px]">
           <SelectValue placeholder="Trạng thái" />
@@ -430,7 +482,21 @@ export default function Page() {
         title={`Khóa ${itemsToLock.length} người dùng?`}
         description={`Bạn đang khóa: ${itemsToLock
           .map((u) => u.name || u.userName)
-          .join(", ")}. Các người dùng này sẽ không thể đăng nhập vào hệ thống.`}
+          .join(
+            ", "
+          )}. Các người dùng này sẽ không thể đăng nhập vào hệ thống.`}
+      />
+
+      {/* Confirm Delete Dialog */}
+      <ConfirmDeleteDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        onConfirm={confirmDelete}
+        isSubmitting={isSubmitting}
+        title="Xóa người dùng?"
+        description={`Bạn có chắc chắn muốn xóa người dùng "${
+          itemToDelete?.name || itemToDelete?.userName
+        }"? Hành động này không thể hoàn tác và tất cả dữ liệu liên quan sẽ bị xóa vĩnh viễn.`}
       />
 
       {/* Detail Modal - Xem chi tiết */}
