@@ -166,6 +166,7 @@ export function UserFormModal({
 
     // Remove userName when updating (backend doesn't allow it)
     if (isEditMode && "userName" in data) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { userName, ...updateData } = data as CreateUserFormData;
       await onSubmit(updateData as UpdateUserFormData);
       return;
@@ -190,22 +191,24 @@ export function UserFormModal({
 
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
           {/* Username */}
-          <div className="space-y-2">
-            <Label htmlFor="userName">
-              Tên đăng nhập <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="userName"
-              {...form.register("userName" as any)}
-              placeholder="Nhập tên đăng nhập"
-              disabled={isEditMode} // Không cho sửa username
-            />
-            {(form.formState.errors as any).userName && (
-              <p className="text-sm text-destructive">
-                {(form.formState.errors as any).userName.message}
-              </p>
-            )}
-          </div>
+          {!isEditMode && (
+            <div className="space-y-2">
+              <Label htmlFor="userName">
+                Tên đăng nhập <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="userName"
+                {...form.register("userName")}
+                placeholder="Nhập tên đăng nhập"
+              />
+              {"userName" in form.formState.errors &&
+                form.formState.errors.userName && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.userName.message}
+                  </p>
+                )}
+            </div>
+          )}
 
           {/* Password - hiện cho cả tạo mới và chỉnh sửa */}
           <div className="space-y-2">

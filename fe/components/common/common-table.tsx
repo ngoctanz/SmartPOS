@@ -190,21 +190,20 @@ export function CommonTable<TData, TValue>({
   const selectedRowCount = table.getFilteredSelectedRowModel().rows.length;
 
   return (
-    <div className="w-full">
+    <div className="w-full space-y-4">
       {/* Bulk Actions Bar */}
       {onBulkAction && (
         <BulkActions
           selectedCount={selectedCount}
           onAction={handleBulkAction}
           onClearSelection={clearSelection}
-          className="mb-4"
           actionLabel={bulkActionLabel}
           actionIcon={bulkActionIcon}
         />
       )}
 
       {(filterCol || toolbarActions) && (
-        <div className="flex flex-col sm:flex-row items-center gap-4 py-4">
+        <div className="flex flex-col sm:flex-row items-center gap-3">
           {toolbarActions && (
             <div className="flex items-center gap-2">{toolbarActions}</div>
           )}
@@ -218,64 +217,78 @@ export function CommonTable<TData, TValue>({
           )}
         </div>
       )}
-      <Table>
-        <TableHeader>
-          {table.getHeaderGroups().map((headerGroup) => (
-            <TableRow key={headerGroup.id}>
-              {headerGroup.headers.map((header) => {
-                return (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.header,
-                          header.getContext()
-                        )}
-                  </TableHead>
-                );
-              })}
-            </TableRow>
-          ))}
-        </TableHeader>
-        <TableBody>
-          {table.getRowModel().rows?.length ? (
-            table.getRowModel().rows.map((row) => (
+      <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
+        <Table>
+          <TableHeader>
+            {table.getHeaderGroups().map((headerGroup) => (
               <TableRow
-                key={row.id}
-                data-state={row.getIsSelected() && "selected"}
+                key={headerGroup.id}
+                className="border-b bg-muted/30 hover:bg-muted/30"
               >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
+                {headerGroup.headers.map((header) => {
+                  return (
+                    <TableHead key={header.id}>
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  );
+                })}
               </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell colSpan={columns.length} className="h-24 text-center">
-                Không có dữ liệu.
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <div className="flex-1 text-sm text-muted-foreground">
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                  className="transition-colors"
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-32 text-center text-muted-foreground"
+                >
+                  Không có dữ liệu.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="flex items-center justify-between">
+        <div className="text-sm text-muted-foreground">
           {selectedRowCount > 0 ? (
-            <>
+            <span className="font-medium text-primary">
               {selectedRowCount}/{totalRows} hàng được chọn
-            </>
+            </span>
           ) : isServerSide ? (
             <>
-              Trang {serverPagination.page}/{serverPagination.totalPages} (
-              {totalRows} kết quả)
+              Trang <span className="font-medium">{serverPagination.page}</span>
+              /
+              <span className="font-medium">{serverPagination.totalPages}</span>{" "}
+              ({totalRows} kết quả)
             </>
           ) : (
             <>{totalRows} kết quả</>
           )}
         </div>
-        <div className="space-x-2">
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="sm"

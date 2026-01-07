@@ -31,12 +31,12 @@ export function StatsCard({
   const getTrendStyle = (type: string) => {
     switch (type) {
       case "positive":
-        return "text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded";
+        return "text-emerald-600 bg-emerald-50";
       case "critical":
-        return "text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded font-semibold";
+        return "text-rose-600 bg-rose-50 font-semibold";
       case "neutral":
       default:
-        return "text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded";
+        return "text-muted-foreground bg-muted";
     }
   };
 
@@ -55,26 +55,26 @@ export function StatsCard({
   return (
     <Card
       className={cn(
-        "overflow-hidden transition-all duration-200 hover:shadow-md border-border/60",
+        "overflow-hidden hover:shadow-md transition-shadow duration-200",
         className
       )}
     >
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}
         </CardTitle>
-        <div className="p-1.5 bg-primary/5 rounded-full ring-1 ring-primary/10">
-          <Icon className="h-4 w-4 text-primary" />
+        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+          <Icon className="h-5 w-5 text-primary" />
         </div>
       </CardHeader>
-      <CardContent className="pb-3">
-        <div className="text-2xl font-bold tracking-tight">{value}</div>
+      <CardContent>
+        <div className="text-3xl font-bold tracking-tight">{value}</div>
         {(description || trend) && (
-          <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-2">
             {trend && typeof trend === "object" ? (
               <span
                 className={cn(
-                  "font-medium px-1.5 py-0.5 rounded",
+                  "text-xs font-medium px-2 py-0.5 rounded-md",
                   trend.positive
                     ? "text-emerald-600 bg-emerald-50"
                     : "text-rose-600 bg-rose-50"
@@ -84,11 +84,18 @@ export function StatsCard({
                 {trend.value}% {trend.label}
               </span>
             ) : trend && typeof trend === "string" ? (
-              <span className={cn("font-medium", getTrendStyle(trend))}>
+              <span
+                className={cn(
+                  "text-xs font-medium px-2 py-0.5 rounded-md",
+                  getTrendStyle(trend)
+                )}
+              >
                 {getTrendLabel(trend)}
               </span>
             ) : null}
-            <span className="line-clamp-1">{description}</span>
+            {description && (
+              <p className="text-xs text-muted-foreground">{description}</p>
+            )}
           </div>
         )}
       </CardContent>
