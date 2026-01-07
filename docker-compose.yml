@@ -6,7 +6,7 @@ services:
     build:
       context: ./BE
       dockerfile: Dockerfile
-    container_name: shopacvn-backend
+    container_name: smartpos-backend
     restart: unless-stopped
     env_file:
       - ./BE/.env
@@ -21,10 +21,7 @@ services:
     volumes:
       - backend-logs:/app/logs
     networks:
-      - shopacvn-network
-    depends_on:
-      mongodb:
-        condition: service_healthy
+      - smartpos-network
     healthcheck:
       test:
         [
@@ -52,18 +49,18 @@ services:
       context: ./FE
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_URL=https://api.shopacvn.com/v1
-    container_name: shopacvn-frontend
+        - NEXT_PUBLIC_API_URL=https://api.noibo.lanchuyenhangsale.com/v1
+    container_name: smartpos-frontend
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=https://api.shopacvn.com/v1
+      - NEXT_PUBLIC_API_URL=https://api.noibo.lanchuyenhangsale.com/v1
     ports:
       - "3000:3000"
     expose:
       - "3000"
     networks:
-      - shopacvn-network
+      - smartpos-network
     healthcheck:
       test:
         [
@@ -92,7 +89,7 @@ services:
   # Nginx Reverse Proxy
   nginx:
     image: nginx:alpine
-    container_name: shopacvn-nginx
+    container_name: smartpos-nginx
     restart: unless-stopped
     ports:
       - "80:80"
@@ -103,7 +100,7 @@ services:
       - /var/www/certbot:/var/www/certbot:ro
       - nginx-logs:/var/log/nginx
     networks:
-      - shopacvn-network
+      - smartpos-network
     depends_on:
       - backend
       - frontend
@@ -126,49 +123,12 @@ services:
           cpus: "0.5"
           memory: 256M
 
-  # MongoDB Service (Shared Database for Team)
-  mongodb:
-    image: mongo:7.0
-    container_name: shopacvn-mongodb
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: rootpass
-      MONGO_INITDB_DATABASE: SmartPOS
-    ports:
-      - "27017:27017" # Exposed for team access
-    volumes:
-      - ./mongodb-dev/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
-      - mongodb-data:/data/db
-      - mongodb-config:/data/configdb
-    networks:
-      - shopacvn-network
-    command: mongod --auth
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
-    deploy:
-      resources:
-        limits:
-          cpus: "2"
-          memory: 2G
-        reservations:
-          cpus: "1"
-          memory: 1G
-
 volumes:
-  mongodb-data:
-    driver: local
-  mongodb-config:
-    driver: local
   backend-logs:
     driver: local
   nginx-logs:
     driver: local
 
 networks:
-  shopacvn-network:
+  smartpos-network:
     driver: bridge

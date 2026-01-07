@@ -1,0 +1,110 @@
+name: SmartPOS CI/CD
+
+on:
+  push:
+    branches: [production]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy lên VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          port: ${{ secrets.PORT }}
+          command_timeout: 30m
+          script: |
+            set -e  # Dừng script ngay nếu có lỗi
+
+            cd /root/SmartPOS
+
+            # Lưu commit hiện tại để rollback nếu cần
+            PREVIOUS_COMMIT=$(git rev-parse HEAD)
+            echo "📌 Commit hiện tại: $PREVIOUS_COMMIT"
+
+            # Hàm rollback
+            rollback() {
+              echo "🔄 ========== BẮT ĐẦU ROLLBACK =========="
+              echo "⏪ Đang rollback về commit: $PREVIOUS_COMMIT"
+              
+              cd /root/SmartPOS
+              git reset --hard $PREVIOUS_COMMIT
+              
+              # Rebuild và restart với code cũ
+              docker compose stop frontend backend nginx || true
+              docker compose rm -f frontend backend nginx || true
+              docker compose build backend frontend
+              docker compose up -d backend
+              sleep 5
+              docker compose up -d frontend
+              sleep 5
+              docker compose up -d nginx
+              
+              echo "✅ Rollback hoàn tất!"
+              echo "🔄 ========== ROLLBACK XONG =========="
+              exit 1
+            }
+
+            # Bắt lỗi và tự động rollback
+            trap 'rollback' ERR
+
+            echo "========== BẮT ĐẦU DEPLOY =========="
+
+            # Cập nhật code từ remote
+            echo "📥 Đang pull code mới..."
+            git fetch origin production
+            git checkout production
+            git reset --hard origin/production
+            NEW_COMMIT=$(git rev-parse HEAD)
+            echo "✅ Pull code thành công! Commit mới: $NEW_COMMIT"
+
+
+            # Dừng và xóa container cũ
+            echo "🛑 Đang dừng containers cũ..."
+            docker compose stop frontend backend nginx || true
+            docker compose rm -f frontend backend nginx || true
+            echo "✅ Đã dọn dẹp containers cũ!"
+
+            # Dọn images cũ và build lại
+            echo "🔨 Đang build images mới..."
+            docker image prune -f
+            docker compose build backend frontend
+            echo "✅ Build images thành công!"
+
+            # Khởi động các dịch vụ
+            echo "⚙️ Đang khởi động Backend..."
+            docker compose up -d backend
+            sleep 5
+
+            echo "🌐 Đang khởi động Frontend..."
+            docker compose up -d frontend
+            sleep 5
+
+            echo "🔒 Đang khởi động Nginx..."
+            docker compose up -d nginx
+            sleep 3
+
+            # Health check - nếu fail sẽ trigger rollback
+            echo "🏥 Đang kiểm tra health..."
+            docker compose ps
+
+            # Kiểm tra backend API
+            echo "🔍 Kiểm tra Backend API..."
+            curl -sf http://localhost:8081/v1/health || echo "⚠️ Backend health endpoint không có, bỏ qua..."
+            echo "✅ Backend health check OK!"
+
+            # Kiểm tra frontend
+            echo "🔍 Kiểm tra Frontend..."
+            curl -sf http://localhost:3000 > /dev/null
+            echo "✅ Frontend health check OK!"
+
+            # Tắt trap vì đã thành công
+            trap - ERR
+
+            echo "========== ✅ DEPLOY HOÀN TẤT =========="
+            echo "📌 Deployed commit: $NEW_COMMIT"

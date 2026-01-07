@@ -19,7 +19,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Build arguments
-ARG NEXT_PUBLIC_API_URL=https://api.shopacvn.com/v1
+ARG NEXT_PUBLIC_API_URL=https://api.noibo.lanchuyenhangsale.com/v1
 
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED 1
