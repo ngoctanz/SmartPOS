@@ -15,10 +15,10 @@ const createLimiter = (windowMs, max, message) => {
   });
 };
 
-// Login - 5 lần trong 15 phút
+// Login - 15 lần trong 5 phút
 export const loginLimiter = createLimiter(
-  100 * 60 * 1000,
-  5,
+  5 * 60 * 1000,
+  15,
   "Too many login attempts, please try again later"
 );
 
@@ -36,9 +36,9 @@ export const registerLimiter = createLimiter(
   "Too many registration attempts, please try again later"
 );
 
-// General auth - 100 lần trong 15 phút
+// General auth - 100 lần trong 1 phút
 export const authLimiter = createLimiter(
-  15 * 60 * 1000,
-  100,
+  1 * 60 * 1000,
+  10000,
   "Too many requests to auth endpoints"
 );

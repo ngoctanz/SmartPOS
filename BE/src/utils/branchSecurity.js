@@ -4,13 +4,6 @@
  */
 import ApiError from "./apiError.js";
 
-/**
- * Validate user has access to the specified branchId
- * @param {Object} user - User object from req.user
- * @param {string} branchId - Branch ID to check access for
- * @param {string} action - Action being performed (for error message)
- * @throws {ApiError} 403 if user doesn't have access
- */
 export const validateBranchAccess = (user, branchId, action = "access") => {
   if (!user) {
     throw new ApiError(401, "Authentication required");
@@ -28,7 +21,10 @@ export const validateBranchAccess = (user, branchId, action = "access") => {
 
   // Staff can only access their own branch
   if (branchId && user.branchId.toString() !== branchId.toString()) {
-    throw new ApiError(403, `You do not have permission to ${action} this branch's data`);
+    throw new ApiError(
+      403,
+      `You do not have permission to ${action} this branch's data`
+    );
   }
 
   return true;
@@ -89,7 +85,7 @@ export const validateRecordAccess = (user, record, recordType = "record") => {
 
   // Get branchId from record (handle populated vs non-populated)
   const recordBranchId = record.branchId?._id || record.branchId;
-  
+
   if (!recordBranchId) {
     throw new ApiError(500, `${recordType} has no branch information`);
   }
