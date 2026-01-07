@@ -1,19 +1,22 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 interface UseStatsOptions<T> {
-  fetchFn: (params?: any) => Promise<{ data?: T }>;
-  params?: any;
+  fetchFn: () => Promise<{ data?: T }>;
   dependencies?: any[];
 }
 
-export function useStats<T>({ fetchFn, params, dependencies = [] }: UseStatsOptions<T>) {
+export function useStats<T>({ fetchFn, dependencies = [] }: UseStatsOptions<T>) {
   const [stats, setStats] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Store fetchFn in a ref to avoid dependency issues (fetchFn is often an arrow function created on each render)
+  const fetchFnRef = useRef(fetchFn);
+  fetchFnRef.current = fetchFn;
 
   const fetchStats = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetchFn(params);
+      const res = await fetchFnRef.current();
       if (res.data) {
         setStats(res.data);
       }
@@ -22,11 +25,12 @@ export function useStats<T>({ fetchFn, params, dependencies = [] }: UseStatsOpti
     } finally {
       setLoading(false);
     }
-  }, [fetchFn, params, ...dependencies]);
+  }, []); // Empty deps - fetchFnRef.current always has latest function
 
   useEffect(() => {
     fetchStats();
-  }, [fetchStats]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [...dependencies]); // Only re-run when dependencies actually change
 
   return { stats, loading, refetch: fetchStats };
 }

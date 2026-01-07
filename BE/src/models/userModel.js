@@ -60,15 +60,6 @@ const userSchema = new mongoose.Schema(
       enum: ["active", "inactive"],
       default: "active",
     },
-    isDeleted: {
-      type: Boolean,
-      default: false,
-      select: false,
-    },
-    deletedAt: {
-      type: Date,
-      select: false,
-    },
     refresh_token: {
       type: String,
       select: false,
@@ -98,8 +89,6 @@ userSchema.methods.toJSON = function () {
   const userObject = this.toObject();
   delete userObject.password;
   delete userObject.refresh_token;
-  delete userObject.isDeleted;
-  delete userObject.deletedAt;
   return userObject;
 };
 
@@ -192,6 +181,11 @@ userSchema.statics = {
     return this.find({ userName: new RegExp(name, "i") }).lean();
   },
   async updateUser(id, data) {
+    // If password is being updated, hash it first
+    if (data.password) {
+      data.password = await bcrypt.hash(data.password, 10);
+    }
+    
     const user = await this.findByIdAndUpdate(id, data, {
       new: true,
       runValidators: true,
@@ -201,17 +195,20 @@ userSchema.statics = {
     }
     return user;
   },
-  async hideUser(id) {
-    const updatedUser = await this.findByIdAndUpdate(
-      id,
-      { isDeleted: true, deletedAt: new Date() },
-      { new: true }
-    );
-    if (!updatedUser) throw new Error("Not found!");
-    return updatedUser;
-  },
   async deleteUser(id) {
     return this.findByIdAndDelete(id);
+  },
+  
+  async getUserStats() {
+    const total = await this.countDocuments();
+    const active = await this.countDocuments({ status: "active" });
+    const inactive = await this.countDocuments({ status: "inactive" });
+    
+    return {
+      total,
+      active,
+      inactive,
+    };
   },
 };
 

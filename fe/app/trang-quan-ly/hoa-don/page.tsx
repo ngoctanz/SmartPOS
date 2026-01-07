@@ -77,8 +77,8 @@ export default function Page() {
   });
 
   const { stats } = useStats<ReceiptStats>({
-    fetchFn: () => receiptService.getStats(isAdmin ? filters.branchId : undefined),
-    dependencies: [filters.branchId, isAdmin],
+    fetchFn: () => receiptService.getStats(isAdmin ? filters.branchId : user?.branchId),
+    dependencies: [filters.branchId, isAdmin, user?.branchId],
   });
 
   const [branches, setBranches] = React.useState<Branch[]>([]);
@@ -185,8 +185,8 @@ export default function Page() {
           );
         },
       },
-      // Chỉ hiển thị cột chi nhánh cho admin
-      ...(isAdmin ? [{
+      // Chỉ hiển thị cột chi nhánh khi admin chọn "Tất cả chi nhánh"
+      ...(isAdmin && !filters.branchId ? [{
         accessorKey: "branchId" as const,
         header: "Chi nhánh",
         cell: ({ row }: { row: any }) => {
@@ -299,7 +299,7 @@ export default function Page() {
         },
       },
     ],
-    [branches, isAdmin] // eslint-disable-line react-hooks/exhaustive-deps
+    [branches, isAdmin, filters.branchId] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const toolbarActions = (

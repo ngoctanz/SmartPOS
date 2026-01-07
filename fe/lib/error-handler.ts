@@ -82,9 +82,26 @@ export function parseError(error: unknown): ErrorDetail {
 
     // Forbidden (403)
     if (statusCode === 403) {
+      // Check for specific Vietnamese messages from BE
+      if (message.includes("bị khóa")) {
+        return {
+          title: "Tài khoản bị khóa",
+          message: message,
+          statusCode,
+          suggestion: "Liên hệ quản trị viên để được hỗ trợ mở khóa tài khoản",
+        };
+      }
+      if (message.includes("chưa được phân công") || message.includes("chi nhánh")) {
+        return {
+          title: "Chưa được phân công chi nhánh",
+          message: message,
+          statusCode,
+          suggestion: "Liên hệ quản trị viên để được cấp quyền truy cập chi nhánh",
+        };
+      }
       return {
         title: "Không có quyền truy cập",
-        message: "Bạn không có quyền thực hiện thao tác này",
+        message: message || "Bạn không có quyền thực hiện thao tác này",
         statusCode,
         suggestion: "Liên hệ quản trị viên nếu bạn cần quyền truy cập",
       };

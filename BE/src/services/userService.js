@@ -57,23 +57,59 @@ const getUserByName = async (name) => {
   }
 };
 
-const updateUser = async (id, data) => {
+const updateUser = async (id, data, currentUser = null) => {
   try {
-    // Không cho phép update các field nhạy cảm
+    // Không cho phép update các field nhạy cảm (trừ password nếu có)
     const {
-      password,
       refresh_token,
-      isDeleted,
-      deletedAt,
       userName,
       ...safeData
     } = data;
 
-    // Kiểm tra nếu update role thành admin - cần kiểm tra quyền
-    // Tạm thời cho phép update role, có thể thêm check quyền sau
+    // Lấy user cần update
+    const userToUpdate = await User.findUserById(id);
+    if (!userToUpdate) {
+      throw new ApiError(404, "Không tìm thấy người dùng");
+    }
+
+    // Không cho phép sửa tài khoản admin gốc
+    if (userToUpdate.userName === "admin" && userToUpdate.role === "admin") {
+      throw new ApiError(403, "Không thể chỉnh sửa tài khoản admin hệ thống");
+    }
+
+    // Nếu có currentUser (người đang thực hiện)
+    if (currentUser) {
+      // Không cho phép tự sửa role của chính mình
+      if (currentUser.userId.toString() === id && safeData.role && safeData.role !== userToUpdate.role) {
+        throw new ApiError(403, "Không thể tự thay đổi vai trò của chính mình");
+      }
+
+      // Không cho phép tự khóa chính mình
+      if (currentUser.userId.toString() === id && safeData.status === "inactive") {
+        throw new ApiError(403, "Không thể tự khóa tài khoản của chính mình");
+      }
+    }
+
+    // Nếu password rỗng hoặc null thì không update password
+    if (!safeData.password || safeData.password === "") {
+      delete safeData.password;
+    }
+
+    // Xử lý branchId: nếu là empty string thì chuyển thành null
+    if (safeData.branchId === "") {
+      safeData.branchId = null;
+    }
+
+    // Validate branchId nếu có
+    if (safeData.branchId) {
+      const { Branch } = await import("../models/branchModel.js");
+      const branch = await Branch.findById(safeData.branchId);
+      if (!branch) {
+        throw new ApiError(400, "Chi nhánh không tồn tại");
+      }
+    }
 
     const userUpdated = await User.updateUser(id, safeData);
-    if (!userUpdated) throw new ApiError(404, "Không tìm thấy người dùng");
     return userUpdated;
   } catch (error) {
     if (error instanceof ApiError) throw error;

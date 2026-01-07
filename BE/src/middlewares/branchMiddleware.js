@@ -1,22 +1,21 @@
 import ApiError from "../utils/apiError.js";
 
-/**
- * Middleware to check if user has access to the requested branch
- * Admin can access all branches
- * Staff can only access their assigned branch
- */
+
 export const checkBranchAccess = (req, res, next) => {
   try {
     const { role, branchId: userBranchId } = req.user;
-    // Ưu tiên params vì đây là route-level check
-    const requestedBranchId = req.params.branchId;
+    // Check params, body, query for branchId
+    const requestedBranchId =
+      req.params.branchId ||
+      (req.body && req.body.branchId) ||
+      req.query.branchId;
 
     // Admin can access all branches
     if (role === "admin") {
       return next();
     }
 
-    // If no branch specified in params, allow (will use user's branch from query/body)
+    // If no branch specified in request, allow (will use user's branch from injection)
     if (!requestedBranchId) {
       return next();
     }
@@ -39,16 +38,7 @@ export const checkBranchAccess = (req, res, next) => {
   }
 };
 
-/**
- * Middleware to inject user's branch if not specified
- * - Staff: Tự động inject branchId từ token vào body và query
- * - Admin: 
- *   + GET: Không bắt buộc branchId (có thể xem tất cả)
- *   + POST/PUT/PATCH: BẮT BUỘC phải có branchId trong body (trừ khi skipBranchRequirement = true)
- * 
- * @param {Object} options - Configuration options
- * @param {boolean} options.requireBranchForWrite - Require branchId for write operations (default: true)
- */
+
 export const injectUserBranch = (options = {}) => {
   const { requireBranchForWrite = true } = options;
   
@@ -77,7 +67,7 @@ export const injectUserBranch = (options = {}) => {
       }
 
       // Inject vào body (cho POST/PUT/PATCH) - ensure req.body exists
-      if (req.body && !req.body.branchId) {
+      if (isWriteOperation && req.body && !req.body.branchId) {
         req.body.branchId = userBranchId;
       }
       
@@ -86,11 +76,15 @@ export const injectUserBranch = (options = {}) => {
         req.query.branchId = userBranchId;
       }
 
-      // Kiểm tra nếu user cố tình truyền branchId khác với branchId của mình
-      const requestedBranchId = req.body?.branchId || req.query.branchId;
-      if (requestedBranchId && requestedBranchId.toString() !== userBranchId.toString()) {
+      // Kiểm tra nếu user cố tình truyền branchId khác với branchId của mình (bao gồm params, body, query)
+      const explicitBranchId = 
+          req.params.branchId || 
+          (req.body && req.body.branchId) || 
+          req.query.branchId;
+
+      if (explicitBranchId && explicitBranchId.toString() !== userBranchId.toString()) {
         return next(
-          new ApiError(403, "You can only access your own branch")
+          new ApiError(403, "Forbidden: You can only access your own branch")
         );
       }
 
@@ -101,19 +95,11 @@ export const injectUserBranch = (options = {}) => {
   };
 };
 
-// Backward compatible version (no options)
+// Backward compatible version (no options) - use as middleware directly
 export const injectUserBranchSimple = (req, res, next) => {
   return injectUserBranch()(req, res, next);
 };
 
-/**
- * Middleware to validate branch access for a specific record
- * Use this for routes like GET /:id, GET /code/:code where we need to check
- * if the fetched record belongs to user's branch
- * 
- * @param {Function} getRecordBranchId - Function to extract branchId from the record
- *   Receives (req) and should return a Promise that resolves to the branchId
- */
 export const validateRecordBranchAccess = (getRecordBranchId) => {
   return async (req, res, next) => {
     try {

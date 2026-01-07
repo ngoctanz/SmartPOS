@@ -37,7 +37,6 @@ export interface ChangePasswordPayload {
 export function useAuth() {
   const {
     user,
-    accessToken,
     isAuthenticated,
     isLoading,
     isInitialized,
@@ -45,12 +44,10 @@ export function useAuth() {
     clearAuth,
     updateUser,
     refreshUser,
-    refreshAccessToken,
   } = useAuthContext();
 
   return {
     user,
-    accessToken,
     isAuthenticated,
     isLoading,
     isInitialized,
@@ -60,7 +57,6 @@ export function useAuth() {
     clearAuth,
     updateUser,
     refreshUser,
-    refreshAccessToken,
   };
 }
 
@@ -80,8 +76,8 @@ export function useLogin() {
       }
     );
 
-    if (response.success && response.data?.user && response.access_token) {
-      setAuth(response.data.user, response.access_token);
+    if (response.success && response.data?.user) {
+      setAuth(response.data.user);
       router.push(ROUTES.DASHBOARD.HOME);
       return response;
     }

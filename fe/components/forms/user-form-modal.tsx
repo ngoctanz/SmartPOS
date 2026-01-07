@@ -46,16 +46,21 @@ const createUserSchema = z.object({
   status: z.enum(["active", "inactive"]),
 });
 
-// Schema cập nhật user (không có password bắt buộc)
+// Schema cập nhật user (không có userName, password optional)
 const updateUserSchema = z.object({
-  userName: z
-    .string()
-    .min(3, "Tên đăng nhập phải có ít nhất 3 ký tự")
-    .max(15, "Tên đăng nhập tối đa 15 ký tự")
-    .regex(/^\S+$/, "Tên đăng nhập không được có khoảng trắng"),
   name: z.string().max(100, "Họ tên tối đa 100 ký tự").optional(),
+  password: z
+    .string()
+    .min(6, "Mật khẩu phải có ít nhất 6 ký tự")
+    .max(25, "Mật khẩu tối đa 25 ký tự")
+    .regex(
+      /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d!@#$%^&*()_+\-=]{6,25}$/,
+      "Mật khẩu phải chứa ít nhất 1 chữ cái và 1 số"
+    )
+    .optional()
+    .or(z.literal("")), // Allow empty string
   role: z.enum(["admin", "staff"]),
-  branchId: z.string().optional(),
+  branchId: z.string().nullable().optional(),
   status: z.enum(["active", "inactive"]),
 });
 
@@ -138,11 +143,26 @@ export function UserFormModal({
   const handleSubmit = async (
     data: CreateUserFormData | UpdateUserFormData
   ) => {
-    // Remove empty branchId
-    if (!data.branchId) {
-      delete data.branchId;
+   
+    const processedData = { ...data };
+    if (!processedData.branchId || processedData.branchId === "") {
+      processedData.branchId = null as any; 
     }
-    await onSubmit(data);
+    
+    // Remove empty password when updating
+    if (isEditMode) {
+      const updateData = processedData as UpdateUserFormData;
+      if (!updateData.password || updateData.password === "") {
+        delete updateData.password;
+      }
+      // Remove userName if present
+      if ('userName' in updateData) {
+        delete (updateData as any).userName;
+      }
+      await onSubmit(updateData);
+    } else {
+      await onSubmit(processedData as CreateUserFormData);
+    }
   };
 
   return (
@@ -167,59 +187,58 @@ export function UserFormModal({
             </Label>
             <Input
               id="userName"
-              {...form.register("userName")}
+              {...form.register("userName" as any)}
               placeholder="Nhập tên đăng nhập"
               disabled={isEditMode} // Không cho sửa username
             />
-            {form.formState.errors.userName && (
+            {(form.formState.errors as any).userName && (
               <p className="text-sm text-destructive">
-                {form.formState.errors.userName.message}
+                {(form.formState.errors as any).userName.message}
               </p>
             )}
           </div>
 
-          {/* Password - chỉ hiện khi tạo mới */}
-          {!isEditMode && (
-            <div className="space-y-2">
-              <Label htmlFor="password">
-                Mật khẩu <span className="text-destructive">*</span>
-              </Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  {...form.register("password" as keyof CreateUserFormData)}
-                  placeholder="Nhập mật khẩu"
-                  className="pr-10"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-              {(form.formState.errors as { password?: { message?: string } })
-                .password && (
-                <p className="text-sm text-destructive">
-                  {
-                    (
-                      form.formState.errors as {
-                        password?: { message?: string };
-                      }
-                    ).password?.message
-                  }
-                </p>
-              )}
+          {/* Password - hiện cho cả tạo mới và chỉnh sửa */}
+          <div className="space-y-2">
+            <Label htmlFor="password">
+              Mật khẩu {!isEditMode && <span className="text-destructive">*</span>}
+              {isEditMode && <span className="text-muted-foreground text-xs ml-1">(để trống nếu không đổi)</span>}
+            </Label>
+            <div className="relative">
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                {...form.register("password" as keyof CreateUserFormData)}
+                placeholder={isEditMode ? "Nhập mật khẩu mới (nếu muốn đổi)" : "Nhập mật khẩu"}
+                className="pr-10"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </Button>
             </div>
-          )}
+            {(form.formState.errors as { password?: { message?: string } })
+              .password && (
+              <p className="text-sm text-destructive">
+                {
+                  (
+                    form.formState.errors as {
+                      password?: { message?: string };
+                    }
+                  ).password?.message
+                }
+              </p>
+            )}
+          </div>
 
           {/* Name */}
           <div className="space-y-2">

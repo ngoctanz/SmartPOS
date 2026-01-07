@@ -16,8 +16,9 @@ export interface CreateUserRequest {
 export interface UpdateUserRequest {
   name?: string;
   role?: UserRole;
-  branchId?: string;
+  branchId?: string | null;
   status?: UserStatus;
+  password?: string;
 }
 
 export interface SearchUserParams {

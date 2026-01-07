@@ -92,22 +92,8 @@ const getStats = async (req, res, next) => {
 };
 const updateUser = async (req, res, next) => {
   try {
-    // Không cho phép update user admin
-    const userToUpdate = await userService.getUserById(req.params.id);
-    if (
-      userToUpdate &&
-      userToUpdate.role === "admin" &&
-      userToUpdate.userName === "admin"
-    ) {
-      return next(
-        new ApiError(
-          StatusCodes.FORBIDDEN,
-          "Không thể chỉnh sửa tài khoản admin"
-        )
-      );
-    }
-
-    const updatedUser = await userService.updateUser(req.params.id, req.body);
+    // Truyền currentUser để check quyền trong service
+    const updatedUser = await userService.updateUser(req.params.id, req.body, req.user);
     return res.status(StatusCodes.OK).json({
       success: true,
       message: "Cập nhật người dùng thành công!",

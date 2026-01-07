@@ -35,6 +35,16 @@ const createdNew = async (req, res, next) => {
 };
 const updateUserSchema = Joi.object({
   name: Joi.string().max(100).trim().allow(""),
+  password: Joi.string()
+    .min(6)
+    .max(25)
+    .pattern(
+      new RegExp("^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d!@#$%^&*()_+\\-=]{6,25}$")
+    )
+    .message(
+      "Password must contain at least one letter and one number, no spaces."
+    )
+    .allow("", null), // Allow empty or null (optional update)
   role: Joi.string().valid("admin", "staff"),
   branchId: Joi.string().allow(null, ""),
   status: Joi.string().valid("active", "inactive"),

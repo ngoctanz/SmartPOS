@@ -141,8 +141,17 @@ const create = async (data, user = null) => {
   }
 };
 
-const update = async (id, data) => {
+const update = async (id, data, user = null) => {
   try {
+    // First, find the document to check branch access
+    const branchProduct = await BranchProduct.findOne({ "products._id": id });
+    if (!branchProduct) throw new Error("Stock record not found");
+    
+    // Defense-in-depth: Validate branch access if user provided
+    if (user) {
+      validateBranchAccess(user, branchProduct.branchId, "update stock for");
+    }
+    
     // Update single item by sub-document ID
     const result = await BranchProduct.findOneAndUpdate(
         { "products._id": id },
@@ -154,7 +163,6 @@ const update = async (id, data) => {
         },
         { new: true }
     );
-    if (!result) throw new Error("Stock record not found");
     return result;
   } catch (error) {
     throw new Error(error.message || error);

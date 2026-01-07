@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ServerPagination } from "@/components/common/common-table";
+import { useAuth } from "@/hooks/useAuth";
 
 interface UseFilteredTableDataOptions<T, F> {
   fetchFn: (params: any) => Promise<{ data?: T[]; pagination?: ServerPagination }>;
@@ -10,6 +11,9 @@ export function useFilteredTableData<T, F extends Record<string, any>>({
   fetchFn, 
   initialFilters 
 }: UseFilteredTableDataOptions<T, F>) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -21,6 +25,10 @@ export function useFilteredTableData<T, F extends Record<string, any>>({
     total: 0,
     totalPages: 0,
   });
+
+  // Store fetchFn in ref to prevent infinite loops
+  const fetchFnRef = useRef(fetchFn);
+  fetchFnRef.current = fetchFn;
 
   // Debounce search
   useEffect(() => {
@@ -39,39 +47,52 @@ export function useFilteredTableData<T, F extends Record<string, any>>({
       search: debouncedSearch || undefined,
     };
 
-    // Add filters (skip "all" values)
+    // Add filters (skip "all" and undefined values)
     Object.entries(filters).forEach(([key, value]) => {
       if (value && value !== "all") {
         params[key] = value;
       }
     });
 
+    // IMPORTANT: For staff users, always inject their branchId if branchId filter exists and not set
+    // This ensures staff only see their branch data
+    if (!isAdmin && user?.branchId && 'branchId' in filters && !params.branchId) {
+      params.branchId = user.branchId;
+    }
+
     return params;
-  }, [pagination.page, pagination.limit, debouncedSearch, filters]);
+  }, [pagination.page, pagination.limit, debouncedSearch, filters, isAdmin, user?.branchId]);
 
   // Fetch data
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const params = buildParams();
-      const res = await fetchFn(params);
+      const res = await fetchFnRef.current(params);
       
       if (res.data) {
         setData(res.data);
       }
       if (res.pagination) {
-        setPagination(res.pagination);
+        setPagination((prev) => ({
+          ...prev,
+          total: res.pagination!.total,
+          totalPages: res.pagination!.totalPages,
+        }));
       }
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
       setLoading(false);
     }
-  }, [buildParams, fetchFn]);
+  }, [buildParams]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    // Only fetch when user is loaded (to get correct branchId for staff)
+    if (user !== undefined) {
+      fetchData();
+    }
+  }, [fetchData, user]);
 
   const handlePageChange = (page: number) => {
     setPagination((prev) => ({ ...prev, page }));

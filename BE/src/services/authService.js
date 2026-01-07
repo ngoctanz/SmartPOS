@@ -7,37 +7,53 @@ import { StatusCodes } from "http-status-codes";
 const login = async (reqBody) => {
   try {
     const { userName, password } = reqBody;
-    //tìm user theo userName (case-insensitive)
+    
+    // Tìm user theo userName (case-insensitive)
     const user = await User.findOne({
       userName: { $regex: new RegExp(`^${userName}$`, "i") },
     }).select("+password");
-    if (!user)
+    
+    if (!user) {
       throw new ApiError(
         StatusCodes.UNAUTHORIZED,
         "Tài khoản hoặc mật khẩu không chính xác"
       );
+    }
 
-    //so sánh password
+    // So sánh password
     const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid)
+    if (!isPasswordValid) {
       throw new ApiError(
         StatusCodes.UNAUTHORIZED,
         "Tài khoản hoặc mật khẩu không chính xác"
       );
+    }
 
-    //Tạo JWT Token
+    // Check if account is active
+    if (user.status === "inactive") {
+      throw new ApiError(
+        StatusCodes.FORBIDDEN,
+        "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để được hỗ trợ."
+      );
+    }
+
+    // Check if staff has branch assigned (admin doesn't need branch)
+    if (user.role === "staff" && !user.branchId) {
+      throw new ApiError(
+        StatusCodes.FORBIDDEN,
+        "Tài khoản của bạn chưa được phân công chi nhánh. Vui lòng liên hệ quản trị viên để được cấp quyền truy cập."
+      );
+    }
+
+    // Tạo JWT Token
     const payload = {
       userId: user._id,
       userName: user.userName,
       email: user.email,
       role: user.role,
-      branchId: user.branchId, // Thêm branchId vào token
+      branchId: user.branchId,
     };
     const access_token = jwtConfig.generateAccessToken(payload);
-    const refresh_token = jwtConfig.generateRefreshToken(payload);
-
-    // update refresh token lên dtb
-    await User.updateUser(user._id, { refresh_token });
 
     // Return clean user data without sensitive fields
     const userData = {
@@ -46,13 +62,12 @@ const login = async (reqBody) => {
       name: user.name,
       role: user.role,
       branchId: user.branchId,
-      isActive: user.isActive,
+      status: user.status,
     };
 
     return {
       user: userData,
       access_token,
-      refresh_token,
     };
   } catch (error) {
     // Re-throw ApiError as-is, wrap others
@@ -66,121 +81,36 @@ const login = async (reqBody) => {
 
 const logout = async (userId) => {
   try {
-    await User.updateUser(userId, { refresh_token: null });
     return { message: "Logged out successfully" };
   } catch (error) {
     throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Lỗi đăng xuất");
   }
 };
 
-const refreshToken = async (currentRefreshToken) => {
+const getMe = async (userId) => {
   try {
-    const decoded = jwt.verify(
-      currentRefreshToken,
-      jwtConfig.JWT_REFRESH_SECRET
-    );
-    const user = await User.findById(decoded.userId).select(
-      "+refresh_token +previous_refresh_token +token_updated_at"
-    );
-
+    const user = await User.findById(userId).select("-password -__v");
     if (!user) {
+      throw new ApiError(StatusCodes.UNAUTHORIZED, "User not found");
+    }
+    
+    // Also check status when getting current user (for session validation)
+    if (user.status === "inactive") {
       throw new ApiError(
-        StatusCodes.UNAUTHORIZED,
-        "Refresh token không hợp lệ"
+        StatusCodes.FORBIDDEN,
+        "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên."
       );
     }
-
-    // Check if current token matches the stored token
-    const isCurrentToken = user.refresh_token === currentRefreshToken;
-    // Check if it's the previous token (grace period: 30 seconds)
-    const isPreviousToken =
-      user.previous_refresh_token === currentRefreshToken &&
-      user.token_updated_at &&
-      Date.now() - new Date(user.token_updated_at).getTime() < 30000;
-
-    if (!isCurrentToken && !isPreviousToken) {
-      throw new ApiError(
-        StatusCodes.UNAUTHORIZED,
-        "Refresh token không hợp lệ"
-      );
-    }
-
-    // If using previous token, return the current tokens (idempotent)
-    if (isPreviousToken && !isCurrentToken) {
-      // Decode current token to generate access token
-      const currentDecoded = jwt.verify(
-        user.refresh_token,
-        jwtConfig.JWT_REFRESH_SECRET
-      );
-      const payload = {
-        userId: currentDecoded.userId,
-        userName: currentDecoded.userName,
-        email: currentDecoded.email,
-        role: currentDecoded.role,
-        branchId: currentDecoded.branchId, // Thêm branchId vào token
-      };
-      const access_token = jwtConfig.generateAccessToken(payload);
-
-      const userData = {
-        _id: user._id,
-        userName: user.userName,
-        name: user.name,
-        role: user.role,
-        branchId: user.branchId,
-        isActive: user.isActive,
-      };
-
-      return {
-        user: userData,
-        access_token: access_token,
-        refresh_token: user.refresh_token, // Return current token
-      };
-    }
-
-    // Tạo token mới (rotation - bảo mật hơn)
-    const payload = {
-      userId: user._id,
-      userName: user.userName,
-      email: user.email,
-      role: user.role,
-      branchId: user.branchId, // Thêm branchId vào token
-    };
-    const newAccess_token = jwtConfig.generateAccessToken(payload);
-    const newRefresh_token = jwtConfig.generateRefreshToken(payload);
-
-    // Update refresh token mới vào DB, lưu token cũ vào previous
-    await User.updateUser(user._id, {
-      previous_refresh_token: user.refresh_token,
-      refresh_token: newRefresh_token,
-      token_updated_at: new Date(),
-    });
-
-    // Return clean user data
-    const userData = {
-      _id: user._id,
-      userName: user.userName,
-      name: user.name,
-      role: user.role,
-      branchId: user.branchId,
-      isActive: user.isActive,
-    };
-
-    return {
-      user: userData,
-      access_token: newAccess_token,
-      refresh_token: newRefresh_token,
-    };
+    
+    return user;
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    throw new ApiError(
-      StatusCodes.UNAUTHORIZED,
-      "Refresh token không hợp lệ hoặc đã hết hạn"
-    );
+    throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Error fetching user profile");
   }
 };
 
 export const authService = {
   login,
   logout,
-  refreshToken,
+  getMe,
 };

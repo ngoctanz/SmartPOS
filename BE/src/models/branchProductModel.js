@@ -186,8 +186,9 @@ branchProductSchema.statics = {
           as: "product",
         },
       },
-      { $unwind: "$branch" },
-      { $unwind: "$product" },
+      // Preserve documents even if branch/product not found (e.g., deleted product)
+      { $unwind: { path: "$branch", preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
     ];
 
     // Filter by branchId if provided
