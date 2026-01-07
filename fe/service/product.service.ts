@@ -46,13 +46,46 @@ export interface SearchProductParams {
   categoryId?: string;
 }
 
+export interface ProductStats {
+  total: number;
+  active: number;
+  inactive: number;
+}
+
+export interface GetProductParams {
+  status?: "active" | "inactive" | "all";
+  categoryId?: string;
+}
+
 const productService = {
+  /**
+   * Lấy thống kê sản phẩm
+   * GET /api/v1/product/stats
+   */
+  getStats: async (): Promise<ApiResponse<ProductStats>> => {
+    return apiGet<ProductStats>("/product/stats");
+  },
+
   /**
    * Lấy tất cả sản phẩm
    * GET /api/v1/product
    */
-  getAll: async (): Promise<ApiResponse<Product[]>> => {
-    return apiGet<Product[]>("/product");
+  getAll: async (params?: GetProductParams): Promise<ApiResponse<Product[]>> => {
+    const queryParams = new URLSearchParams();
+    if (params?.categoryId && params.categoryId !== "all") {
+      queryParams.append("categoryId", params.categoryId);
+    }
+    if (params?.status && params.status !== "all") {
+      queryParams.append("status", params.status);
+    }
+    
+    // Pass 'status=all' if specifically requested to override backend default
+    if (params?.status === "all") {
+      queryParams.append("status", "all");
+    }
+
+    const query = queryParams.toString();
+    return apiGet<Product[]>(`/product${query ? `?${query}` : ""}`);
   },
 
   /**

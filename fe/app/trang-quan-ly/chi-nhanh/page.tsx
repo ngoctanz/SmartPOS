@@ -14,9 +14,14 @@ import { toast } from "sonner"
 import { format } from "date-fns"
 import branchService from "@/service/branch.service"
 
+import { Button } from "@/components/ui/button";
+import { Plus, LayoutGrid } from "lucide-react";
+import { StatsCard } from "@/components/common/stats-card";
+
 export default function Page() {
   const [data, setData] = React.useState<Branch[]>([])
   const [loading, setLoading] = React.useState(false)
+  const [stats, setStats] = React.useState<{ total: number }>({ total: 0 });
   
   const [selectedItem, setSelectedItem] = React.useState<Branch | null>(null)
   const [selectedItems, setSelectedItems] = React.useState<Branch[]>([])
@@ -35,9 +40,16 @@ export default function Page() {
   const fetchData = React.useCallback(async () => {
     try {
       setLoading(true)
-      const res = await branchService.getAll()
+      const [res, statsRes] = await Promise.all([
+        branchService.getAll(),
+        branchService.getStats()
+      ])
+      
       if (res.data) {
         setData(res.data)
+      }
+      if (statsRes.data) {
+        setStats(statsRes.data)
       }
     } catch (error) {
       toast.error("Không thể tải danh sách chi nhánh")
@@ -71,7 +83,7 @@ export default function Page() {
 
   const handleEdit = (item: Branch) => {
     setSelectedItem(item)
-     setFormData({ 
+    setFormData({ 
         branchName: item.branchName, 
         address: item.address, 
         contactInfo: item.contactInfo || "" 
@@ -197,14 +209,22 @@ export default function Page() {
       <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold tracking-tight">Quản lý chi nhánh</h1>
             <div className="flex gap-2">
-                <button 
-                    onClick={handleCreate}
-                    className="bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-2 rounded transition-colors"
-                >
-                    + Thêm mới
-                </button>
+                <Button onClick={handleCreate}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Thêm mới
+                </Button>
             </div>
       </div>
+      
+       <div className="grid gap-4 md:grid-cols-3">
+        <StatsCard
+          title="Tổng chi nhánh"
+          value={stats.total}
+          icon={LayoutGrid}
+          description="Số lượng chi nhánh hiện tại"
+        />
+      </div>
+
       <CommonTable 
         columns={columns} 
         data={data} 
@@ -230,8 +250,8 @@ export default function Page() {
          onEdit={!isEdit ? (() => setIsEdit(true)) : undefined}
          footer={isEdit ? (
              <div className="flex justify-end gap-2">
-                 <button className="px-4 py-2 border rounded hover:bg-gray-100" onClick={() => setIsDetailOpen(false)}>Hủy</button>
-                 <button className="px-4 py-2 bg-primary text-white rounded hover:bg-primary/90" onClick={handleSave}>Lưu</button>
+                 <Button variant="outline" onClick={() => setIsDetailOpen(false)}>Hủy</Button>
+                 <Button onClick={handleSave}>Lưu</Button>
              </div>
          ) : undefined}
        >

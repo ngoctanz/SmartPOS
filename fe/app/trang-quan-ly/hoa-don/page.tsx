@@ -12,27 +12,56 @@ import { RowActions } from "@/components/common/row-actions";
 import { DetailModal } from "@/components/common/detail-modal";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, FileText, Clock, CheckCircle, XCircle, DollarSign } from "lucide-react";
 import { toast } from "sonner";
-import receiptService, { Receipt } from "@/service/receipt.service";
+import receiptService, { Receipt, ReceiptStats } from "@/service/receipt.service";
 import branchService, { Branch } from "@/service/branch.service";
+import { formatCurrency } from "@/utils/format.utils";
+import { StatsCard } from "@/components/common/stats-card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useAuth } from "@/hooks/useAuth";
 
 export default function Page() {
   const router = useRouter();
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const [data, setData] = React.useState<Receipt[]>([]);
   const [branches, setBranches] = React.useState<Branch[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [selectedItem, setSelectedItem] = React.useState<Receipt | null>(null);
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
+  
+  const [stats, setStats] = React.useState<ReceiptStats>({
+      totalReceipts: 0,
+      pendingCount: 0,
+      completedCount: 0,
+      cancelledCount: 0,
+      totalRevenue: 0
+  });
 
-  // Fetch data on mount
-  React.useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      try {
-        const [receiptsRes, branchesRes] = await Promise.all([
-          receiptService.getAll(),
+  const [filterBranchId, setFilterBranchId] = React.useState<string>("all");
+  const [filterStatus, setFilterStatus] = React.useState<string>("all");
+
+  const fetchData = React.useCallback(async () => {
+    setIsLoading(true);
+    try {
+        const status = filterStatus !== "all" ? filterStatus : undefined;
+        const targetBranchId = (isAdmin && filterBranchId !== "all") ? filterBranchId : undefined;
+
+        const [receiptsRes, branchesRes, statsRes] = await Promise.all([
+          receiptService.getAll({
+            branchId: targetBranchId,
+            status
+          }),
           branchService.getAll(),
+          receiptService.getStats(targetBranchId)
         ]);
 
         if (receiptsRes.success && receiptsRes.data) {
@@ -41,14 +70,19 @@ export default function Page() {
         if (branchesRes.success && branchesRes.data) {
           setBranches(branchesRes.data);
         }
-      } catch {
-        toast.error("Không thể tải dữ liệu");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+        if (statsRes.success && statsRes.data) {
+            setStats(statsRes.data);
+        }
+    } catch {
+      toast.error("Không thể tải dữ liệu");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isAdmin, filterBranchId, filterStatus]);
+
+  React.useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const handleView = (item: Receipt) => {
     setSelectedItem(item);
@@ -149,13 +183,7 @@ export default function Page() {
       {
         accessorKey: "totalAmount",
         header: "Tổng tiền",
-        cell: ({ row }) => {
-          const amount = parseFloat(row.getValue("totalAmount"));
-          return new Intl.NumberFormat("vi-VN", {
-            style: "currency",
-            currency: "VND",
-          }).format(amount);
-        },
+        cell: ({ row }) => formatCurrency(row.getValue("totalAmount")),
       },
       {
         accessorKey: "status",
@@ -191,16 +219,43 @@ export default function Page() {
         ),
       },
     ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [branches]
-  ); // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-4">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
-  }
+  );
+  
+  const toolbarActions = (
+      <>
+        {isAdmin && (
+           <Select value={filterBranchId} onValueChange={setFilterBranchId}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Tất cả chi nhánh" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tất cả chi nhánh</SelectItem>
+              {branches.map((branch) => (
+                <SelectItem key={branch._id} value={branch._id}>
+                  {branch.branchName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Select
+            value={filterStatus}
+            onValueChange={setFilterStatus}
+        >
+            <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Trạng thái" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                <SelectItem value="pending">Chờ thanh toán</SelectItem>
+                <SelectItem value="completed">Hoàn thành</SelectItem>
+                <SelectItem value="cancelled">Đã hủy</SelectItem>
+            </SelectContent>
+        </Select>
+      </>
+  );
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
@@ -211,12 +266,50 @@ export default function Page() {
           Tạo hóa đơn
         </Button>
       </div>
-      <CommonTable
-        columns={columns}
-        data={data}
-        filterCol="code"
-        filterPlaceholder="Tìm mã hóa đơn..."
-      />
+      
+       {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatsCard
+          title="Tổng hóa đơn"
+          value={stats.totalReceipts}
+          icon={FileText}
+          description="Tổng số hóa đơn bán hàng"
+        />
+        <StatsCard
+          title="Chờ xử lý"
+          value={stats.pendingCount}
+          icon={Clock}
+          description="Hóa đơn chờ thanh toán"
+          trend="neutral"
+        />
+        <StatsCard
+          title="Hoàn thành"
+          value={stats.completedCount}
+          icon={CheckCircle}
+          description="Hóa đơn đã hoàn tất"
+          trend="positive"
+        />
+        <StatsCard
+          title="Tổng doanh thu"
+          value={formatCurrency(stats.totalRevenue)}
+          icon={DollarSign}
+          description="Doanh thu từ các đơn thành công"
+        />
+      </div>
+
+      {isLoading ? (
+        <div className="flex flex-1 items-center justify-center p-4">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      ) : (
+        <CommonTable
+            columns={columns}
+            data={data}
+            filterCol="code"
+            filterPlaceholder="Tìm mã hóa đơn..."
+            toolbarActions={toolbarActions}
+        />
+      )}
 
       <DetailModal
         open={isDetailOpen}
@@ -248,10 +341,7 @@ export default function Page() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Tổng tiền</Label>
               <Input
-                defaultValue={new Intl.NumberFormat("vi-VN", {
-                  style: "currency",
-                  currency: "VND",
-                }).format(selectedItem.totalAmount)}
+                defaultValue={formatCurrency(selectedItem.totalAmount)}
                 className="col-span-3"
                 readOnly
               />
@@ -342,10 +432,7 @@ export default function Page() {
                       {p.productName} (x{p.quantity})
                     </span>
                     <span>
-                      {new Intl.NumberFormat("vi-VN", {
-                        style: "currency",
-                        currency: "VND",
-                      }).format(p.salePrice * p.quantity)}
+                      {formatCurrency(p.salePrice * p.quantity)}
                     </span>
                   </div>
                 ))}

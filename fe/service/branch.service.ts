@@ -16,6 +16,11 @@ export interface CreateBranchRequest {
   contactInfo: string;
 }
 
+export interface BranchStats {
+  total: number;
+}
+
+
 export interface UpdateBranchRequest {
   branchName?: string;
   address?: string;
@@ -46,6 +51,14 @@ const branchService = {
     if (params.name) queryParams.append("name", params.name);
 
     return apiGet<Branch[]>(`/branch/search?${queryParams.toString()}`);
+  },
+
+  /**
+   * Lấy thống kê chi nhánh
+   * GET /api/v1/branch/stats
+   */
+  getStats: async (): Promise<ApiResponse<BranchStats>> => {
+    return apiGet<BranchStats>("/branch/stats");
   },
 
   /**

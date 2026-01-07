@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { CommonTable } from "@/components/common/common-table";
-import { Product } from "@/service/product.service";
+import { Product, ProductStats } from "@/service/product.service";
 import { Category } from "@/service/category.service";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,7 +14,7 @@ import { ProductFormModal } from "@/components/forms/product-form-modal";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Loader2, Plus, Package, Barcode as BarcodeIcon } from "lucide-react";
+import { Loader2, Plus, Package, Barcode as BarcodeIcon, CheckCircle2, XCircle, LayoutGrid } from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import productService, {
   CreateProductRequest,
@@ -22,6 +22,15 @@ import productService, {
 } from "@/service/product.service";
 import categoryService from "@/service/category.service";
 import Barcode from "react-barcode";
+import { StatsCard } from "@/components/common/stats-card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 // Helper để lấy tên category từ populated field
 const getCategoryName = (categoryId: Product["categoryId"]): string => {
@@ -37,19 +46,29 @@ export default function Page() {
   const [loading, setLoading] = React.useState(true);
   const [selectedItem, setSelectedItem] = React.useState<Product | null>(null);
   const [selectedItems, setSelectedItems] = React.useState<Product[]>([]);
+  const [stats, setStats] = React.useState<ProductStats>({ total: 0, active: 0, inactive: 0 });
 
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
+  // Filters
+  const [filterStatus, setFilterStatus] = React.useState<string>("all");
+  const [filterCategory, setFilterCategory] = React.useState<string>("all");
+  const [searchTerm, setSearchTerm] = React.useState("");
+
   // Fetch data
   const fetchData = React.useCallback(async () => {
     try {
       setLoading(true);
-      const [productsRes, categoriesRes] = await Promise.all([
-        productService.getAll(),
+      const [productsRes, categoriesRes, statsRes] = await Promise.all([
+        productService.getAll({
+            status: filterStatus as "active" | "inactive" | "all",
+            categoryId: filterCategory
+        }),
         categoryService.getAll(),
+        productService.getStats(),
       ]);
 
       if (productsRes.data) {
@@ -58,13 +77,16 @@ export default function Page() {
       if (categoriesRes.data) {
         setCategories(categoriesRes.data);
       }
+      if (statsRes.data) {
+        setStats(statsRes.data);
+      }
     } catch (error) {
       console.error("Failed to fetch data:", error);
       toast.error("Không thể tải dữ liệu");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [filterStatus, filterCategory]);
 
   React.useEffect(() => {
     fetchData();
@@ -212,10 +234,10 @@ export default function Page() {
             <div className="flex items-center">
               <Barcode
                 value={barcode}
-                width={1}
-                height={30}
-                fontSize={10}
-                margin={0}
+                width={1.5}
+                height={40}
+                fontSize={12}
+                margin={5}
                 displayValue={true}
               />
             </div>
@@ -307,6 +329,29 @@ export default function Page() {
         </Button>
       </div>
 
+       {/* Stats Cards */}
+       <div className="grid gap-4 md:grid-cols-3">
+        <StatsCard
+          title="Tổng sản phẩm"
+          value={stats.total}
+          icon={Package}
+          description="Tổng số sản phẩm trong hệ thống"
+        />
+        <StatsCard
+          title="Đang kinh doanh"
+          value={stats.active}
+          icon={CheckCircle2}
+          className="text-emerald-600"
+          description="Sản phẩm đang được bán"
+        />
+        <StatsCard
+          title="Ngừng kinh doanh"
+          value={stats.inactive}
+          icon={XCircle}
+          description="Sản phẩm tạm ngưng hoặc hết hàng"
+        />
+      </div>
+
       {loading ? (
         <div className="flex flex-1 items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -316,10 +361,38 @@ export default function Page() {
           columns={columns}
           data={data}
           filterCol="name"
-          filterPlaceholder="Tìm sản phẩm..."
+          filterPlaceholder="Tìm sản phẩm (Tên, Barcode)..."
           onBulkAction={handleDeleteMany}
           bulkActionLabel="Xóa đã chọn"
           bulkActionIcon="trash"
+          toolbarActions={
+            <>
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Danh mục" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả danh mục</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat._id} value={cat._id}>
+                      {cat.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Trạng thái" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                  <SelectItem value="active">Đang bán</SelectItem>
+                  <SelectItem value="inactive">Ngừng bán</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          }
         />
       )}
 

@@ -1,5 +1,5 @@
 import { Branch } from "../models/branchModel.js";
-import ApiError from "../utils/apiError.js";
+import ApiError from "../utils/apiError.js"; 
 
 const create = async (data) => {
   try {
@@ -12,6 +12,14 @@ const create = async (data) => {
 const getAll = async () => {
   try {
     return await Branch.findAllBranches();
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+const getStats = async () => {
+  try {
+    return await Branch.getBranchStats();
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -66,6 +74,7 @@ const deleteMany = async (ids) => {
 export const branchService = {
   create,
   getAll,
+  getStats,
   getById,
   getByName,
   update,

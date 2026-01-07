@@ -135,6 +135,12 @@ userSchema.statics = {
   async findAllUsers() {
     return this.find().lean();
   },
+  async getUserStats() {
+    const total = await this.countDocuments({});
+    const active = await this.countDocuments({ status: "active" });
+    const inactive = await this.countDocuments({ status: "inactive" });
+    return { total, active, inactive };
+  },
   async findUserByEmail(email) {
     return this.findOne({ email: email.toLowerCase() })
       .select("+password")

@@ -68,10 +68,28 @@ productSchema.statics = {
   },
 
   async findAllProducts(filter = {}) {
-    return this.find({ status: "active", ...filter })
+    const query = { ...filter };
+    if (!query.status) {
+      query.status = "active"; // Maintain default behavior but allow override
+    }
+    // If status is 'all', remove it from query
+    if (query.status === "all") {
+      delete query.status;
+    }
+
+    return this.find(query)
       .populate("categoryId", "name")
       .sort({ createdAt: -1 })
       .lean();
+  },
+
+  async getProductStats() {
+    const [total, active, inactive] = await Promise.all([
+      this.countDocuments({}),
+      this.countDocuments({ status: "active" }),
+      this.countDocuments({ status: "inactive" }),
+    ]);
+    return { total, active, inactive };
   },
 
   async findProductById(id) {
@@ -83,7 +101,7 @@ productSchema.statics = {
   },
 
   async findProductByBarcode(barcode) {
-    const product = await this.findOne({ barcode, status: "active" })
+    const product = await this.findOne({ barcode })
       .populate("categoryId", "name")
       .lean();
     return product;
@@ -95,7 +113,6 @@ productSchema.statics = {
         { name: new RegExp(searchTerm, "i") },
         { barcode: new RegExp(searchTerm, "i") },
       ],
-      status: "active",
     })
       .populate("categoryId", "name")
       .limit(20)
@@ -103,7 +120,7 @@ productSchema.statics = {
   },
 
   async findProductsByCategory(categoryId) {
-    return this.find({ categoryId, status: "active" })
+    return this.find({ categoryId })
       .populate("categoryId", "name")
       .lean();
   },

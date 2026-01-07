@@ -8,6 +8,8 @@ const Router = express.Router();
 // Public routes (need auth)
 Router.use(authMiddleware);
 
+// Get routes
+Router.get("/stats", categoryController.getStats);
 Router.get("/", categoryController.getAll);
 Router.get("/search", categoryController.search);
 Router.get("/:id", categoryController.getById);

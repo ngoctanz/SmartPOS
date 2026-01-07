@@ -9,6 +9,14 @@ const create = async (data) => {
   }
 };
 
+const getStats = async () => {
+  try {
+    return await Category.getCategoryStats();
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 const getAll = async () => {
   try {
     return await Category.findAllCategories();
@@ -74,6 +82,7 @@ const hardDelete = async (id) => {
 export const categoryService = {
   create,
   getAll,
+  getStats,
   getById,
   getByName,
   update,

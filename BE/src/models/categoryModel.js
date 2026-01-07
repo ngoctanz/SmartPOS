@@ -39,6 +39,11 @@ categorySchema.statics = {
     return category;
   },
 
+  async getCategoryStats() {
+    const total = await this.countDocuments({});
+    return { total };
+  },
+
   async findAllCategories(filter = {}) {
     return this.find(filter)
       .sort({ createdAt: -1 })

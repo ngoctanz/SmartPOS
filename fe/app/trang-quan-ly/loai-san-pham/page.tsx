@@ -16,12 +16,15 @@ import { format } from "date-fns";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { categoryService } from "@/service";
+import { StatsCard } from "@/components/common/stats-card";
+import { LayoutGrid } from "lucide-react";
 
 export default function Page() {
   const [data, setData] = useState<Category[]>([])
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
+  const [stats, setStats] = useState<{ total: number }>({ total: 0 });
   
   const [selectedItem, setSelectedItem] = useState<Category | null>(null)
   const [selectedItems, setSelectedItems] = useState<Category[]>([])
@@ -34,9 +37,16 @@ export default function Page() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await categoryService.getAll({ page, limit });
+      const [res, statsRes] = await Promise.all([
+        categoryService.getAll({ page, limit }),
+        categoryService.getStats()
+      ]);
+      
       if (res.data) {
         setData(res.data);
+      }
+      if (statsRes.data) {
+        setStats(statsRes.data);
       }
     } catch (error) {
       toast.error("Không thể tải danh sách loại sản phẩm");
@@ -195,6 +205,16 @@ export default function Page() {
                 <Button onClick={handleCreate}>+ Thêm mới</Button>
             </div>
       </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatsCard
+          title="Tổng danh mục"
+          value={stats.total}
+          icon={LayoutGrid}
+          description="Số lượng danh mục sản phẩm"
+        />
+      </div>
+
       <CommonTable 
         columns={columns} 
         data={data} 
@@ -248,16 +268,16 @@ export default function Page() {
                 />
             </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Mô tả</Label>
-                <Input 
-                    value={formData.desc}
-                    onChange={(e) => setFormData({...formData, desc: e.target.value})}
-                    className="col-span-3" 
-                    readOnly={!isEdit} 
-                    disabled={!isEdit}
-                    placeholder="Nhập mô tả"
-                />
-            </div>
+                    <Label className="text-right">Mô tả</Label>
+                    <Input 
+                        value={formData.desc}
+                        onChange={(e) => setFormData({...formData, desc: e.target.value})}
+                        className="col-span-3" 
+                        readOnly={!isEdit} 
+                        disabled={!isEdit}
+                        placeholder="Nhập mô tả"
+                    />
+                </div>
         </div>
       </DetailModal>
     </div>

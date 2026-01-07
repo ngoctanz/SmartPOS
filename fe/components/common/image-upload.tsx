@@ -60,7 +60,7 @@ export function ImageUpload({
     <div className={cn("flex flex-col items-center gap-4", className)}>
       <div
         className={cn(
-          "relative flex h-64 w-64 items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-muted transition-colors hover:bg-muted/50",
+          "relative flex h-full w-full min-h-[200px] items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-muted transition-colors hover:bg-muted/50",
           disabled && "opacity-50 cursor-not-allowed"
         )}
       >
@@ -82,7 +82,7 @@ export function ImageUpload({
               type="button"
               variant="destructive"
               size="icon"
-              className="absolute right-2 top-2 h-8 w-8 rounded-full shadow-sm"
+              className="absolute right-2 top-2 h-8 w-8 rounded-full shadow-sm z-10"
               onClick={handleRemove}
               disabled={disabled}
             >

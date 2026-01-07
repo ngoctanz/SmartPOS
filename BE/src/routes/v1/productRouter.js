@@ -8,6 +8,7 @@ const Router = express.Router();
 Router.use(authMiddleware);
 
 // Get routes
+Router.get("/stats", productController.getStats);
 Router.get("/", productController.getAll);
 Router.get("/search", productController.search);
 Router.get("/barcode/:barcode", productController.getByBarcode);

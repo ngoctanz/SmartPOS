@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CommonTable } from "@/components/common/common-table";
-import { ImportReceipt } from "@/service/import-receipt.service";
+import { ImportReceipt, ImportReceiptStats } from "@/service/import-receipt.service";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -18,13 +18,21 @@ import { DetailModal } from "@/components/common/detail-modal";
 import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
 import { ImportReceiptFormModal } from "@/components/forms/import-receipt-form-modal";
 import { toast } from "sonner";
-import { Loader2, Plus, Check, X } from "lucide-react";
+import { Loader2, Plus, Check, X, FileText, CheckCircle, Clock, XCircle, DollarSign } from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import { useAuth } from "@/hooks/useAuth";
 import importReceiptService, {
   CreateImportReceiptRequest,
 } from "@/service/import-receipt.service";
 import branchService, { Branch } from "@/service/branch.service";
+import { StatsCard } from "@/components/common/stats-card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // Helper để lấy tên từ populated field
 const getBranchName = (branchId: ImportReceipt["branchId"]): string => {
@@ -67,6 +75,17 @@ export default function Page() {
     null
   );
   const [selectedItems, setSelectedItems] = React.useState<ImportReceipt[]>([]);
+  
+  const [stats, setStats] = React.useState<ImportReceiptStats>({
+      totalReceipts: 0,
+      pendingCount: 0,
+      completedCount: 0,
+      cancelledCount: 0,
+      totalValue: 0
+  });
+
+  const [filterBranchId, setFilterBranchId] = React.useState<string>("all");
+  const [filterStatus, setFilterStatus] = React.useState<string>("all");
 
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
@@ -118,9 +137,19 @@ export default function Page() {
   const fetchData = React.useCallback(async () => {
     try {
       setLoading(true);
-      const [receiptsRes, branchesRes] = await Promise.all([
-        importReceiptService.getAll(),
+      
+      const status = filterStatus !== "all" ? filterStatus : undefined;
+      const targetBranchId = (isAdmin && filterBranchId !== "all") ? filterBranchId : undefined;
+
+      // Note: currently getAll doesn't support complex filters perfectly in one go from default API structure 
+      // but we can pass branchId and status query params if getAll supports it
+      const [receiptsRes, branchesRes, statsRes] = await Promise.all([
+        importReceiptService.getAll({ 
+            branchId: targetBranchId,
+            status 
+        }),
         branchService.getAll(),
+        importReceiptService.getStats(targetBranchId)
       ]);
 
       if (receiptsRes.data) {
@@ -129,13 +158,16 @@ export default function Page() {
       if (branchesRes.data) {
         setBranches(branchesRes.data);
       }
+      if (statsRes.data) {
+          setStats(statsRes.data);
+      }
     } catch (error) {
       console.error("Failed to fetch data:", error);
       toast.error("Không thể tải dữ liệu");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAdmin, filterBranchId, filterStatus]);
 
   React.useEffect(() => {
     fetchData();
@@ -311,6 +343,40 @@ export default function Page() {
     ],
     []
   );
+  
+  const toolbarActions = (
+      <>
+        {isAdmin && (
+           <Select value={filterBranchId} onValueChange={setFilterBranchId}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Tất cả chi nhánh" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tất cả chi nhánh</SelectItem>
+              {branches.map((branch) => (
+                <SelectItem key={branch._id} value={branch._id}>
+                  {branch.branchName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Select
+            value={filterStatus}
+            onValueChange={setFilterStatus}
+        >
+            <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Trạng thái" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                <SelectItem value="pending">Chờ xử lý</SelectItem>
+                <SelectItem value="completed">Hoàn thành</SelectItem>
+                <SelectItem value="cancelled">Đã hủy</SelectItem>
+            </SelectContent>
+        </Select>
+      </>
+  );
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
@@ -320,6 +386,36 @@ export default function Page() {
           <Plus className="mr-2 h-4 w-4" />
           Tạo phiếu nhập
         </Button>
+      </div>
+
+       {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatsCard
+          title="Tổng phiếu nhập"
+          value={stats.totalReceipts}
+          icon={FileText}
+          description="Tổng số phiếu nhập hàng"
+        />
+        <StatsCard
+          title="Chờ xử lý"
+          value={stats.pendingCount}
+          icon={Clock}
+          description="Phiếu nhập đang chờ duyệt"
+          trend="neutral"
+        />
+        <StatsCard
+          title="Hoàn thành"
+          value={stats.completedCount}
+          icon={CheckCircle}
+          description="Phiếu nhập đã hoàn tất"
+          trend="positive"
+        />
+        <StatsCard
+          title="Tổng giá trị nhập"
+          value={formatCurrency(stats.totalValue)}
+          icon={DollarSign}
+          description="Giá trị hàng đã nhập kho"
+        />
       </div>
 
       {loading ? (
@@ -335,6 +431,7 @@ export default function Page() {
           onBulkAction={handleDeleteMany}
           bulkActionLabel="Hủy đã chọn"
           bulkActionIcon="trash"
+          toolbarActions={toolbarActions}
         />
       )}
 

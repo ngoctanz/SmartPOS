@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { CommonTable } from "@/components/common/common-table";
-import { User } from "@/types/user";
+import { User, UserRole, UserStatus } from "@/types/user";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -14,12 +14,20 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { userService, branchService } from "@/service";
-import { Loader2, Plus, ShieldAlert } from "lucide-react";
+import { Loader2, Plus, ShieldAlert, LayoutGrid, CheckCircle, XCircle } from "lucide-react";
 import {
   UserFormModal,
   CreateUserFormData,
   UpdateUserFormData,
 } from "@/components/forms/user-form-modal";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { StatsCard } from "@/components/common/stats-card";
 
 interface BranchOption {
   _id: string;
@@ -57,17 +65,26 @@ export default function Page() {
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [itemsToLock, setItemsToLock] = React.useState<User[]>([]);
 
-  // Fetch data on mount
-  React.useEffect(() => {
-    fetchData();
-  }, []);
+  // Filter & Pagination States
+  const [page, setPage] = React.useState(1);
+  const [limit, setLimit] = React.useState(10);
+  const [filterRole, setFilterRole] = React.useState<UserRole | "ALL">("ALL");
+  const [filterStatus, setFilterStatus] = React.useState<UserStatus | "ALL">("ALL");
+  const [stats, setStats] = React.useState({ total: 0, active: 0, inactive: 0 });
 
-  const fetchData = async () => {
+  // Fetch data on mount and when filters change
+  const fetchData = React.useCallback(async () => {
     try {
       setLoading(true);
-      const [usersRes, branchesRes] = await Promise.all([
-        userService.getAll(),
+      const [usersRes, branchesRes, statsRes] = await Promise.all([
+        userService.getAll({
+            page,
+            limit,
+            role: filterRole === "ALL" ? undefined : filterRole,
+            status: filterStatus === "ALL" ? undefined : filterStatus
+        }),
         branchService.getAll(),
+        userService.getStats()
       ]);
 
       if (usersRes.data) {
@@ -76,13 +93,20 @@ export default function Page() {
       if (branchesRes.data) {
         setBranches(branchesRes.data);
       }
+      if (statsRes.data) {
+          setStats(statsRes.data);
+      }
     } catch (error) {
       console.error("Failed to fetch data:", error);
       toast.error("Không thể tải dữ liệu");
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, limit, filterRole, filterStatus]);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Lấy tên chi nhánh từ ID
   const getBranchName = React.useCallback(
@@ -123,9 +147,8 @@ export default function Page() {
       setIsSubmitting(true);
       const response = await userService.toggleStatus(item._id);
       if (response.data) {
-        setData((prev) =>
-          prev.map((i) => (i._id === item._id ? response.data! : i))
-        );
+          // Re-fetch to update stats and list
+          fetchData(); 
         const action = response.data.status === "active" ? "mở khóa" : "khóa";
         toast.success(`Đã ${action} người dùng thành công`);
       }
@@ -156,13 +179,7 @@ export default function Page() {
       const ids = itemsToLock.map((user) => user._id);
       await userService.bulkToggleStatus(ids, "inactive");
 
-      // Update local state using functional update
-      const idsSet = new Set(ids);
-      setData((prev) =>
-        prev.map((user) =>
-          idsSet.has(user._id) ? { ...user, status: "inactive" } : user
-        )
-      );
+      fetchData(); // Reload data
       toast.success(`Đã khóa ${itemsToLock.length} người dùng thành công`);
     } catch (error) {
       console.error("Bulk lock error:", error);
@@ -185,25 +202,16 @@ export default function Page() {
 
       if (selectedItem) {
         // Update
-        const response = await userService.update(selectedItem._id, formData);
-        if (response.data) {
-          setData(
-            data.map((item) =>
-              item._id === selectedItem._id ? response.data! : item
-            )
-          );
-          toast.success("Cập nhật người dùng thành công");
-        }
+        await userService.update(selectedItem._id, formData);
+        toast.success("Cập nhật người dùng thành công");
       } else {
         // Create
-        const response = await userService.create(
+        await userService.create(
           formData as CreateUserFormData
         );
-        if (response.data) {
-          setData([...data, response.data]);
-          toast.success("Tạo người dùng thành công");
-        }
+        toast.success("Tạo người dùng thành công");
       }
+      fetchData();
       setIsFormOpen(false);
       setSelectedItem(null);
     } catch (error: unknown) {
@@ -327,6 +335,38 @@ export default function Page() {
     ],
     [getBranchName]
   );
+  
+  // Custom toolbar actions (Filters)
+  const toolbarActions = (
+      <>
+        <Select
+            value={filterRole}
+            onValueChange={(value) => setFilterRole(value as UserRole | "ALL")}
+        >
+            <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Vai trò" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="ALL">Tất cả vai trò</SelectItem>
+                <SelectItem value="admin">Quản trị viên</SelectItem>
+                <SelectItem value="staff">Nhân viên</SelectItem>
+            </SelectContent>
+        </Select>
+        <Select
+            value={filterStatus}
+            onValueChange={(value) => setFilterStatus(value as UserStatus | "ALL")}
+        >
+            <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Trạng thái" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="ALL">Tất cả trạng thái</SelectItem>
+                <SelectItem value="active">Hoạt động</SelectItem>
+                <SelectItem value="inactive">Đã khóa</SelectItem>
+            </SelectContent>
+        </Select>
+      </>
+  );
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
@@ -339,6 +379,28 @@ export default function Page() {
           Thêm người dùng
         </Button>
       </div>
+      
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatsCard
+          title="Tổng người dùng"
+          value={stats.total}
+          icon={LayoutGrid}
+          description="Tổng số tài khoản trong hệ thống"
+        />
+        <StatsCard
+          title="Đang hoạt động"
+          value={stats.active}
+          icon={CheckCircle}
+          description="Tài khoản đang hoạt động bình thường"
+        />
+        <StatsCard
+          title="Ngừng hoạt động"
+          value={stats.inactive}
+          icon={XCircle}
+          description="Tài khoản đã bị khóa"
+        />
+      </div>
 
       {loading ? (
         <div className="flex flex-1 items-center justify-center">
@@ -348,8 +410,9 @@ export default function Page() {
         <CommonTable
           columns={columns}
           data={data}
-          filterCol="name"
-          filterPlaceholder="Tìm theo tên..."
+          filterCol="userName"
+          filterPlaceholder="Tìm theo tên đăng nhập..."
+          toolbarActions={toolbarActions}
           onBulkAction={handleBulkLock}
           canSelectRow={canSelectRow}
           bulkActionLabel="Khóa đã chọn"
@@ -466,3 +529,4 @@ export default function Page() {
     </div>
   );
 }
+
