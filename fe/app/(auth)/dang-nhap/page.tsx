@@ -1,4 +1,3 @@
-import { GalleryVerticalEnd } from "lucide-react";
 import { LoginForm } from "@/components/forms/login.form";
 import Image from "next/image";
 import { PublicRoute } from "@/components/common/PublicRoute";
@@ -12,14 +11,15 @@ export default function LoginPage() {
           <div className="absolute inset-0 bg-grid-black/[0.02] -z-10" />
           <div className="absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,white,transparent)] -z-10 bg-muted/10" />
           <div className="flex justify-center gap-2 md:justify-start">
-            <a
-              href="#"
-              className="flex items-center gap-2 font-bold text-xl tracking-tight"
-            >
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-                <GalleryVerticalEnd className="size-4" />
-              </div>
-              SmartPOS
+            <a href="#" className="flex items-center gap-2">
+              <Image
+                src="/logo/smartpos-logo.png"
+                alt="SmartPOS"
+                width={240}
+                height={80}
+                className="h-20 w-auto object-contain"
+                priority
+              />
             </a>
           </div>
           <div className="flex flex-1 items-center justify-center">
@@ -30,7 +30,7 @@ export default function LoginPage() {
         </div>
         <div className="relative hidden bg-zinc-900 lg:block overflow-hidden">
           <Image
-            src="/login-bg-premium.png"
+            src="/images/login-bg-premium.png"
             alt="Premium Retail Experience"
             fill
             className="object-cover transition-transform duration-700 hover:scale-105"

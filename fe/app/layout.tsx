@@ -16,10 +16,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ứng dụng quản lý doanh thu gian hàng",
-  description: "Ứng dụng quản lý doanh thu gian hàng",
+  title: "SmartPOS - Ứng dụng quản lý doanh thu gian hàng",
+  description: "SmartPOS - Ứng dụng quản lý doanh thu gian hàng",
   icons: {
-    icon: "/logo/KiotViet-Logo-non-text.svg",
+    icon: "/logo/smartpos-favicon.png",
   },
 };
 
