@@ -65,7 +65,7 @@ export default function Page() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  // Use custom hooks
+  // Use custom hooks - Backend will auto-inject branchId for staff via middleware
   const { 
     data, 
     loading, 
@@ -82,8 +82,8 @@ export default function Page() {
   });
 
   const { stats } = useStats<ImportReceiptStats>({
-    fetchFn: () => importReceiptService.getStats(isAdmin ? filters.branchId : undefined),
-    dependencies: [filters.branchId, isAdmin],
+    fetchFn: () => importReceiptService.getStats(isAdmin ? filters.branchId : user?.branchId),
+    dependencies: [filters.branchId, isAdmin, user?.branchId],
   });
 
   const [branches, setBranches] = React.useState<Branch[]>([]);
@@ -98,7 +98,7 @@ export default function Page() {
   const [cancelReason, setCancelReason] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  // Fetch branches
+  // Fetch branches for admin filter dropdown
   React.useEffect(() => {
     const fetchBranches = async () => {
       try {

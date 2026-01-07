@@ -3,16 +3,29 @@ import ApiError from "../utils/apiError.js";
 import { jwtConfig } from "../config/jwt.js";
 
 export const authMiddleware = (req, res, next) => {
+  let token;
+
+  // 1. Check Authorization header
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer"))
+  if (authHeader && authHeader.startsWith("Bearer")) {
+    token = authHeader.split(" ")[1];
+  }
+
+  // 2. Check cookie if no header
+  if (!token && req.cookies && req.cookies.access_token) {
+    token = req.cookies.access_token;
+  }
+
+  if (!token) {
     return next(new ApiError(401, "Unauthorized: No or invalid token"));
-  const token = authHeader.split(" ")[1];
+  }
+
   try {
     const decoded = jwt.verify(token, jwtConfig.JWT_SECRET);
     req.user = decoded;
     next();
   } catch (error) {
-    return next(error.message || error);
+    return next(new ApiError(401, "Unauthorized: Invalid token"));
   }
 };
 

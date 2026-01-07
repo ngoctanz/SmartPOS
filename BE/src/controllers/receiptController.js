@@ -1,5 +1,6 @@
 import { StatusCodes } from "http-status-codes";
 import { receiptService } from "../services/receiptService.js";
+import ApiError from "../utils/apiError.js";
 
 const create = async (req, res, next) => {
   try {
@@ -25,7 +26,8 @@ const create = async (req, res, next) => {
 
 const cancel = async (req, res, next) => {
   try {
-    const receipt = await receiptService.cancel(req.params.id);
+    // Pass user for branch validation
+    const receipt = await receiptService.cancel(req.params.id, req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Receipt cancelled and stock restored!",
@@ -38,7 +40,8 @@ const cancel = async (req, res, next) => {
 
 const update = async (req, res, next) => {
   try {
-    const receipt = await receiptService.update(req.params.id, req.body);
+    // Pass user for branch validation
+    const receipt = await receiptService.update(req.params.id, req.body, req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Receipt updated successfully!",
@@ -52,10 +55,8 @@ const update = async (req, res, next) => {
 const getStats = async (req, res, next) => {
     try {
         const { branchId } = req.query;
-        // If user is staff, force branchId
-        const effectiveBranchId = req.user.role === 'staff' ? req.user.branchId : branchId;
-
-        const stats = await receiptService.getStats(effectiveBranchId);
+        // branchId is already injected for staff by middleware
+        const stats = await receiptService.getStats(branchId);
         res.status(StatusCodes.OK).json({
             success: true,
             message: "Get receipt stats successfully",
@@ -143,6 +144,7 @@ const getByBranch = async (req, res, next) => {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
 
+    // Permission check is handled by middleware (injectUserBranch)
     const receipts = await receiptService.getByBranch(
       req.params.branchId,
       filter
@@ -161,6 +163,8 @@ const getByBranch = async (req, res, next) => {
 const getByDateRange = async (req, res, next) => {
   try {
     const { startDate, endDate, branchId } = req.query;
+    // branchId is already injected for staff by middleware
+
     const receipts = await receiptService.getByDateRange(
       startDate,
       endDate,
@@ -180,6 +184,8 @@ const getByDateRange = async (req, res, next) => {
 const getRevenue = async (req, res, next) => {
   try {
     const { period, branchId } = req.query;
+    // branchId is already injected for staff by middleware
+
     const result = await receiptService.getRevenue(
       period || "month",
       branchId || null
@@ -197,6 +203,8 @@ const getRevenue = async (req, res, next) => {
 const getDailyRevenue = async (req, res, next) => {
   try {
     const { period, branchId } = req.query;
+    // branchId is already injected for staff by middleware
+
     const result = await receiptService.getDailyRevenue(
       period || "month",
       branchId || null
@@ -214,6 +222,8 @@ const getDailyRevenue = async (req, res, next) => {
 const getTopProducts = async (req, res, next) => {
   try {
     const { period, branchId, limit } = req.query;
+    // branchId is already injected for staff by middleware
+
     const result = await receiptService.getTopProducts(
       period || "month",
       branchId || null,

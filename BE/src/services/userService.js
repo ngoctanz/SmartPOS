@@ -63,8 +63,6 @@ const updateUser = async (id, data) => {
     const {
       password,
       refresh_token,
-      isDeleted,
-      deletedAt,
       userName,
       ...safeData
     } = data;

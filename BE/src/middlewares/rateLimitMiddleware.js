@@ -17,7 +17,7 @@ const createLimiter = (windowMs, max, message) => {
 
 // Login - 5 lần trong 15 phút
 export const loginLimiter = createLimiter(
-  15 * 60 * 1000,
+  100 * 60 * 1000,
   5,
   "Too many login attempts, please try again later"
 );

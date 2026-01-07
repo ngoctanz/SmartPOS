@@ -77,8 +77,8 @@ export default function Page() {
   });
 
   const { stats } = useStats<ReceiptStats>({
-    fetchFn: () => receiptService.getStats(isAdmin ? filters.branchId : undefined),
-    dependencies: [filters.branchId, isAdmin],
+    fetchFn: () => receiptService.getStats(isAdmin ? filters.branchId : user?.branchId),
+    dependencies: [filters.branchId, isAdmin, user?.branchId],
   });
 
   const [branches, setBranches] = React.useState<Branch[]>([]);

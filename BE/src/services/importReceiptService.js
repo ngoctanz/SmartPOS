@@ -59,9 +59,14 @@ const create = async (data, user) => {
   }
 };
 
-const confirm = async (id) => {
+const confirm = async (id, user = null) => {
   try {
     const receipt = await ImportReceipt.findImportReceiptById(id);
+
+    // Defense-in-depth: Validate access if user provided
+    if (user) {
+      validateRecordAccess(user, receipt, "import receipt");
+    }
 
     if (receipt.status === "completed") {
       throw new ApiError(400, "Import receipt already completed");
@@ -87,9 +92,15 @@ const confirm = async (id) => {
   }
 };
 
-const cancel = async (id) => {
+const cancel = async (id, user = null) => {
   try {
     const receipt = await ImportReceipt.findImportReceiptById(id);
+    
+    // Defense-in-depth: Validate access if user provided
+    if (user) {
+      validateRecordAccess(user, receipt, "import receipt");
+    }
+    
     if (receipt.status === "completed") {
       throw new ApiError(400, "Cannot cancel completed receipt");
     }

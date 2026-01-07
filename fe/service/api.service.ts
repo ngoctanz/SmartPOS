@@ -3,7 +3,7 @@
  * File này được giữ lại để đảm bảo backward compatibility với các service cũ
  */
 
-import { api, apiFetch, setContextAccessToken, FetchError } from "@/lib/fetch";
+import { api, apiFetch, FetchError } from "@/lib/fetch";
 import type { ApiResponse, FetchOptions } from "@/lib/fetch";
 
 // Re-export types
@@ -15,7 +15,6 @@ let accessToken: string | null = null;
 
 export const setAccessToken = (token: string | null) => {
   accessToken = token;
-  setContextAccessToken(token);
 };
 
 export const getAccessToken = () => accessToken;

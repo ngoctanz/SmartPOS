@@ -96,10 +96,20 @@ export default function Page() {
     }
   };
 
-  // Fetch stock data
+  // Fetch stock data - chỉ fetch khi user đã được load
   const fetchData = React.useCallback(async () => {
+    // Đợi user load xong trước khi fetch
+    if (user === undefined) return;
+    
     try {
       setLoading(true);
+
+      // Xác định branchId để filter
+      // Admin: dùng filter dropdown (undefined = xem tất cả)
+      // Staff: luôn dùng branchId của mình
+      const effectiveBranchId = isAdmin
+          ? (filterBranchId !== "all" ? filterBranchId : undefined)
+          : user?.branchId;
 
       const params = {
         search: debouncedSearch || undefined,
@@ -108,20 +118,23 @@ export default function Page() {
         lowStockOnly: filterLowStock === 'low'
       };
 
-      const targetBranchId = (isAdmin && filterBranchId !== "all") ? filterBranchId : undefined;
-
+      // Nếu có branchId cụ thể thì dùng getByBranch, không thì dùng getAll
       const [res, statsRes] = await Promise.all([
-          targetBranchId 
-            ? stockService.getByBranch(targetBranchId, params)
+          effectiveBranchId 
+            ? stockService.getByBranch(effectiveBranchId, params)
             : stockService.getAll(params),
-          stockService.getStats(targetBranchId)
+          stockService.getStats(effectiveBranchId)
       ]);
 
       if (res.data) {
         setData(res.data);
       }
       if (res.pagination) {
-        setPagination(res.pagination);
+        setPagination((prev) => ({
+          ...prev,
+          total: res.pagination!.total,
+          totalPages: res.pagination!.totalPages,
+        }));
       }
       if (statsRes.data) {
           setStats(statsRes.data);
@@ -133,7 +146,7 @@ export default function Page() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, filterBranchId, debouncedSearch, pagination.page, pagination.limit, filterLowStock]);
+  }, [isAdmin, filterBranchId, debouncedSearch, pagination.page, pagination.limit, filterLowStock, user]);
 
   // Fetch branches
   const fetchBranches = React.useCallback(async () => {

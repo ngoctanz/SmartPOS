@@ -39,52 +39,6 @@ export interface FetchOptions extends RequestInit {
 }
 
 /**
- * Access token from context (set by useAuth hook)
- * This allows client components to pass token to API calls
- */
-let contextAccessToken: string | null = null;
-
-/**
- * Refresh token function reference (set by AuthProvider)
- */
-let refreshTokenFn: (() => Promise<string | null>) | null = null;
-
-/**
- * Set access token from context
- */
-export function setContextAccessToken(token: string | null) {
-  contextAccessToken = token;
-}
-
-/**
- * Get current access token
- */
-export function getContextAccessToken(): string | null {
-  return contextAccessToken;
-}
-
-/**
- * Set refresh token function from AuthProvider
- */
-export function setRefreshTokenFunction(
-  fn: (() => Promise<string | null>) | null
-) {
-  refreshTokenFn = fn;
-}
-
-/**
- * Get access token from context (client) or cookies (server)
- */
-function getAccessToken(): string | null {
-  // Client-side: use context token
-  if (typeof window !== "undefined") {
-    return contextAccessToken;
-  }
-  // Server-side: token should be in cookies (handled by middleware)
-  return null;
-}
-
-/**
  * Create fetch headers
  */
 function createHeaders(requireAuth = true, isFormData = false): HeadersInit {
@@ -92,13 +46,6 @@ function createHeaders(requireAuth = true, isFormData = false): HeadersInit {
 
   if (!isFormData) {
     headers["Content-Type"] = "application/json";
-  }
-
-  if (requireAuth) {
-    const token = getAccessToken();
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
   }
 
   return headers;
@@ -119,16 +66,10 @@ function isProtectedRoute(): boolean {
 }
 
 /**
- * Handle auth failure - clear data and optionally redirect
- * Only redirect if on a protected route
+ * Handle auth failure - redirect if on protected route
  */
 function handleAuthFailure() {
-  contextAccessToken = null;
-
   if (typeof window !== "undefined") {
-    localStorage.removeItem(APP_CONFIG.STORAGE_KEYS.USER);
-    localStorage.removeItem(APP_CONFIG.STORAGE_KEYS.ACCESS_TOKEN);
-
     // Only redirect if on a protected route
     if (isProtectedRoute()) {
       window.location.href = "/dang-nhap";
@@ -167,7 +108,7 @@ async function handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
           statusCode: response.status,
         };
 
-    // 401 is handled separately in apiFetch for retry logic
+    // 401 is handled separately in apiFetch for optional redirect
     throw new FetchError(
       errorData.message || "API Error",
       response.status,
@@ -179,7 +120,7 @@ async function handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
 }
 
 /**
- * Base API fetch function with Next.js cache support and auto-refresh
+ * Base API fetch function with Next.js cache support
  */
 async function apiFetch<T = any>(
   endpoint: string,
@@ -205,7 +146,7 @@ async function apiFetch<T = any>(
       ...createHeaders(requireAuth, isFormData),
       ...fetchOptions.headers,
     },
-    credentials: "include", // Include cookies for refresh token
+    credentials: "include", // Include cookies for auth
   };
 
   // Add Next.js cache configuration
@@ -229,38 +170,8 @@ async function apiFetch<T = any>(
   try {
     const response = await fetch(url, config);
 
-    // Handle 401 Unauthorized - try to refresh token
+    // Handle 401 Unauthorized
     if (response.status === 401 && requireAuth && !skipRefresh) {
-      // Try to refresh the access token
-      if (refreshTokenFn && typeof window !== "undefined") {
-        const newToken = await refreshTokenFn();
-
-        if (newToken) {
-          // Update context token
-          contextAccessToken = newToken;
-
-          // Retry the original request with new token
-          const retryConfig: RequestInit = {
-            ...config,
-            headers: {
-              ...config.headers,
-              Authorization: `Bearer ${newToken}`,
-            },
-          };
-
-          const retryResponse = await fetch(url, retryConfig);
-
-          // If retry also fails with 401, give up
-          if (retryResponse.status === 401) {
-            handleAuthFailure();
-            throw new FetchError("Session expired. Please login again.", 401);
-          }
-
-          return handleResponse<T>(retryResponse);
-        }
-      }
-
-      // No refresh function or refresh failed
       handleAuthFailure();
       throw new FetchError("Session expired. Please login again.", 401);
     }
@@ -399,47 +310,20 @@ export const api = {
   },
 
   /**
-   * Internal upload handler with retry logic
+   * Internal upload handler
    */
   async _uploadWithRetry<T = any>(
     endpoint: string,
     formData: FormData
   ): Promise<T> {
-    const token = getAccessToken();
-    const headers: HeadersInit = {};
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+    const response = await fetch(`${APP_CONFIG.API.BASE_URL}${endpoint}`, {
+      method: "POST",
+      body: formData,
+      cache: "no-store",
+      credentials: "include", // For cookies
+    });
 
-    const fetchUpload = async (authHeaders: HeadersInit) => {
-      return fetch(`${APP_CONFIG.API.BASE_URL}${endpoint}`, {
-        method: "POST",
-        headers: authHeaders,
-        body: formData,
-        cache: "no-store",
-        credentials: "include",
-      });
-    };
-
-    const response = await fetchUpload(headers);
-
-    // Handle 401 for upload
-    if (response.status === 401 && refreshTokenFn) {
-      const newToken = await refreshTokenFn();
-      if (newToken) {
-        contextAccessToken = newToken;
-        const retryResponse = await fetchUpload({
-          Authorization: `Bearer ${newToken}`,
-        });
-
-        if (retryResponse.status === 401) {
-          handleAuthFailure();
-          throw new FetchError("Session expired. Please login again.", 401);
-        }
-
-        const result = await handleResponse<T>(retryResponse);
-        return result.data;
-      }
+    if (response.status === 401) {
       handleAuthFailure();
       throw new FetchError("Session expired. Please login again.", 401);
     }
