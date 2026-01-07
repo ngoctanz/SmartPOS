@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useFilteredTableData } from "@/hooks/useFilteredTableData";
+import { eventBus, Events } from "@/lib/data-events";
 
 const getCategoryName = (categoryId: Product["categoryId"]): string => {
   if (typeof categoryId === "object" && categoryId?.name) {
@@ -130,6 +131,7 @@ export default function Page() {
       setIsFormOpen(false);
       setSelectedItem(null);
       refetch();
+      eventBus.emit(Events.DATA_CHANGED);
     } catch (error: unknown) {
       console.error("Form submit error:", error);
       const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
@@ -155,8 +157,10 @@ export default function Page() {
       setIsDeleteOpen(false);
       setSelectedItem(null);
       refetch();
+      eventBus.emit(Events.DATA_CHANGED);
     } catch (error: unknown) {
       console.error("Delete error:", error);
+
       const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
       toast.error(errMsg);
     } finally {
@@ -415,14 +419,14 @@ export default function Page() {
         open={isDetailOpen}
         onOpenChange={setIsDetailOpen}
         title="Chi tiết sản phẩm"
-        className="max-w-4xl"
+        className="max-w-[95vw] sm:max-w-[800px]"
         onEdit={() => {
           setIsDetailOpen(false);
           if (selectedItem) handleEdit(selectedItem);
         }}
       >
         {selectedItem && (
-          <div className="grid gap-8 py-4 md:grid-cols-[300px_1fr]">
+          <div className="grid gap-6 py-4 lg:grid-cols-[240px_1fr]">
             {/* Left Column: Image & Barcode */}
             <div className="flex flex-col items-center gap-6">
               <div className="relative h-64 w-full overflow-hidden rounded-lg border bg-muted">

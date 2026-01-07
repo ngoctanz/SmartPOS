@@ -34,6 +34,24 @@ Router.get(
 );
 
 Router.get(
+  "/least-selling-products",
+  authorize("admin"),
+  dashboardController.getLeastSellingProducts
+);
+
+Router.get(
+  "/revenue-by-branch",
+  authorize("admin"),
+  dashboardController.getRevenueByBranch
+);
+
+Router.get(
+  "/sales-by-category",
+  authorize("admin"),
+  dashboardController.getSalesByCategory
+);
+
+Router.get(
   "/payment-stats",
   authorize("admin"),
   dashboardController.getPaymentStats

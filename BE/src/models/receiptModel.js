@@ -387,6 +387,136 @@ receiptSchema.statics = {
       },
     ]);
   },
+
+  async getLeastSellingProducts(startDate, endDate, branchId = null, limit = 10) {
+    const matchStage = {
+      createdAt: { $gte: startDate, $lte: endDate },
+      status: "completed",
+    };
+    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
+
+    // Get all sold products with their quantities
+    const soldProducts = await this.aggregate([
+      { $match: matchStage },
+      { $unwind: "$listProduct" },
+      {
+        $group: {
+          _id: "$listProduct.productId",
+          productName: { $first: "$listProduct.productName" },
+          totalQuantity: { $sum: "$listProduct.quantity" },
+          totalRevenue: {
+            $sum: {
+              $multiply: ["$listProduct.salePrice", "$listProduct.quantity"],
+            },
+          },
+        },
+      },
+    ]);
+
+    // Get all active products
+    const allProducts = await mongoose.model("Product").find({ status: "active" }).select("_id name").lean();
+
+    // Create a map of sold products for quick lookup
+    const soldProductsMap = new Map(
+      soldProducts.map(p => [p._id.toString(), p])
+    );
+
+    // Combine all products with their sales data (0 if not sold)
+    const allProductsWithSales = allProducts.map(product => {
+      const sold = soldProductsMap.get(product._id.toString());
+      return {
+        _id: product._id,
+        productName: sold ? sold.productName : product.name,
+        totalQuantity: sold ? sold.totalQuantity : 0,
+        totalRevenue: sold ? sold.totalRevenue : 0,
+      };
+    });
+
+    // Sort by quantity ascending (least sold first) and limit
+    return allProductsWithSales
+      .sort((a, b) => a.totalQuantity - b.totalQuantity)
+      .slice(0, limit);
+  },
+
+  async getRevenueByBranch(startDate, endDate) {
+    const matchStage = {
+      createdAt: { $gte: startDate, $lte: endDate },
+      status: "completed",
+    };
+
+    return this.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: "$branchId",
+          totalRevenue: { $sum: "$totalAmount" },
+          totalOrders: { $sum: 1 },
+        },
+      },
+      {
+        $lookup: {
+          from: "branches",
+          localField: "_id",
+          foreignField: "_id",
+          as: "branch",
+        },
+      },
+      { $unwind: "$branch" },
+      {
+        $project: {
+          _id: 1,
+          branchName: "$branch.branchName",
+          totalRevenue: 1,
+          totalOrders: 1,
+        },
+      },
+      { $sort: { totalRevenue: -1 } },
+    ]);
+  },
+
+  async getSalesByCategory(startDate, endDate, branchId = null) {
+    const matchStage = {
+      createdAt: { $gte: startDate, $lte: endDate },
+      status: "completed",
+    };
+    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
+
+    return this.aggregate([
+      { $match: matchStage },
+      { $unwind: "$listProduct" },
+      {
+        $lookup: {
+          from: "products",
+          localField: "listProduct.productId",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      { $unwind: "$product" },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "product.categoryId",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+      {
+        $group: {
+          _id: "$product.categoryId",
+          categoryName: { $first: { $ifNull: ["$category.name", "Chưa phân loại"] } },
+          totalQuantity: { $sum: "$listProduct.quantity" },
+          totalRevenue: {
+            $sum: {
+              $multiply: ["$listProduct.salePrice", "$listProduct.quantity"],
+            },
+          },
+        },
+      },
+      { $sort: { totalRevenue: -1 } },
+    ]);
+  },
 };
 
 export const Receipt = mongoose.model("Receipt", receiptSchema);

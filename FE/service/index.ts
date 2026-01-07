@@ -81,8 +81,11 @@ export type { BranchProduct, StockAvailability } from "./stock.service";
 export type {
   DashboardSummary,
   DailyStats,
-  PaymentStats,
+  TopProduct as DashboardTopProduct,
+  PaymentMethodStats,
   LowStockProduct,
+  BranchRevenue,
+  CategorySales,
   FullDashboard,
   DashboardParams,
 } from "./dashboard.service";
