@@ -13,6 +13,11 @@ export interface PaymentInfo {
   linkId: string;
   qrCode: string;
   checkoutUrl: string;
+  accountNumber: string;
+  accountName: string;
+  bin: string;
+  amount: number;
+  description: string;
   status: "pending" | "paid" | "cancelled" | "expired" | "";
 }
 
@@ -115,7 +120,8 @@ const receiptService = {
     if (params?.limit) queryParams.append("limit", String(params.limit));
     if (params?.branchId) queryParams.append("branchId", params.branchId);
     if (params?.status) queryParams.append("status", params.status);
-    if (params?.paymentMethod) queryParams.append("paymentMethod", params.paymentMethod);
+    if (params?.paymentMethod)
+      queryParams.append("paymentMethod", params.paymentMethod);
     if (params?.search) queryParams.append("search", params.search);
 
     const query = queryParams.toString();

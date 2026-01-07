@@ -2,7 +2,11 @@ import express from "express";
 import { receiptController } from "../../controllers/receiptController.js";
 import { receiptValidation } from "../../validations/receiptValidation.js";
 import { authMiddleware, authorize } from "../../middlewares/authMiddleware.js";
-import { injectUserBranch, validateRecordBranchAccess, checkBranchAccess } from "../../middlewares/branchMiddleware.js";
+import {
+  injectUserBranch,
+  validateRecordBranchAccess,
+  checkBranchAccess,
+} from "../../middlewares/branchMiddleware.js";
 import { receiptService } from "../../services/receiptService.js";
 
 const Router = express.Router();
@@ -34,7 +38,11 @@ Router.get(
 );
 
 // Get by branch - cần check branch access
-Router.get("/branch/:branchId", checkBranchAccess, receiptController.getByBranch);
+Router.get(
+  "/branch/:branchId",
+  checkBranchAccess,
+  receiptController.getByBranch
+);
 
 // Get by ID - cần validate branch access
 Router.get(

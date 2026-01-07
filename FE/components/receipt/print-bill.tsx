@@ -160,7 +160,53 @@ export const PrintBill = React.forwardRef<HTMLDivElement, PrintBillProps>(
 
 PrintBill.displayName = "PrintBill";
 
-// Print styles
+// Component for printing multiple receipts
+interface MultiplePrintBillProps {
+  receipts: Receipt[];
+  storeName?: string;
+  storeAddress?: string;
+  storePhone?: string;
+}
+
+export const MultiplePrintBill = React.forwardRef<
+  HTMLDivElement,
+  MultiplePrintBillProps
+>(
+  (
+    {
+      receipts,
+      storeName = "SMARTPOS MINIMART",
+      storeAddress,
+      storePhone = "Hotline: 1900 xxxx",
+    },
+    ref
+  ) => {
+    return (
+      <div ref={ref} className="multiple-print-bills">
+        {receipts.map((receipt, index) => (
+          <div
+            key={receipt._id || index}
+            className="print-bill-wrapper"
+            style={{
+              pageBreakAfter: index < receipts.length - 1 ? "always" : "auto",
+            }}
+          >
+            <PrintBill
+              receipt={receipt}
+              storeName={storeName}
+              storeAddress={storeAddress}
+              storePhone={storePhone}
+            />
+          </div>
+        ))}
+      </div>
+    );
+  }
+);
+
+MultiplePrintBill.displayName = "MultiplePrintBill";
+
+// Print styles with optimized paper size configuration for 80mm thermal printer
 export const printStyles = `
   @media print {
     @page {
@@ -168,21 +214,43 @@ export const printStyles = `
       margin: 0;
     }
     
+    body {
+      margin: 0;
+      padding: 0;
+    }
+    
     body * {
       visibility: hidden;
     }
     
     .print-bill,
-    .print-bill * {
+    .print-bill *,
+    .multiple-print-bills,
+    .multiple-print-bills *,
+    .print-bill-wrapper,
+    .print-bill-wrapper * {
       visibility: visible;
     }
     
-    .print-bill {
+    .print-bill,
+    .multiple-print-bills {
       position: absolute;
       left: 0;
       top: 0;
       width: 80mm !important;
+    }
+    
+    .print-bill {
       padding: 5mm !important;
+    }
+    
+    .print-bill-wrapper {
+      page-break-after: always;
+      page-break-inside: avoid;
+    }
+    
+    .print-bill-wrapper:last-child {
+      page-break-after: auto;
     }
   }
 `;

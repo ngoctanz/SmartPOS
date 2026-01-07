@@ -32,7 +32,7 @@ interface UseBarcodeInputReturn {
 /**
  * Hook for handling barcode input with smart auto-submit logic:
  * - Scanner detected (rapid input < 50ms between keystrokes) -> auto-submit after 150ms pause
- * - Manual input >= minAutoSubmitLength chars -> auto-submit after 1s pause  
+ * - Manual input >= minAutoSubmitLength chars -> auto-submit after 1s pause
  * - Manual input < minAutoSubmitLength chars -> must click button or press Enter
  */
 export function useBarcodeInput({
@@ -63,7 +63,7 @@ export function useBarcodeInput({
   const processBarcode = useCallback(
     async (barcode: string) => {
       if (!barcode.trim()) return;
-      
+
       // Prevent duplicate submissions
       const now = Date.now();
       if (now - lastSubmitTimeRef.current < 100) return;
@@ -96,7 +96,7 @@ export function useBarcodeInput({
       // Track keystroke timing for scanner detection
       if (e.key.length === 1) {
         keystrokeTimesRef.current.push(now);
-        
+
         // Keep only last 5 keystroke times
         if (keystrokeTimesRef.current.length > 5) {
           keystrokeTimesRef.current.shift();

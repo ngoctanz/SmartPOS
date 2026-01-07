@@ -41,7 +41,11 @@ const cancel = async (req, res, next) => {
 const update = async (req, res, next) => {
   try {
     // Pass user for branch validation
-    const receipt = await receiptService.update(req.params.id, req.body, req.user);
+    const receipt = await receiptService.update(
+      req.params.id,
+      req.body,
+      req.user
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Receipt updated successfully!",
@@ -53,25 +57,24 @@ const update = async (req, res, next) => {
 };
 
 const getStats = async (req, res, next) => {
-    try {
-        const { branchId } = req.query;
-        // branchId is already injected for staff by middleware
-        const stats = await receiptService.getStats(branchId);
-        res.status(StatusCodes.OK).json({
-            success: true,
-            message: "Get receipt stats successfully",
-            data: stats,
-        });
-    } catch (error) {
-        next(error);
-    }
+  try {
+    const { branchId } = req.query;
+    // branchId is already injected for staff by middleware
+    const stats = await receiptService.getStats(branchId);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get receipt stats successfully",
+      data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
-
 
 const getAll = async (req, res, next) => {
   try {
     const { search, branchId, status, paymentMethod, page, limit } = req.query;
-    
+
     // Nếu có params phân trang thì dùng paginated
     if (page || limit || search) {
       const options = {
@@ -91,7 +94,7 @@ const getAll = async (req, res, next) => {
         pagination: result.pagination,
       });
     }
-    
+
     // Fallback: lấy tất cả (cho các API cũ)
     const filter = {};
     if (status) filter.status = status;

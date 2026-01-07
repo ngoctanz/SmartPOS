@@ -1,11 +1,27 @@
 import { PayOS } from "@payos/node";
 
-// Initialize PayOS client (v2.0.4 syntax)
-const payos = new PayOS({
-  clientId: process.env.PAYOS_CLIENT_ID,
-  apiKey: process.env.PAYOS_API_KEY,
-  checksumKey: process.env.PAYOS_CHECKSUM_KEY,
-});
+// Lazy initialize PayOS client to avoid blocking route registration
+let payos = null;
+
+const getPayOSClient = () => {
+  if (!payos) {
+    if (
+      !process.env.PAYOS_CLIENT_ID ||
+      !process.env.PAYOS_API_KEY ||
+      !process.env.PAYOS_CHECKSUM_KEY
+    ) {
+      throw new Error(
+        "PayOS credentials not configured. Please set PAYOS_CLIENT_ID, PAYOS_API_KEY, and PAYOS_CHECKSUM_KEY environment variables."
+      );
+    }
+    payos = new PayOS({
+      clientId: process.env.PAYOS_CLIENT_ID,
+      apiKey: process.env.PAYOS_API_KEY,
+      checksumKey: process.env.PAYOS_CHECKSUM_KEY,
+    });
+  }
+  return payos;
+};
 
 /**
  * PayOS Service
@@ -31,7 +47,7 @@ export const payosService = {
 
     try {
       // Use paymentRequests.create() in v2
-      const paymentLink = await payos.paymentRequests.create({
+      const paymentLink = await getPayOSClient().paymentRequests.create({
         orderCode,
         amount,
         description,
@@ -45,12 +61,21 @@ export const payosService = {
       // Log để debug response structure
       console.log("PayOS Response:", JSON.stringify(paymentLink, null, 2));
 
-      // Generate QR code URL from checkoutUrl if qrCode not provided
-      const qrCodeUrl =
-        paymentLink.qrCode ||
-        `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
-          paymentLink.checkoutUrl
-        )}`;
+      // Extract bank info from PayOS response
+      const bin = paymentLink.bin || "";
+      const accountNumber = paymentLink.accountNumber || "";
+      const accountName = paymentLink.accountName || "";
+
+      // Generate VietQR URL for direct bank app scanning
+      // This QR can be scanned directly by any Vietnamese bank app
+      let qrCodeUrl = "";
+
+      if (bin && accountNumber) {
+        // VietQR format: https://img.vietqr.io/image/{BIN}-{ACCOUNT_NUMBER}-{TEMPLATE}.png?amount={AMOUNT}&addInfo={DESCRIPTION}&accountName={NAME}
+        qrCodeUrl = `https://img.vietqr.io/image/${bin}-${accountNumber}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(
+          description
+        )}&accountName=${encodeURIComponent(accountName)}`;
+      }
 
       return {
         success: true,
@@ -58,9 +83,12 @@ export const payosService = {
           paymentLinkId: paymentLink.paymentLinkId,
           checkoutUrl: paymentLink.checkoutUrl,
           qrCode: qrCodeUrl,
-          accountNumber: paymentLink.accountNumber,
-          accountName: paymentLink.accountName,
-          bin: paymentLink.bin,
+          // Save these to regenerate QR later
+          accountNumber,
+          accountName,
+          bin,
+          amount,
+          description,
         },
       };
     } catch (error) {
@@ -74,7 +102,7 @@ export const payosService = {
    */
   async cancelPaymentLink(orderCode, reason = "User cancelled") {
     try {
-      await payos.paymentRequests.cancel(orderCode, reason);
+      await getPayOSClient().paymentRequests.cancel(orderCode, reason);
       return { success: true };
     } catch (error) {
       console.error("PayOS cancelPaymentLink error:", error);
@@ -87,7 +115,7 @@ export const payosService = {
    */
   async getPaymentInfo(orderCode) {
     try {
-      return await payos.paymentRequests.get(orderCode);
+      return await getPayOSClient().paymentRequests.get(orderCode);
     } catch (error) {
       console.error("PayOS getPaymentInfo error:", error);
       throw error;
@@ -99,7 +127,7 @@ export const payosService = {
    */
   async verifyWebhook(webhookData) {
     try {
-      return await payos.webhooks.verify(webhookData);
+      return await getPayOSClient().webhooks.verify(webhookData);
     } catch (error) {
       console.error("Verify webhook error:", error);
       return null;
@@ -111,7 +139,7 @@ export const payosService = {
    */
   async confirmWebhookUrl(webhookUrl) {
     try {
-      return await payos.webhooks.confirm(webhookUrl);
+      return await getPayOSClient().webhooks.confirm(webhookUrl);
     } catch (error) {
       console.error("Confirm webhook URL error:", error);
       throw error;
@@ -153,7 +181,7 @@ export const payosService = {
    */
   async verifyPaymentWebhookData(webhookData) {
     try {
-      return await payos.webhooks.verify(webhookData);
+      return await getPayOSClient().webhooks.verify(webhookData);
     } catch (error) {
       console.error("Verify webhook data error:", error);
       return null;

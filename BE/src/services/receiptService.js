@@ -5,22 +5,25 @@ import { Branch } from "../models/branchModel.js";
 import ApiError from "../utils/apiError.js";
 import { getDateRange } from "../utils/calculators.js";
 import { payosService } from "./payosService.js";
-import { validateBranchAccess, buildSecureFilter, validateRecordAccess } from "../utils/branchSecurity.js";
-
+import {
+  validateBranchAccess,
+  buildSecureFilter,
+  validateRecordAccess,
+} from "../utils/branchSecurity.js";
 
 const getStats = async (branchId) => {
-    try {
-        return await Receipt.getStats(branchId);
-    } catch (error) {
-        throw new Error(error.message || error);
-    }
+  try {
+    return await Receipt.getStats(branchId);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
 };
 
 const create = async (data, user) => {
   try {
     // Defense-in-depth: Double check branch access
     validateBranchAccess(user, data.branchId, "create receipt for");
-    
+
     // Validate branch exists
     await Branch.findBranchById(data.branchId);
 
@@ -71,11 +74,12 @@ const create = async (data, user) => {
       try {
         const orderCode = payosService.generateOrderCode();
         const baseUrl = process.env.CLIENT_URL || "http://localhost:3000";
+        const paymentDescription = `HD${orderCode}`.slice(0, 25); // Max 25 chars
 
         const paymentResult = await payosService.createPaymentLink({
           orderCode,
           amount: Math.round(totalAmount),
-          description: `${orderCode}`.slice(0, 25), // Max 25 chars
+          description: paymentDescription,
           returnUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
           cancelUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
           expiredAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
@@ -87,6 +91,12 @@ const create = async (data, user) => {
             linkId: paymentResult.data.paymentLinkId,
             qrCode: paymentResult.data.qrCode,
             checkoutUrl: paymentResult.data.checkoutUrl,
+            accountNumber: paymentResult.data.accountNumber,
+            accountName: paymentResult.data.accountName,
+            bin: paymentResult.data.bin,
+            // Save for regenerating VietQR later
+            amount: Math.round(totalAmount),
+            description: paymentDescription,
             status: "pending",
           };
         }
@@ -156,7 +166,7 @@ const getAll = async (filter = {}, user = null) => {
 const getAllPaginated = async (options = {}, user = null) => {
   try {
     // Defense-in-depth: Ensure branchId filter for staff
-    if (user && user.role !== 'admin' && user.branchId) {
+    if (user && user.role !== "admin" && user.branchId) {
       options.branchId = user.branchId;
     }
     return await Receipt.findAllReceiptsPaginated(options);
@@ -171,12 +181,12 @@ const getById = async (id, user = null) => {
       throw new ApiError(400, "Receipt ID is required!");
     }
     const receipt = await Receipt.findReceiptById(id);
-    
+
     // Defense-in-depth: Validate access if user provided
     if (user) {
       validateRecordAccess(user, receipt, "receipt");
     }
-    
+
     return receipt;
   } catch (error) {
     throw new Error(error.message || error);
@@ -192,12 +202,12 @@ const getByCode = async (code, user = null) => {
     if (!receipt) {
       throw new ApiError(404, "Receipt not found");
     }
-    
+
     // Defense-in-depth: Validate access if user provided
     if (user) {
       validateRecordAccess(user, receipt, "receipt");
     }
-    
+
     return receipt;
   } catch (error) {
     throw new Error(error.message || error);
@@ -277,22 +287,50 @@ const getRevenueByPaymentMethod = async (period, branchId = null) => {
  */
 const handlePaymentWebhook = async (webhookData) => {
   try {
+    // Log raw webhook for debugging
+    console.log("[Webhook] Received:", JSON.stringify(webhookData, null, 2));
+
     // Verify webhook data
     const verifiedData = payosService.verifyPaymentWebhookData(webhookData);
     if (!verifiedData) {
-      throw new ApiError(400, "Invalid webhook signature");
+      console.log("[Webhook] Invalid signature, skipping...");
+      // Return success to prevent PayOS from retrying
+      return { success: true, message: "Invalid signature" };
     }
 
-    const { orderCode } = verifiedData;
+    const orderCode = verifiedData.orderCode || webhookData.data?.orderCode;
+    if (!orderCode) {
+      console.log("[Webhook] No orderCode found");
+      return { success: true, message: "No orderCode" };
+    }
+
     const receipt = await Receipt.findReceiptByOrderCode(orderCode);
 
     if (!receipt) {
-      console.log(`Receipt not found for orderCode: ${orderCode}`);
+      console.log(`[Webhook] Receipt not found for orderCode: ${orderCode}`);
       return { success: true }; // Return success to prevent PayOS from retrying
     }
 
-    // Check if payment was successful (code "00" means success)
-    if (webhookData.code === "00" && webhookData.success) {
+    // Already processed
+    if (receipt.paymentInfo?.status !== "pending") {
+      console.log(
+        `[Webhook] Receipt ${receipt.code} already processed (status: ${receipt.paymentInfo?.status})`
+      );
+      return { success: true };
+    }
+
+    // Check webhook code/status
+    // PayOS webhook codes: "00" = success, others = failure
+    const code = webhookData.code;
+    const success = webhookData.success;
+    const payosStatus = webhookData.data?.status || verifiedData.status;
+
+    console.log(
+      `[Webhook] Processing: code=${code}, success=${success}, payosStatus=${payosStatus}`
+    );
+
+    // Success payment
+    if (code === "00" && success) {
       // Update payment status to paid
       await Receipt.updatePaymentStatus(orderCode, "paid", "completed");
 
@@ -306,17 +344,35 @@ const handlePaymentWebhook = async (webhookData) => {
         );
       }
 
-      console.log(`Payment confirmed for receipt: ${receipt.code}`);
-    } else {
-      // Payment failed or cancelled
-      await Receipt.updatePaymentStatus(orderCode, "cancelled", "cancelled");
-      console.log(`Payment failed/cancelled for receipt: ${receipt.code}`);
+      console.log(`[Webhook] ✓ Payment confirmed for receipt: ${receipt.code}`);
+      return { success: true, message: "Payment confirmed" };
     }
 
-    return { success: true };
+    // Handle expired status from PayOS
+    if (payosStatus === "EXPIRED" || code === "expired") {
+      await Receipt.updatePaymentStatus(orderCode, "expired", "cancelled");
+      console.log(`[Webhook] ✗ Payment expired for receipt: ${receipt.code}`);
+      return { success: true, message: "Payment expired" };
+    }
+
+    // Handle cancelled status from PayOS
+    if (payosStatus === "CANCELLED" || code === "cancelled") {
+      await Receipt.updatePaymentStatus(orderCode, "cancelled", "cancelled");
+      console.log(`[Webhook] ✗ Payment cancelled for receipt: ${receipt.code}`);
+      return { success: true, message: "Payment cancelled" };
+    }
+
+    // Payment failed for other reasons
+    await Receipt.updatePaymentStatus(orderCode, "cancelled", "cancelled");
+    console.log(
+      `[Webhook] ✗ Payment failed for receipt: ${receipt.code} (code: ${code})`
+    );
+
+    return { success: true, message: "Payment failed" };
   } catch (error) {
-    console.error("Webhook handling error:", error);
-    throw new Error(error.message || error);
+    console.error("[Webhook] Error:", error);
+    // Always return success to prevent PayOS from endless retrying
+    return { success: true, error: error.message };
   }
 };
 

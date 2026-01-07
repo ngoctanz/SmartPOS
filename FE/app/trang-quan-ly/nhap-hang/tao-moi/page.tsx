@@ -18,13 +18,12 @@ import categoryService, { Category } from "@/service/category.service";
 import { useAuthContext } from "@/contexts/auth-context";
 import { ROUTES } from "@/configs/routes.config";
 import {
-  BarcodeScanner,
-  ProductSearch,
   ImportItemsTable,
   ImportSummary,
   ConfirmDialog,
   ImportItem,
 } from "@/components/import-receipt";
+import { SmartProductInput } from "@/components/common/smart-product-input";
 import { ProductFormModal } from "@/components/forms/product-form-modal";
 import {
   AlertDialog,
@@ -146,7 +145,9 @@ export default function CreateImportReceiptPage() {
   ) => {
     setIsCreatingProduct(true);
     try {
-      const response = await productService.create(data as CreateProductRequest);
+      const response = await productService.create(
+        data as CreateProductRequest
+      );
       if (response.success && response.data) {
         toast.success("Tạo sản phẩm mới thành công!");
         const newProduct = response.data;
@@ -182,9 +183,33 @@ export default function CreateImportReceiptPage() {
     return response.success && response.data ? response.data : [];
   }, []);
 
+  // Get product by barcode for SmartProductInput
+  const getProductByBarcode = React.useCallback(
+    async (barcode: string): Promise<Product | null> => {
+      try {
+        const response = await productService.getByBarcode(barcode);
+        if (response.success && response.data) {
+          return response.data;
+        }
+        return null;
+      } catch {
+        return null;
+      }
+    },
+    []
+  );
+
+  // Handle barcode not found - show dialog to create new product
+  const handleBarcodeNotFound = React.useCallback((barcode: string) => {
+    setNotFoundBarcode(barcode);
+    setShowNotFoundDialog(true);
+  }, []);
+
   const handleProductSelect = React.useCallback(
     (product: Product) => {
-      const existingItem = importItems.find((item) => item.productId === product._id);
+      const existingItem = importItems.find(
+        (item) => item.productId === product._id
+      );
 
       if (existingItem) {
         setImportItems((prev) =>
@@ -216,7 +241,9 @@ export default function CreateImportReceiptPage() {
 
   const updateQuantity = (productId: string, newQuantity: number) => {
     if (newQuantity < 1) {
-      setImportItems((prev) => prev.filter((item) => item.productId !== productId));
+      setImportItems((prev) =>
+        prev.filter((item) => item.productId !== productId)
+      );
       return;
     }
     setImportItems((prev) =>
@@ -235,7 +262,9 @@ export default function CreateImportReceiptPage() {
   };
 
   const removeItem = (productId: string) => {
-    setImportItems((prev) => prev.filter((item) => item.productId !== productId));
+    setImportItems((prev) =>
+      prev.filter((item) => item.productId !== productId)
+    );
   };
 
   const clearItems = () => {
@@ -245,7 +274,11 @@ export default function CreateImportReceiptPage() {
   const validateItems = () => {
     const invalidItems = importItems.filter((item) => item.importPrice <= 0);
     if (invalidItems.length > 0) {
-      toast.error(`Vui lòng nhập giá cho: ${invalidItems.map((i) => i.productName).join(", ")}`);
+      toast.error(
+        `Vui lòng nhập giá cho: ${invalidItems
+          .map((i) => i.productName)
+          .join(", ")}`
+      );
       return false;
     }
     return true;
@@ -312,12 +345,18 @@ export default function CreateImportReceiptPage() {
     <div className="flex flex-col h-full p-4 pt-0">
       {/* Header */}
       <div className="flex items-center gap-4 mb-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push(ROUTES.IMPORTS)}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => router.push(ROUTES.IMPORTS)}
+        >
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
           <h1 className="text-xl font-semibold">Tạo phiếu nhập hàng</h1>
-          <p className="text-sm text-muted-foreground">Quét barcode hoặc tìm kiếm sản phẩm để thêm vào phiếu</p>
+          <p className="text-sm text-muted-foreground">
+            Quét barcode hoặc tìm kiếm sản phẩm để thêm vào phiếu
+          </p>
         </div>
       </div>
 
@@ -326,12 +365,15 @@ export default function CreateImportReceiptPage() {
         {/* Left Panel */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Search Section */}
-          <div className="bg-muted/50 rounded-lg p-4 mb-4 space-y-3">
-            <BarcodeScanner 
-              onBarcodeScanned={handleBarcodeScanned} 
-              showButton={true}
+          <div className="bg-muted/50 rounded-lg p-4 mb-4">
+            <SmartProductInput
+              onProductSelect={handleProductSelect}
+              searchFn={handleSearch}
+              getByBarcodeFn={getProductByBarcode}
+              onBarcodeNotFound={handleBarcodeNotFound}
+              placeholder="Quét mã barcode hoặc nhập tên sản phẩm..."
+              autoFocus
             />
-            <ProductSearch onProductSelect={handleProductSelect} searchFn={handleSearch} />
           </div>
 
           {/* Items Table */}
@@ -370,12 +412,19 @@ export default function CreateImportReceiptPage() {
       />
 
       {/* Dialog for product not found */}
-      <AlertDialog open={showNotFoundDialog} onOpenChange={setShowNotFoundDialog}>
+      <AlertDialog
+        open={showNotFoundDialog}
+        onOpenChange={setShowNotFoundDialog}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Không tìm thấy sản phẩm</AlertDialogTitle>
             <AlertDialogDescription>
-              Mã barcode <span className="font-mono font-bold text-foreground">{notFoundBarcode}</span> chưa có trong hệ thống.
+              Mã barcode{" "}
+              <span className="font-mono font-bold text-foreground">
+                {notFoundBarcode}
+              </span>{" "}
+              chưa có trong hệ thống.
               <br />
               Bạn có muốn tạo sản phẩm mới với mã này không?
             </AlertDialogDescription>
