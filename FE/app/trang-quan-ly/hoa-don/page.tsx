@@ -61,6 +61,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useFilteredTableData } from "@/hooks/useFilteredTableData";
 import { useStats } from "@/hooks/useStats";
+import { usePaymentNotifications } from "@/hooks/usePaymentNotifications";
 
 export default function Page() {
   const router = useRouter();
@@ -97,6 +98,24 @@ export default function Page() {
     React.useState(false);
   const [selectedReceipts, setSelectedReceipts] = React.useState<Receipt[]>([]);
   const multiplePrintRef = React.useRef<HTMLDivElement>(null);
+
+  // Real-time payment notifications
+  usePaymentNotifications({
+    onPaymentSuccess: (data) => {
+      toast.success(
+        `Đơn hàng ${
+          data.receiptCode
+        } đã thanh toán thành công: ${formatCurrency(data.amount)}`,
+        {
+          duration: 5000,
+          position: "top-right",
+        }
+      );
+      // Refresh data to show updated status
+      handleSearch(searchTerm);
+    },
+    enabled: true,
+  });
 
   // Fetch branches
   React.useEffect(() => {

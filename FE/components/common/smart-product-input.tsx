@@ -15,6 +15,8 @@ interface SmartProductInputProps {
   autoFocus?: boolean;
   /** Callback when barcode not found - if provided, error message won't be shown */
   onBarcodeNotFound?: (barcode: string) => void;
+  /** If true, disables auto-refocus behavior (useful when editing prices/quantities) */
+  disableAutoRefocus?: boolean;
 }
 
 export function SmartProductInput({
@@ -24,6 +26,7 @@ export function SmartProductInput({
   placeholder = "Quét mã barcode hoặc nhập tên sản phẩm...",
   autoFocus = true,
   onBarcodeNotFound,
+  disableAutoRefocus = false,
 }: SmartProductInputProps) {
   const [inputValue, setInputValue] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<Product[]>([]);
@@ -46,20 +49,30 @@ export function SmartProductInput({
     };
 
     focusInput();
-    window.addEventListener("focus", focusInput);
 
-    // Refocus periodically to ensure always focused
-    const interval = setInterval(() => {
-      if (document.activeElement !== inputRef.current && !showDropdown) {
-        inputRef.current?.focus();
-      }
-    }, 1000);
+    // Only add window focus listener if auto-refocus is enabled
+    if (!disableAutoRefocus) {
+      window.addEventListener("focus", focusInput);
+    }
+
+    // Refocus periodically to ensure always focused (only if not disabled)
+    const interval = disableAutoRefocus
+      ? null
+      : setInterval(() => {
+          if (document.activeElement !== inputRef.current && !showDropdown) {
+            inputRef.current?.focus();
+          }
+        }, 1000);
 
     return () => {
-      window.removeEventListener("focus", focusInput);
-      clearInterval(interval);
+      if (!disableAutoRefocus) {
+        window.removeEventListener("focus", focusInput);
+      }
+      if (interval) {
+        clearInterval(interval);
+      }
     };
-  }, [autoFocus, showDropdown]);
+  }, [autoFocus, showDropdown, disableAutoRefocus]);
 
   // Check if input looks like a barcode (all digits, >= 8 chars)
   const looksLikeBarcode = React.useCallback((value: string) => {
@@ -152,17 +165,48 @@ export function SmartProductInput({
       return;
     }
 
-    // If looks like barcode, don't search by name
-    if (looksLikeBarcode(inputValue)) {
-      return;
+    // If input is >= 5 characters, check if it's an exact barcode match first
+    if (inputValue.trim().length >= 5) {
+      const timer = setTimeout(async () => {
+        // Try exact barcode match first
+        try {
+          const product = await getByBarcodeFn(inputValue.trim());
+          if (product) {
+            // Exact match found - auto add
+            onProductSelect(product);
+            setInputValue("");
+            setSearchResults([]);
+            setShowDropdown(false);
+            return;
+          }
+        } catch {
+          // Not found, continue with search
+        }
+
+        // If not exact barcode match, search by name
+        if (!looksLikeBarcode(inputValue)) {
+          searchProducts(inputValue);
+        }
+      }, 400);
+
+      return () => clearTimeout(timer);
     }
 
-    const timer = setTimeout(() => {
-      searchProducts(inputValue);
-    }, 300);
+    // For shorter inputs, only search if it's not a barcode pattern
+    if (!looksLikeBarcode(inputValue)) {
+      const timer = setTimeout(() => {
+        searchProducts(inputValue);
+      }, 300);
 
-    return () => clearTimeout(timer);
-  }, [inputValue, searchProducts, looksLikeBarcode]);
+      return () => clearTimeout(timer);
+    }
+  }, [
+    inputValue,
+    searchProducts,
+    looksLikeBarcode,
+    getByBarcodeFn,
+    onProductSelect,
+  ]);
 
   // Handle keydown
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -370,7 +414,8 @@ export function SmartProductInput({
 
       {/* Hint text */}
       <p className="text-xs text-muted-foreground mt-2">
-        💡 Quét barcode hoặc nhập tên/mã sản phẩm để tìm kiếm. Nhấn{" "}
+        💡 Nhập từ 5 ký tự để tìm kiếm. Nếu trùng khớp barcode sẽ tự động thêm.
+        Nhấn{" "}
         <kbd className="px-1 py-0.5 bg-muted rounded text-[10px]">Enter</kbd> để
         xác nhận.
       </p>

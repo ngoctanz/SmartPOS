@@ -24,6 +24,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { usePaymentNotifications } from "@/hooks/usePaymentNotifications";
+import { formatCurrency } from "@/utils/format.utils";
 
 export default function CreateReceiptPage() {
   const router = useRouter();
@@ -41,6 +43,30 @@ export default function CreateReceiptPage() {
   // Payment QR Dialog state
   const [showQRDialog, setShowQRDialog] = React.useState(false);
   const [paymentData, setPaymentData] = React.useState<Receipt | null>(null);
+
+  // Real-time payment notifications
+  usePaymentNotifications({
+    onPaymentSuccess: (data) => {
+      toast.success(
+        `Đơn hàng ${
+          data.receiptCode
+        } đã thanh toán thành công: ${formatCurrency(data.amount)}`,
+        {
+          duration: 5000,
+          position: "top-right",
+        }
+      );
+      // If currently showing QR for this receipt, close dialog and redirect
+      if (paymentData?.code === data.receiptCode) {
+        setShowQRDialog(false);
+        toast.info("Chuyển đến trang chi tiết đơn hàng...");
+        setTimeout(() => {
+          router.push(`/trang-quan-ly/hoa-don/${data.receiptCode}`);
+        }, 1500);
+      }
+    },
+    enabled: true,
+  });
 
   // Load branches
   React.useEffect(() => {

@@ -373,6 +373,7 @@ export default function CreateImportReceiptPage() {
               onBarcodeNotFound={handleBarcodeNotFound}
               placeholder="Quét mã barcode hoặc nhập tên sản phẩm..."
               autoFocus
+              disableAutoRefocus={true}
             />
           </div>
 
