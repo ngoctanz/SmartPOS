@@ -2,20 +2,18 @@ import {
   IconCurrencyDollar,
   IconFileInvoice,
   IconPackage,
-  IconTrendingUp,
+  IconShoppingCart,
 } from "@tabler/icons-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DashboardSummary } from "@/service/dashboard.service";
 
 interface SectionCardsProps {
-  stats?: {
-    revenue: number;
-    profit: number;
-    productCount: number;
-    orderCount: number;
-  };
+  stats?: DashboardSummary;
+  loading?: boolean;
 }
 
-export function SectionCards({ stats }: SectionCardsProps) {
+export function SectionCards({ stats, loading }: SectionCardsProps) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
@@ -31,36 +29,55 @@ export function SectionCards({ stats }: SectionCardsProps) {
     {
       title: "Tổng doanh thu",
       value: formatCurrency(stats?.revenue || 0),
-      subtitle: "Tổng doanh thu hệ thống",
+      subtitle: "Doanh thu từ hóa đơn hoàn thành",
       icon: IconCurrencyDollar,
       iconBg: "bg-primary/10",
       iconColor: "text-primary",
     },
     {
-      title: "Tổng lợi nhuận",
-      value: formatCurrency(stats?.profit || 0),
-      subtitle: "Lợi nhuận từ đơn hàng",
-      icon: IconTrendingUp,
-      iconBg: "bg-green-100",
-      iconColor: "text-green-600",
-    },
-    {
-      title: "Sản phẩm tồn kho",
-      value: formatNumber(stats?.productCount || 0),
-      subtitle: "Số lượng trong kho",
-      icon: IconPackage,
-      iconBg: "bg-amber-100",
-      iconColor: "text-amber-600",
-    },
-    {
       title: "Số lượng hóa đơn",
-      value: formatNumber(stats?.orderCount || 0),
+      value: formatNumber(stats?.totalOrders || 0),
       subtitle: "Tổng số hóa đơn đã xuất",
       icon: IconFileInvoice,
-      iconBg: "bg-violet-100",
-      iconColor: "text-violet-600",
+      iconBg: "bg-primary/10",
+      iconColor: "text-primary",
+    },
+    {
+      title: "Chi phí nhập hàng",
+      value: formatCurrency(stats?.totalImportCost || 0),
+      subtitle: `${formatNumber(stats?.totalImportReceipts || 0)} phiếu nhập`,
+      icon: IconShoppingCart,
+      iconBg: "bg-primary/10",
+      iconColor: "text-primary",
+    },
+    {
+      title: "Tổng sản phẩm",
+      value: formatNumber(stats?.totalProducts || 0),
+      subtitle: "Số lượng sản phẩm trong hệ thống",
+      icon: IconPackage,
+      iconBg: "bg-primary/10",
+      iconColor: "text-primary",
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
+        {[...Array(4)].map((_, index) => (
+          <Card key={index} className="@container/card">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-9 w-9 rounded-lg" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-8 w-32 mb-2" />
+              <Skeleton className="h-3 w-24" />
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">

@@ -56,6 +56,55 @@ const getTopProducts = async (req, res, next) => {
   }
 };
 
+const getLeastSellingProducts = async (req, res, next) => {
+  try {
+    const { period, branchId, limit } = req.query;
+    const result = await dashboardService.getLeastSellingProducts(
+      period || "month",
+      branchId || null,
+      parseInt(limit) || 10
+    );
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get least selling products successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getRevenueByBranch = async (req, res, next) => {
+  try {
+    const { period } = req.query;
+    const result = await dashboardService.getRevenueByBranch(period || "month");
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get revenue by branch successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getSalesByCategory = async (req, res, next) => {
+  try {
+    const { period, branchId } = req.query;
+    const result = await dashboardService.getSalesByCategory(
+      period || "month",
+      branchId || null
+    );
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get sales by category successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getPaymentStats = async (req, res, next) => {
   try {
     const { period, branchId } = req.query;
@@ -118,6 +167,9 @@ export const dashboardController = {
   getSummary,
   getDailyStats,
   getTopProducts,
+  getLeastSellingProducts,
+  getRevenueByBranch,
+  getSalesByCategory,
   getPaymentStats,
   getLowStockAlert,
   getFullDashboard,

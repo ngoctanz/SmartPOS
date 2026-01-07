@@ -40,6 +40,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import uploadService from "@/service/upload.service";
+import { toast } from "sonner";
 
 // Schema validation
 const productSchema = z.object({
@@ -105,6 +107,8 @@ export function ProductFormModal({
   isImportMode = false,
 }: ProductFormModalProps) {
   const isEditMode = !!product && !!product._id;
+  const [selectedImageFile, setSelectedImageFile] = React.useState<File | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = React.useState(false);
 
   const form = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
@@ -123,6 +127,7 @@ export function ProductFormModal({
   // Reset form when modal opens or product changes
   React.useEffect(() => {
     if (open) {
+      setSelectedImageFile(null);
       if (product) {
         form.reset({
           name: product.name || "",
@@ -146,18 +151,54 @@ export function ProductFormModal({
           image: "",
         });
       }
+    } else {
+      // Clean up blob URL when modal closes
+      const imageValue = form.getValues("image");
+      if (imageValue && imageValue.startsWith("blob:")) {
+        URL.revokeObjectURL(imageValue);
+      }
     }
   }, [open, product, form]);
 
   const onFormSubmit = async (values: ProductFormData) => {
-    // Clean up empty optional fields
-    const cleanData = {
-      ...values,
-      barcode: values.barcode || undefined,
-      desc: values.desc || undefined,
-      image: values.image || undefined,
-    };
-    await onSubmit(cleanData);
+    try {
+      let imageUrl = values.image;
+
+      // If there's a new image file selected, upload it first
+      if (selectedImageFile) {
+        setIsUploadingImage(true);
+        toast.info("Đang tải ảnh lên...");
+        
+        const uploadResponse = await uploadService.uploadImage(selectedImageFile);
+        if (uploadResponse.data) {
+          imageUrl = uploadResponse.data.url;
+          toast.success("Upload ảnh thành công!");
+        } else {
+          throw new Error("Upload ảnh thất bại");
+        }
+        
+        setIsUploadingImage(false);
+      }
+
+      // Clean up empty optional fields
+      const cleanData = {
+        ...values,
+        barcode: values.barcode || undefined,
+        desc: values.desc || undefined,
+        image: imageUrl || undefined,
+      };
+      
+      await onSubmit(cleanData);
+      
+      // Clean up blob URL after successful submission
+      if (values.image && values.image.startsWith("blob:")) {
+        URL.revokeObjectURL(values.image);
+      }
+    } catch (error) {
+      setIsUploadingImage(false);
+      toast.error("Có lỗi xảy ra khi xử lý ảnh!");
+      throw error;
+    }
   };
 
   return (
@@ -217,7 +258,8 @@ export function ProductFormModal({
                       <ImageUpload
                         value={form.watch("image")}
                         onChange={(url) => form.setValue("image", url)}
-                        disabled={isSubmitting}
+                        onFileSelect={setSelectedImageFile}
+                        disabled={isSubmitting || isUploadingImage}
                         className="w-full aspect-square rounded-lg overflow-hidden"
                       />
                     </div>
@@ -470,15 +512,15 @@ export function ProductFormModal({
                 </Button>
                 <Button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isUploadingImage}
                   className="px-6 h-9 text-xs bg-primary hover:bg-primary/90 shadow shadow-primary/20 flex-1 sm:flex-initial gap-1.5"
                 >
-                  {isSubmitting ? (
+                  {(isSubmitting || isUploadingImage) ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <ChevronRight className="w-3.5 h-3.5" />
                   )}
-                  {isEditMode ? "Lưu thay đổi" : "Thêm sản phẩm"}
+                  {isUploadingImage ? "Đang tải ảnh..." : isEditMode ? "Lưu thay đổi" : "Thêm sản phẩm"}
                 </Button>
               </div>
             </div>

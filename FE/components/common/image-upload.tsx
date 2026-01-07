@@ -1,15 +1,15 @@
 "use client";
 
-import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { ImagePlus, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import uploadService from "@/service/upload.service";
 import { toast } from "sonner";
+import { useState, useRef, ChangeEvent } from "react";
 
 interface ImageUploadProps {
   value?: string;
   onChange: (url: string) => void;
+  onFileSelect?: (file: File | null) => void;
   disabled?: boolean;
   className?: string;
 }
@@ -17,13 +17,14 @@ interface ImageUploadProps {
 export function ImageUpload({
   value,
   onChange,
+  onFileSelect,
   disabled,
-  className,
+  className
 }: ImageUploadProps) {
-  const [isUploading, setIsUploading] = React.useState(false);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -33,27 +34,23 @@ export function ImageUpload({
       return;
     }
 
-    try {
-      setIsUploading(true);
-      const response = await uploadService.uploadImage(file);
-      if (response.data) {
-        onChange(response.data.url);
-        toast.success("Upload ảnh thành công!");
-      }
-    } catch (error) {
-      console.error("Upload failed:", error);
-      toast.error("Upload ảnh thất bại!");
-    } finally {
-      setIsUploading(false);
-      // Reset input so same file can be selected again if needed
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+    // Always use manual upload mode - just preview and pass file back
+    const previewUrl = URL.createObjectURL(file);
+    onChange(previewUrl);
+    if (onFileSelect) {
+      onFileSelect(file);
     }
   };
 
   const handleRemove = () => {
     onChange("");
+    if (onFileSelect) {
+      onFileSelect(null);
+    }
+    // Revoke object URL to free memory
+    if (value && value.startsWith("blob:")) {
+      URL.revokeObjectURL(value);
+    }
   };
 
   return (

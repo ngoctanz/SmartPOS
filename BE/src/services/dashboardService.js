@@ -1,6 +1,7 @@
 import { Receipt } from "../models/receiptModel.js";
 import { ImportReceipt } from "../models/importReceiptModel.js";
 import { BranchProduct } from "../models/branchProductModel.js";
+import { Product } from "../models/productModel.js";
 import { getDateRange } from "../utils/calculators.js";
 
 const getSummary = async (period = "month", branchId = null) => {
@@ -17,8 +18,8 @@ const getSummary = async (period = "month", branchId = null) => {
       branchId
     );
 
-    // Profit = Revenue - Import Cost (tính đơn giản)
-    const profit = (revenueData.totalRevenue || 0) - (importData.totalAmount || 0);
+    // Get total products count
+    const totalProducts = await Product.countDocuments({ status: "active" });
 
     return {
       period,
@@ -26,9 +27,9 @@ const getSummary = async (period = "month", branchId = null) => {
       endDate,
       revenue: revenueData.totalRevenue || 0,
       totalImportCost: importData.totalAmount || 0,
-      profit,
       totalOrders: revenueData.count || 0,
       totalImportReceipts: importData.count || 0,
+      totalProducts,
     };
   } catch (error) {
     throw new Error(error.message || error);
@@ -53,6 +54,33 @@ const getTopProducts = async (period = "month", branchId = null, limit = 10) => 
   }
 };
 
+const getLeastSellingProducts = async (period = "month", branchId = null, limit = 10) => {
+  try {
+    const { startDate, endDate } = getDateRange(period);
+    return await Receipt.getLeastSellingProducts(startDate, endDate, branchId, limit);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+const getRevenueByBranch = async (period = "month") => {
+  try {
+    const { startDate, endDate } = getDateRange(period);
+    return await Receipt.getRevenueByBranch(startDate, endDate);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+const getSalesByCategory = async (period = "month", branchId = null) => {
+  try {
+    const { startDate, endDate } = getDateRange(period);
+    return await Receipt.getSalesByCategory(startDate, endDate, branchId);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 const getPaymentMethodStats = async (period = "month", branchId = null) => {
   try {
     const { startDate, endDate } = getDateRange(period);
@@ -72,11 +100,14 @@ const getLowStockAlert = async (branchId) => {
 
 const getFullDashboard = async (period = "month", branchId = null) => {
   try {
-    const [summary, dailyStats, topProducts, paymentStats] = await Promise.all([
+    const [summary, dailyStats, topProducts, leastSellingProducts, paymentStats, revenueByBranch, salesByCategory] = await Promise.all([
       getSummary(period, branchId),
       getDailyStats(period, branchId),
       getTopProducts(period, branchId, 10),
+      getLeastSellingProducts(period, branchId, 10),
       getPaymentMethodStats(period, branchId),
+      getRevenueByBranch(period),
+      getSalesByCategory(period, branchId),
     ]);
 
     let lowStockAlert = [];
@@ -88,7 +119,10 @@ const getFullDashboard = async (period = "month", branchId = null) => {
       summary,
       dailyStats,
       topProducts,
+      leastSellingProducts,
       paymentStats,
+      revenueByBranch,
+      salesByCategory,
       lowStockAlert,
     };
   } catch (error) {
@@ -100,6 +134,9 @@ export const dashboardService = {
   getSummary,
   getDailyStats,
   getTopProducts,
+  getLeastSellingProducts,
+  getRevenueByBranch,
+  getSalesByCategory,
   getPaymentMethodStats,
   getLowStockAlert,
   getFullDashboard,
