@@ -143,12 +143,11 @@ export function UserFormModal({
   const handleSubmit = async (
     data: CreateUserFormData | UpdateUserFormData
   ) => {
-   
     const processedData = { ...data };
     if (!processedData.branchId || processedData.branchId === "") {
-      processedData.branchId = null as any; 
+      processedData.branchId = null as any;
     }
-    
+
     // Remove empty password when updating
     if (isEditMode) {
       const updateData = processedData as UpdateUserFormData;
@@ -156,7 +155,7 @@ export function UserFormModal({
         delete updateData.password;
       }
       // Remove userName if present
-      if ('userName' in updateData) {
+      if ("userName" in updateData) {
         delete (updateData as any).userName;
       }
       await onSubmit(updateData);
@@ -166,6 +165,7 @@ export function UserFormModal({
 
     // Remove userName when updating (backend doesn't allow it)
     if (isEditMode && "userName" in data) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { userName, ...updateData } = data as CreateUserFormData;
       await onSubmit(updateData as UpdateUserFormData);
       return;
@@ -190,35 +190,46 @@ export function UserFormModal({
 
         <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
           {/* Username */}
-          <div className="space-y-2">
-            <Label htmlFor="userName">
-              Tên đăng nhập <span className="text-destructive">*</span>
-            </Label>
-            <Input
-              id="userName"
-              {...form.register("userName" as any)}
-              placeholder="Nhập tên đăng nhập"
-              disabled={isEditMode} // Không cho sửa username
-            />
-            {(form.formState.errors as any).userName && (
-              <p className="text-sm text-destructive">
-                {(form.formState.errors as any).userName.message}
-              </p>
-            )}
-          </div>
+          {!isEditMode && (
+            <div className="space-y-2">
+              <Label htmlFor="userName">
+                Tên đăng nhập <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="userName"
+                {...form.register("userName")}
+                placeholder="Nhập tên đăng nhập"
+              />
+              {"userName" in form.formState.errors &&
+                form.formState.errors.userName && (
+                  <p className="text-sm text-destructive">
+                    {form.formState.errors.userName.message}
+                  </p>
+                )}
+            </div>
+          )}
 
           {/* Password - hiện cho cả tạo mới và chỉnh sửa */}
           <div className="space-y-2">
             <Label htmlFor="password">
-              Mật khẩu {!isEditMode && <span className="text-destructive">*</span>}
-              {isEditMode && <span className="text-muted-foreground text-xs ml-1">(để trống nếu không đổi)</span>}
+              Mật khẩu{" "}
+              {!isEditMode && <span className="text-destructive">*</span>}
+              {isEditMode && (
+                <span className="text-muted-foreground text-xs ml-1">
+                  (để trống nếu không đổi)
+                </span>
+              )}
             </Label>
             <div className="relative">
               <Input
                 id="password"
                 type={showPassword ? "text" : "password"}
                 {...form.register("password" as keyof CreateUserFormData)}
-                placeholder={isEditMode ? "Nhập mật khẩu mới (nếu muốn đổi)" : "Nhập mật khẩu"}
+                placeholder={
+                  isEditMode
+                    ? "Nhập mật khẩu mới (nếu muốn đổi)"
+                    : "Nhập mật khẩu"
+                }
                 className="pr-10"
               />
               <Button
