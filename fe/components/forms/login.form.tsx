@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 
 import { FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import Link from "next/link";
+
 import { useState } from "react";
 import { useLogin } from "@/hooks/useAuth";
 import { Loader2, AlertCircle } from "lucide-react";
@@ -53,7 +53,7 @@ export function LoginForm({
 
   return (
     <div className={cn("flex flex-col gap-8", className)} {...props}>
-      <div className="grid gap-6 p-8 border rounded-xl shadow-sm bg-card text-card-foreground">
+      <div className="grid gap-6 px-8 py-20 border rounded-xl shadow-sm bg-card text-card-foreground">
         <div className="flex flex-col items-center gap-2 text-center">
           <h1 className="text-2xl font-bold tracking-tight">Đăng nhập</h1>
           <p className="text-balance text-sm text-muted-foreground text-center">
@@ -98,17 +98,9 @@ export function LoginForm({
             </div>
 
             <div className="grid gap-2">
-              <div className="flex items-center">
-                <FieldLabel htmlFor="password" className="text-sm font-medium">
-                  Mật khẩu
-                </FieldLabel>
-                <Link
-                  href="/forgot-password"
-                  className="ml-auto inline-block text-sm underline-offset-4 hover:text-primary hover:underline text-muted-foreground"
-                >
-                  Quên mật khẩu?
-                </Link>
-              </div>
+              <FieldLabel htmlFor="password" className="text-sm font-medium">
+                Mật khẩu
+              </FieldLabel>
               <Input
                 id="password"
                 type="password"
