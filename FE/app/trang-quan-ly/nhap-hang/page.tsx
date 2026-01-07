@@ -36,10 +36,11 @@ import { useStats } from "@/hooks/useStats";
 
 // Helper để lấy tên từ populated field
 const getBranchName = (branchId: ImportReceipt["branchId"]): string => {
+  if (!branchId) return "—";
   if (typeof branchId === "object" && branchId?.branchName) {
     return branchId.branchName;
   }
-  return String(branchId);
+  return "—"; // Chi nhánh đã bị xóa hoặc không tồn tại
 };
 
 const getCreatedByName = (createdBy: ImportReceipt["createdBy"]): string => {

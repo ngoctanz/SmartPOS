@@ -1,11 +1,9 @@
 "use client"
 
-import * as React from "react"
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Cell } from "recharts"
 
 import {
   Card,
-  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -17,13 +15,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { TopProduct } from "@/service/dashboard.service"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TrendingDown } from "lucide-react"
@@ -31,8 +22,7 @@ import { TrendingDown } from "lucide-react"
 interface ChartLeastSellingProductsProps {
   data: TopProduct[]
   loading?: boolean
-  period: string
-  onPeriodChange: (period: string) => void
+  period?: string
 }
 
 const chartConfig = {
@@ -50,7 +40,7 @@ const COLORS = [
   "hsl(355 40% 70%)",
 ]
 
-export function ChartLeastSellingProducts({ data, loading, period, onPeriodChange }: ChartLeastSellingProductsProps) {
+export function ChartLeastSellingProducts({ data, loading }: ChartLeastSellingProductsProps) {
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', notation: 'compact' }).format(value)
   }
@@ -87,18 +77,6 @@ export function ChartLeastSellingProducts({ data, loading, period, onPeriodChang
           </span>
         </CardTitle>
         <CardDescription>Sản phẩm có số lượng bán thấp nhất (bao gồm cả sản phẩm không bán được), cần xem xét chiến lược</CardDescription>
-        <CardAction>
-          <Select value={period} onValueChange={onPeriodChange}>
-            <SelectTrigger className="w-[140px]" size="sm">
-              <SelectValue placeholder="Chọn kỳ" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="month">Tháng này</SelectItem>
-              <SelectItem value="3month">3 tháng</SelectItem>
-              <SelectItem value="6month">6 tháng</SelectItem>
-            </SelectContent>
-          </Select>
-        </CardAction>
       </CardHeader>
       <CardContent>
         {chartData.length === 0 ? (

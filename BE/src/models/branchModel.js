@@ -22,6 +22,15 @@ const branchSchema = new mongoose.Schema(
       maxlength: [200, "Contact info max 200 characters"],
       default: "",
     },
+    // Soft delete fields
+    isDeleted: {
+      type: Schema.Types.Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Schema.Types.Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -30,6 +39,7 @@ const branchSchema = new mongoose.Schema(
 );
 
 branchSchema.index({ createdAt: -1 });
+branchSchema.index({ isDeleted: 1 }); // Index for soft delete queries
 
 // Instance method
 branchSchema.methods.toJSON = function () {
@@ -45,19 +55,21 @@ branchSchema.statics = {
     return branch;
   },
 
-  async getBranchStats() {
-    const total = await this.countDocuments({});
+  async getBranchStats(includeDeleted = false) {
+    const filter = includeDeleted ? {} : { isDeleted: { $ne: true } };
+    const total = await this.countDocuments(filter);
     return { total };
   },
 
-  async findAllBranches(filter = {}) {
-    return this.find(filter).sort({ createdAt: -1 }).lean();
+  async findAllBranches(filter = {}, includeDeleted = false) {
+    const baseFilter = includeDeleted ? {} : { isDeleted: { $ne: true } };
+    return this.find({ ...baseFilter, ...filter }).sort({ createdAt: -1 }).lean();
   },
 
   async findAllBranchesPaginated(options = {}) {
-    const { search, page = 1, limit = 20 } = options;
+    const { search, page = 1, limit = 20, includeDeleted = false } = options;
     
-    const query = {};
+    const query = includeDeleted ? {} : { isDeleted: { $ne: true } };
     
     // Search by name or address
     if (search && search.trim()) {
@@ -87,21 +99,26 @@ branchSchema.statics = {
     };
   },
 
-  async findBranchById(id) {
-    const branch = await this.findOne({ _id: id }).lean();
+  async findBranchById(id, includeDeleted = false) {
+    const filter = includeDeleted 
+      ? { _id: id } 
+      : { _id: id, isDeleted: { $ne: true } };
+    const branch = await this.findOne(filter).lean();
     if (!branch) throw new Error("Branch not found");
     return branch;
   },
 
-  async findBranchByName(name) {
+  async findBranchByName(name, includeDeleted = false) {
+    const filter = includeDeleted ? {} : { isDeleted: { $ne: true } };
     return this.find({
+      ...filter,
       branchName: new RegExp(name, "i"),
     }).lean();
   },
 
   async updateBranch(id, data) {
     const branch = await this.findOneAndUpdate(
-      { _id: id },
+      { _id: id, isDeleted: { $ne: true } },
       data,
       { new: true, runValidators: true }
     );
@@ -109,15 +126,42 @@ branchSchema.statics = {
     return branch;
   },
 
+  // Soft delete - đánh dấu isDeleted = true
   async deleteBranch(id) {
-    const branch = await this.findByIdAndDelete(id);
+    const branch = await this.findOneAndUpdate(
+      { _id: id, isDeleted: { $ne: true } },
+      { isDeleted: true, deletedAt: new Date() },
+      { new: true }
+    );
     if (!branch) throw new Error("Branch not found");
     return branch;
   },
 
+  // Soft delete nhiều
   async deleteManyBranches(ids) {
-    const result = await this.deleteMany({ _id: { $in: ids } });
+    const result = await this.updateMany(
+      { _id: { $in: ids }, isDeleted: { $ne: true } },
+      { isDeleted: true, deletedAt: new Date() }
+    );
     return result;
+  },
+
+  // Khôi phục chi nhánh đã xóa
+  async restoreBranch(id) {
+    const branch = await this.findOneAndUpdate(
+      { _id: id, isDeleted: true },
+      { isDeleted: false, deletedAt: null },
+      { new: true }
+    );
+    if (!branch) throw new Error("Branch not found or not deleted");
+    return branch;
+  },
+
+  // Hard delete (xóa thật - chỉ dùng khi cần)
+  async hardDeleteBranch(id) {
+    const branch = await this.findByIdAndDelete(id);
+    if (!branch) throw new Error("Branch not found");
+    return branch;
   },
 };
 

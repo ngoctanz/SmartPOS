@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPut, apiDelete } from "./api.service";
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from "./api.service";
 import { ApiResponse } from "./api.config";
 
 export interface Branch {
@@ -6,6 +6,8 @@ export interface Branch {
   branchName: string;
   address: string;
   contactInfo: string;
+  isDeleted?: boolean;
+  deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -42,6 +44,7 @@ export interface PaginationParams {
   page?: number;
   limit?: number;
   search?: string;
+  includeDeleted?: boolean;
 }
 
 const branchService = {
@@ -54,6 +57,7 @@ const branchService = {
     if (params?.page) queryParams.append("page", String(params.page));
     if (params?.limit) queryParams.append("limit", String(params.limit));
     if (params?.search) queryParams.append("search", params.search);
+    if (params?.includeDeleted) queryParams.append("includeDeleted", "true");
     
     const query = queryParams.toString();
     return apiGet<Branch[]>(`/branch${query ? `?${query}` : ""}`);
@@ -121,6 +125,39 @@ const branchService = {
    */
   deleteMany: async (ids: string[]): Promise<ApiResponse> => {
     return apiPost("/branch/delete-many", { ids });
+  },
+
+  /**
+   * Khôi phục chi nhánh đã xóa
+   * PATCH /api/v1/branch/:id/restore
+   */
+  restore: async (id: string): Promise<ApiResponse<Branch>> => {
+    return apiPatch<Branch>(`/branch/${id}/restore`);
+  },
+
+  /**
+   * Kiểm tra chi nhánh có thể xóa vĩnh viễn không
+   * GET /api/v1/branch/:id/can-delete
+   */
+  checkCanDelete: async (id: string): Promise<ApiResponse<{
+    canDelete: boolean;
+    hasData: boolean;
+    details: {
+      receipts: boolean;
+      importReceipts: boolean;
+      stock: boolean;
+      users: boolean;
+    };
+  }>> => {
+    return apiGet(`/branch/${id}/can-delete`);
+  },
+
+  /**
+   * Xóa vĩnh viễn chi nhánh
+   * DELETE /api/v1/branch/:id/permanent
+   */
+  hardDelete: async (id: string): Promise<ApiResponse> => {
+    return apiDelete(`/branch/${id}/permanent`);
   },
 };
 

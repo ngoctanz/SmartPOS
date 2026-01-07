@@ -16,7 +16,7 @@ const create = async (req, res, next) => {
 
 const getAll = async (req, res, next) => {
   try {
-    const { search, page, limit } = req.query;
+    const { search, page, limit, includeDeleted } = req.query;
     
     // Nếu có params phân trang thì dùng paginated
     if (page || limit || search) {
@@ -24,6 +24,7 @@ const getAll = async (req, res, next) => {
         search,
         page: parseInt(page) || 1,
         limit: parseInt(limit) || 20,
+        includeDeleted: includeDeleted === 'true',
       };
       const result = await branchService.getAllPaginated(options);
       return res.status(StatusCodes.OK).json({
@@ -34,7 +35,7 @@ const getAll = async (req, res, next) => {
       });
     }
     
-    // Fallback: lấy tất cả (cho các API cũ)
+    // Fallback: lấy tất cả (cho các API cũ) - không bao gồm deleted
     const branches = await branchService.getAll();
     res.status(StatusCodes.OK).json({
       success: true,
@@ -125,6 +126,47 @@ const deleteMany = async (req, res, next) => {
   }
 };
 
+const restore = async (req, res, next) => {
+  try {
+    const branch = await branchService.restore(req.params.id);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Branch restored successfully!",
+      data: branch,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const checkCanDelete = async (req, res, next) => {
+  try {
+    const result = await branchService.checkHasRelatedData(req.params.id);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Check related data successfully",
+      data: {
+        canDelete: !result.hasData,
+        ...result,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const hardDelete = async (req, res, next) => {
+  try {
+    await branchService.hardDelete(req.params.id);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Branch permanently deleted!",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const branchController = {
   create,
   getAll,
@@ -134,4 +176,7 @@ export const branchController = {
   update,
   remove,
   deleteMany,
+  restore,
+  checkCanDelete,
+  hardDelete,
 };
