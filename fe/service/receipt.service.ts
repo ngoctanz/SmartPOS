@@ -84,7 +84,25 @@ export interface TopProduct {
   totalRevenue: number;
 }
 
+export interface ReceiptStats {
+  totalReceipts: number;
+  pendingCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  totalRevenue: number;
+}
+
 const receiptService = {
+  /**
+   * Get stats for receipts
+   * GET /api/v1/receipt/stats
+   */
+  getStats: async (branchId?: string): Promise<ApiResponse<ReceiptStats>> => {
+    const queryParams = new URLSearchParams();
+    if (branchId) queryParams.append("branchId", branchId);
+    return apiGet<ReceiptStats>(`/receipt/stats?${queryParams.toString()}`);
+  },
+
   /**
    * Lấy tất cả hóa đơn (có phân trang)
    * GET /api/v1/receipt

@@ -45,6 +45,11 @@ branchSchema.statics = {
     return branch;
   },
 
+  async getBranchStats() {
+    const total = await this.countDocuments({});
+    return { total };
+  },
+
   async findAllBranches(filter = {}) {
     return this.find(filter).sort({ createdAt: -1 }).lean();
   },

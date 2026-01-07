@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CommonTable, ServerPagination } from "@/components/common/common-table";
+import { CommonTable } from "@/components/common/common-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { QRCodeSVG } from "qrcode.react";
 import {
   Plus,
   Loader2,
@@ -17,9 +18,13 @@ import {
   Eye,
   ExternalLink,
   MoreHorizontal,
+  FileText,
+  Clock,
+  CheckCircle,
+  DollarSign,
 } from "lucide-react";
 import { toast } from "sonner";
-import receiptService, { Receipt } from "@/service/receipt.service";
+import receiptService, { Receipt, ReceiptStats } from "@/service/receipt.service";
 import branchService, { Branch } from "@/service/branch.service";
 import {
   Dialog,
@@ -37,76 +42,62 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PrintBill, printStyles } from "@/components/receipt";
+import { formatCurrency } from "@/utils/format.utils";
+import { StatsCard } from "@/components/common/stats-card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useAuth } from "@/hooks/useAuth";
+import { useFilteredTableData } from "@/hooks/useFilteredTableData";
+import { useStats } from "@/hooks/useStats";
 
 export default function Page() {
   const router = useRouter();
-  const [data, setData] = React.useState<Receipt[]>([]);
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const printRef = React.useRef<HTMLDivElement>(null);
+
+  // Use custom hooks
+  const { 
+    data, 
+    loading, 
+    searchTerm, 
+    pagination, 
+    filters,
+    handlePageChange, 
+    handleSearch,
+    updateFilter,
+  } = useFilteredTableData<Receipt, { branchId?: string; status?: string }>({
+    fetchFn: receiptService.getAll,
+    initialFilters: { branchId: undefined, status: undefined },
+  });
+
+  const { stats } = useStats<ReceiptStats>({
+    fetchFn: () => receiptService.getStats(isAdmin ? filters.branchId : undefined),
+    dependencies: [filters.branchId, isAdmin],
+  });
+
   const [branches, setBranches] = React.useState<Branch[]>([]);
-  const [isLoading, setIsLoading] = React.useState(true);
   const [selectedItem, setSelectedItem] = React.useState<Receipt | null>(null);
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [showPrintDialog, setShowPrintDialog] = React.useState(false);
-  const printRef = React.useRef<HTMLDivElement>(null);
 
-  // Server pagination state
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [debouncedSearch, setDebouncedSearch] = React.useState("");
-  const [pagination, setPagination] = React.useState<ServerPagination>({
-    page: 1,
-    limit: 10,
-    total: 0,
-    totalPages: 0,
-  });
-
-  // Debounce search
+  // Fetch branches
   React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
-      setPagination((prev) => ({ ...prev, page: 1 }));
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  // Fetch data
-  const fetchData = React.useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const [receiptsRes, branchesRes] = await Promise.all([
-        receiptService.getAll({
-          page: pagination.page,
-          limit: pagination.limit,
-          search: debouncedSearch || undefined,
-        }),
-        branchService.getAll(),
-      ]);
-
-      if (receiptsRes.success && receiptsRes.data) {
-        setData(receiptsRes.data);
+    const fetchBranches = async () => {
+      try {
+        const res = await branchService.getAll();
+        if (res.data) setBranches(res.data);
+      } catch (error) {
+        console.error("Failed to fetch branches:", error);
       }
-      if (receiptsRes.pagination) {
-        setPagination(receiptsRes.pagination);
-      }
-      if (branchesRes.success && branchesRes.data) {
-        setBranches(branchesRes.data);
-      }
-    } catch {
-      toast.error("Không thể tải dữ liệu");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [pagination.page, pagination.limit, debouncedSearch]);
-
-  React.useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handlePageChange = (page: number) => {
-    setPagination((prev) => ({ ...prev, page }));
-  };
-
-  const handleSearch = (search: string) => {
-    setSearchTerm(search);
-  };
+    };
+    fetchBranches();
+  }, []);
 
   const handleView = (item: Receipt) => {
     setSelectedItem(item);
@@ -243,13 +234,7 @@ export default function Page() {
       {
         accessorKey: "totalAmount",
         header: "Tổng tiền",
-        cell: ({ row }) => {
-          const amount = parseFloat(row.getValue("totalAmount"));
-          return new Intl.NumberFormat("vi-VN", {
-            style: "currency",
-            currency: "VND",
-          }).format(amount);
-        },
+        cell: ({ row }) => formatCurrency(row.getValue("totalAmount")),
       },
       {
         accessorKey: "status",
@@ -307,7 +292,44 @@ export default function Page() {
     [branches] // eslint-disable-line react-hooks/exhaustive-deps
   );
 
-  if (isLoading) {
+  const toolbarActions = (
+    <>
+      {isAdmin && (
+        <Select 
+          value={filters.branchId || "all"} 
+          onValueChange={(value) => updateFilter("branchId", value === "all" ? undefined : value)}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Tất cả chi nhánh" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tất cả chi nhánh</SelectItem>
+            {branches.map((branch) => (
+              <SelectItem key={branch._id} value={branch._id}>
+                {branch.branchName}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      <Select 
+        value={filters.status || "all"} 
+        onValueChange={(value) => updateFilter("status", value === "all" ? undefined : value)}
+      >
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Trạng thái" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Tất cả trạng thái</SelectItem>
+          <SelectItem value="pending">Chờ thanh toán</SelectItem>
+          <SelectItem value="completed">Hoàn thành</SelectItem>
+          <SelectItem value="cancelled">Đã hủy</SelectItem>
+        </SelectContent>
+      </Select>
+    </>
+  );
+
+  if (loading) {
     return (
       <div className="flex flex-1 items-center justify-center p-4">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -324,11 +346,43 @@ export default function Page() {
           Tạo hóa đơn
         </Button>
       </div>
+
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatsCard
+          title="Tổng hóa đơn"
+          value={stats?.totalReceipts || 0}
+          icon={FileText}
+          description="Tổng số hóa đơn bán hàng"
+        />
+        <StatsCard
+          title="Chờ xử lý"
+          value={stats?.pendingCount || 0}
+          icon={Clock}
+          description="Hóa đơn chờ thanh toán"
+          trend="neutral"
+        />
+        <StatsCard
+          title="Hoàn thành"
+          value={stats?.completedCount || 0}
+          icon={CheckCircle}
+          description="Hóa đơn đã hoàn tất"
+          trend="positive"
+        />
+        <StatsCard
+          title="Tổng doanh thu"
+          value={formatCurrency(stats?.totalRevenue || 0)}
+          icon={DollarSign}
+          description="Doanh thu từ các đơn thành công"
+        />
+      </div>
+
       <CommonTable
         columns={columns}
         data={data}
         filterCol="code"
         filterPlaceholder="Tìm mã hóa đơn..."
+        toolbarActions={toolbarActions}
         serverPagination={pagination}
         onPageChange={handlePageChange}
         onSearch={handleSearch}
@@ -397,18 +451,20 @@ export default function Page() {
 
               {/* Payment QR Code for transfer payments */}
               {selectedItem.paymentMethod === "transfer" &&
-                selectedItem.paymentInfo?.qrCode && (
+                selectedItem.paymentInfo?.checkoutUrl && (
                   <div className="mt-4 p-4 border rounded-lg bg-muted/50">
                     <h4 className="mb-3 font-medium text-center">
                       Mã QR Thanh toán
                     </h4>
                     <div className="flex flex-col items-center gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={selectedItem.paymentInfo.qrCode}
-                        alt="Payment QR Code"
-                        className="w-48 h-48 border rounded-lg"
-                      />
+                      <div className="p-3 bg-white rounded-lg border">
+                        <QRCodeSVG
+                          value={selectedItem.paymentInfo.checkoutUrl}
+                          size={180}
+                          level="H"
+                          includeMargin
+                        />
+                      </div>
                       <div className="text-center text-sm">
                         <p className="text-muted-foreground">
                           Trạng thái thanh toán:{" "}

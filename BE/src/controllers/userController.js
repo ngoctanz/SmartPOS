@@ -77,6 +77,19 @@ const getAllUser = async (req, res, next) => {
     next(error);
   }
 };
+
+const getStats = async (req, res, next) => {
+  try {
+    const stats = await userService.getStats();
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get user stats successfully",
+      data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 const updateUser = async (req, res, next) => {
   try {
     // Không cho phép update user admin
@@ -179,6 +192,7 @@ export const userController = {
   detailUser,
   searchUser,
   getAllUser,
+  getStats,
   updateUser,
   deleteUser,
   toggleUserStatus,

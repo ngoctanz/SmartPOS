@@ -95,6 +95,42 @@ receiptSchema.index({ "paymentInfo.orderCode": 1 });
 
 // Static methods
 receiptSchema.statics = {
+  async getStats(branchId) {
+    const pipeline = [
+      {
+        $group: {
+            _id: null,
+            totalReceipts: { $sum: 1 },
+            pendingCount: {
+                $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] }
+            },
+            completedCount: {
+                $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] }
+            },
+            cancelledCount: {
+                $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] }
+            },
+            totalRevenue: {
+                 $sum: { $cond: [{ $eq: ["$status", "completed"] }, "$totalAmount", 0] }
+            }
+        }
+    }
+    ];
+
+    if (branchId) {
+        pipeline.unshift({ $match: { branchId: new mongoose.Types.ObjectId(branchId) } });
+    }
+
+    const result = await this.aggregate(pipeline);
+    return result[0] || { 
+        totalReceipts: 0, 
+        pendingCount: 0, 
+        completedCount: 0, 
+        cancelledCount: 0, 
+        totalRevenue: 0 
+    };
+  },
+
   async generateCode() {
     const lastReceipt = await this.findOne().sort({ createdAt: -1 });
     if (!lastReceipt) return "HD001";

@@ -37,6 +37,13 @@ export interface StockQueryParams {
   lowStockOnly?: boolean;
 }
 
+export interface BranchProductStats {
+  totalItems: number;
+  totalQuantity: number;
+  lowStockCount: number;
+}
+
+
 const stockService = {
   /**
    * Get all stock with pagination and search
@@ -51,6 +58,16 @@ const stockService = {
     
     const query = searchParams.toString();
     return apiGet<BranchProduct[]>(`/stock${query ? `?${query}` : ""}`);
+  },
+
+  /**
+   * Get stock stats
+   * GET /api/v1/stock/stats?branchId=xxx
+   */
+  getStats: async (branchId?: string): Promise<ApiResponse<BranchProductStats>> => {
+      const queryParams = new URLSearchParams();
+      if (branchId) queryParams.append("branchId", branchId);
+      return apiGet<BranchProductStats>(`/stock/stats?${queryParams.toString()}`);
   },
 
   /**

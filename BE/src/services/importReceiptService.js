@@ -6,6 +6,15 @@ import ApiError from "../utils/apiError.js";
 import { getDateRange } from "../utils/calculators.js";
 import { validateBranchAccess, buildSecureFilter, validateRecordAccess } from "../utils/branchSecurity.js";
 
+
+const getStats = async (branchId) => {
+    try {
+        return await ImportReceipt.getStats(branchId);
+    } catch (error) {
+        throw new Error(error.message || error);
+    }
+};
+
 const create = async (data, user) => {
   try {
     // Defense-in-depth: Double check branch access
@@ -209,6 +218,7 @@ const getTotalImport = async (period, branchId = null) => {
 };
 
 export const importReceiptService = {
+  getStats,
   create,
   confirm,
   cancel,

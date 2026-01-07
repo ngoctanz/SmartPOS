@@ -1,6 +1,30 @@
 import { Product } from "../models/productModel.js";
 import { Category } from "../models/categoryModel.js";
+import { cloudinaryService } from "./cloudinaryService.js";
 import ApiError from "../utils/apiError.js";
+
+const getPublicIdFromUrl = (url) => {
+  try {
+    if (!url) return null;
+    const splitUrl = url.split("/upload/");
+    if (splitUrl.length < 2) return null;
+    
+    // Get part after /upload/
+    let publicIdWithExtension = splitUrl[1];
+    
+    // Remove version if exists (starts with v and digits followed by /)
+    if (publicIdWithExtension.match(/^v\d+\//)) {
+      publicIdWithExtension = publicIdWithExtension.replace(/^v\d+\//, "");
+    }
+    
+    // Remove extension
+    const publicId = publicIdWithExtension.substring(0, publicIdWithExtension.lastIndexOf("."));
+    return publicId;
+  } catch (error) {
+    console.error("Error extracting publicId from URL:", error);
+    return null;
+  }
+};
 
 const create = async (data) => {
   try {
@@ -23,6 +47,14 @@ const getAll = async (filter = {}) => {
 const getAllPaginated = async (options = {}) => {
   try {
     return await Product.findAllProductsPaginated(options);
+      } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+const getStats = async () => {
+  try {
+    return await Product.getProductStats();
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -82,6 +114,18 @@ const update = async (id, data) => {
     if (data.categoryId) {
       await Category.findCategoryById(data.categoryId);
     }
+
+    // Check if image is being updated
+    if (data.image) {
+      const oldProduct = await Product.findById(id);
+      if (oldProduct && oldProduct.image && oldProduct.image !== data.image) {
+        const publicId = getPublicIdFromUrl(oldProduct.image);
+        if (publicId) {
+          await cloudinaryService.deleteImage(publicId);
+        }
+      }
+    }
+
     return await Product.updateProduct(id, data);
   } catch (error) {
     throw new Error(error.message || error);
@@ -101,6 +145,13 @@ const updateSalePrice = async (id, salePrice) => {
 
 const remove = async (id) => {
   try {
+    const product = await Product.findById(id);
+    if (product && product.image) {
+      const publicId = getPublicIdFromUrl(product.image);
+      if (publicId) {
+        await cloudinaryService.deleteImage(publicId);
+      }
+    }
     return await Product.deleteProduct(id);
   } catch (error) {
     throw new Error(error.message || error);
@@ -112,6 +163,20 @@ const removeMany = async (ids) => {
     if (!Array.isArray(ids) || ids.length === 0) {
       throw new ApiError(400, "Product IDs are required!");
     }
+
+    // Find all products to be deleted to get their images
+    const products = await Product.find({ _id: { $in: ids } });
+    
+    // Delete images from Cloudinary
+    const deleteImagePromises = products
+      .filter(p => p.image)
+      .map(p => {
+        const publicId = getPublicIdFromUrl(p.image);
+        return publicId ? cloudinaryService.deleteImage(publicId) : Promise.resolve();
+      });
+      
+    await Promise.allSettled(deleteImagePromises);
+
     return await Product.deleteManyProducts(ids);
   } catch (error) {
     throw new Error(error.message || error);
@@ -122,6 +187,7 @@ export const productService = {
   create,
   getAll,
   getAllPaginated,
+  getStats,
   getById,
   getByBarcode,
   getByName,

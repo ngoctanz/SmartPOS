@@ -15,6 +15,11 @@ export interface CreateCategoryRequest {
   description?: string;
 }
 
+export interface CategoryStats {
+  total: number;
+}
+
+
 export interface UpdateCategoryRequest {
   name?: string;
   description?: string;
@@ -53,6 +58,14 @@ const categoryService = {
     
     const query = queryParams.toString();
     return apiGet<Category[]>(`/category${query ? `?${query}` : ""}`);
+  },
+
+  /**
+   * Lấy thống kê loại sản phẩm
+   * GET /api/v1/category/stats
+   */
+  getStats: async (): Promise<ApiResponse<CategoryStats>> => {
+    return apiGet<CategoryStats>("/category/stats");
   },
 
   /**

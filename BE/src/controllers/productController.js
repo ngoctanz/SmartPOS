@@ -51,6 +51,20 @@ const getAll = async (req, res, next) => {
   }
 };
 
+const getStats = async (req, res, next) => {
+  try {
+    const stats = await productService.getStats();
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get product stats successfully",
+      data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
 const getById = async (req, res, next) => {
   try {
     const product = await productService.getById(req.params.id);
@@ -162,6 +176,7 @@ const removeMany = async (req, res, next) => {
 export const productController = {
   create,
   getAll,
+  getStats,
   getById,
   getByBarcode,
   search,

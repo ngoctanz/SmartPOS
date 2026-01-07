@@ -47,6 +47,19 @@ const getAll = async (req, res, next) => {
   }
 };
 
+const getStats = async (req, res, next) => {
+  try {
+    const stats = await branchService.getStats();
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get branch stats successfully",
+      data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getById = async (req, res, next) => {
   try {
     const branch = await branchService.getById(req.params.id);
@@ -115,6 +128,7 @@ const deleteMany = async (req, res, next) => {
 export const branchController = {
   create,
   getAll,
+  getStats,
   getById,
   search,
   update,

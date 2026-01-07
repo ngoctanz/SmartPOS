@@ -17,6 +17,13 @@ Router.route("/")
   );
 
 Router.get(
+  "/stats",
+  authMiddleware,
+  authorize("admin"),
+  userController.getStats
+);
+
+Router.get(
   "/search",
   authMiddleware,
   authorize("admin"),

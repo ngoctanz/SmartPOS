@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { CommonTable, ServerPagination } from "@/components/common/common-table";
-import { BranchProduct as IBranchProduct } from "@/service/stock.service";
+import { BranchProduct as IBranchProduct, BranchProductStats } from "@/service/stock.service";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,7 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Package, AlertTriangle } from "lucide-react";
+import { Loader2, Package, AlertTriangle, LayoutGrid, Boxes } from "lucide-react";
+import { StatsCard } from "@/components/common/stats-card";
 
 export default function Page() {
   const { user } = useAuth();
@@ -32,9 +33,15 @@ export default function Page() {
   const [data, setData] = React.useState<IBranchProduct[]>([]);
   const [branches, setBranches] = React.useState<Branch[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [stats, setStats] = React.useState<BranchProductStats>({
+      totalItems: 0,
+      totalQuantity: 0,
+      lowStockCount: 0
+  });
 
   // Filter state
   const [filterBranchId, setFilterBranchId] = React.useState<string>("all");
+  const [filterLowStock, setFilterLowStock] = React.useState<string>("all");
   const [searchTerm, setSearchTerm] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
 
@@ -64,7 +71,7 @@ export default function Page() {
   // Reset page when filter changes
   React.useEffect(() => {
     setPagination((prev) => ({ ...prev, page: 1 }));
-  }, [filterBranchId]);
+  }, [filterBranchId, filterLowStock]);
 
   const handleDeleteMany = (items: IBranchProduct[]) => {
     setSelectedItems(items);
@@ -98,14 +105,17 @@ export default function Page() {
         search: debouncedSearch || undefined,
         page: pagination.page,
         limit: pagination.limit,
+        lowStockOnly: filterLowStock === 'low'
       };
 
-      let res;
-      if (isAdmin && filterBranchId && filterBranchId !== "all") {
-        res = await stockService.getByBranch(filterBranchId, params);
-      } else {
-        res = await stockService.getAll(params);
-      }
+      const targetBranchId = (isAdmin && filterBranchId !== "all") ? filterBranchId : undefined;
+
+      const [res, statsRes] = await Promise.all([
+          targetBranchId 
+            ? stockService.getByBranch(targetBranchId, params)
+            : stockService.getAll(params),
+          stockService.getStats(targetBranchId)
+      ]);
 
       if (res.data) {
         setData(res.data);
@@ -113,13 +123,17 @@ export default function Page() {
       if (res.pagination) {
         setPagination(res.pagination);
       }
+      if (statsRes.data) {
+          setStats(statsRes.data);
+      }
+
     } catch (error) {
       console.error(error);
       toast.error("Không thể tải dữ liệu tồn kho");
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, filterBranchId, debouncedSearch, pagination.page, pagination.limit]);
+  }, [isAdmin, filterBranchId, debouncedSearch, pagination.page, pagination.limit, filterLowStock]);
 
   // Fetch branches
   const fetchBranches = React.useCallback(async () => {
@@ -276,29 +290,13 @@ export default function Page() {
     ],
     [showBranchColumn]
   );
-
-  // Stats
-  const lowStockCount = data.filter((item) => item.stock <= item.minStock).length;
-
-  return (
-    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Quản lý tồn kho</h1>
-          <p className="text-sm text-muted-foreground">
-            {pagination.total} sản phẩm
-            {lowStockCount > 0 && (
-              <span className="text-destructive ml-2">
-                • {lowStockCount} sắp hết hàng
-              </span>
-            )}
-          </p>
-        </div>
-        {/* Branch Filter - Admin only */}
+  
+  // Custom toolbar actions (Filters)
+  const toolbarActions = (
+      <>
         {isAdmin && (
-          <Select value={filterBranchId} onValueChange={setFilterBranchId}>
-            <SelectTrigger className="w-[200px]">
+           <Select value={filterBranchId} onValueChange={setFilterBranchId}>
+            <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Tất cả chi nhánh" />
             </SelectTrigger>
             <SelectContent>
@@ -311,6 +309,49 @@ export default function Page() {
             </SelectContent>
           </Select>
         )}
+        <Select
+            value={filterLowStock}
+            onValueChange={setFilterLowStock}
+        >
+            <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Trạng thái tồn kho" />
+            </SelectTrigger>
+            <SelectContent>
+                <SelectItem value="all">Tất cả trạng thái</SelectItem>
+                <SelectItem value="low">Sắp hết hàng</SelectItem>
+            </SelectContent>
+        </Select>
+      </>
+  );
+
+  return (
+    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold tracking-tight">Quản lý tồn kho</h1>
+      </div>
+      
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatsCard
+          title="Tổng mặt hàng"
+          value={stats.totalItems}
+          icon={Package}
+          description="Số lượng loại sản phẩm trong kho"
+        />
+        <StatsCard
+          title="Tổng số lượng"
+          value={stats.totalQuantity}
+          icon={Boxes}
+          description="Tổng số lượng sản phẩm tất cả các loại"
+        />
+        <StatsCard
+          title="Sắp hết hàng"
+          value={stats.lowStockCount}
+          icon={AlertTriangle}
+          description="Sản phẩm dưới định mức tối thiểu"
+          trend={stats.lowStockCount > 0 ? "critical" : "neutral"}
+        />
       </div>
 
       {/* Table */}
@@ -332,6 +373,7 @@ export default function Page() {
           onBulkAction={handleDeleteMany}
           bulkActionLabel="Xóa đã chọn"
           bulkActionIcon="trash"
+          toolbarActions={toolbarActions}
         />
       )}
 

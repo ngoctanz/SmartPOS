@@ -22,6 +22,14 @@ const getAllUser = async () => {
 const getAllUserPaginated = async (options = {}) => {
   try {
     return await User.findAllUsersPaginated(options);
+      } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+const getStats = async () => {
+  try {
+    return await User.getUserStats();
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -144,6 +152,7 @@ export const userService = {
   getUserByName,
   getAllUser,
   getAllUserPaginated,
+  getStats,
   updateUser,
   deleteUser,
   toggleUserStatus,

@@ -28,6 +28,24 @@ const confirm = async (req, res, next) => {
   }
 };
 
+const getStats = async (req, res, next) => {
+    try {
+        const { branchId } = req.query;
+        // If user is staff, force branchId
+        const effectiveBranchId = req.user.role === 'staff' ? req.user.branchId : branchId;
+
+        const stats = await importReceiptService.getStats(effectiveBranchId);
+        res.status(StatusCodes.OK).json({
+            success: true,
+            message: "Get import receipt stats successfully",
+            data: stats,
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+
 const cancel = async (req, res, next) => {
   try {
     const receipt = await importReceiptService.cancel(req.params.id);
@@ -181,6 +199,7 @@ const getTotalImport = async (req, res, next) => {
 };
 
 export const importReceiptController = {
+  getStats,
   create,
   confirm,
   cancel,

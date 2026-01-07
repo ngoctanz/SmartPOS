@@ -4,6 +4,15 @@ import { Product } from "../models/productModel.js";
 import ApiError from "../utils/apiError.js";
 import { validateBranchAccess, buildSecureFilter } from "../utils/branchSecurity.js";
 
+
+const getStats = async (branchId) => {
+    try {
+        return await BranchProduct.getStats(branchId);
+    } catch (error) {
+        throw new Error(error.message || error);
+    }
+};
+
 const getByBranch = async (branchId, options = {}, user = null) => {
   try {
     if (!branchId || branchId.trim() === "") {
@@ -155,6 +164,7 @@ const deleteStock = async (id) => {
 };
 
 export const branchProductService = {
+  getStats,
   getAll,
   getByBranch,
   getByProduct,

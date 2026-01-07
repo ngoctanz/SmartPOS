@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CommonTable, ServerPagination } from "@/components/common/common-table";
+import { CommonTable } from "@/components/common/common-table";
 import { Product } from "@/service/product.service";
 import { Category } from "@/service/category.service";
 import { ColumnDef } from "@tanstack/react-table";
@@ -11,10 +11,17 @@ import { RowActions } from "@/components/common/row-actions";
 import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
 import { DetailModal } from "@/components/common/detail-modal";
 import { ProductFormModal } from "@/components/forms/product-form-modal";
+import { ProductStats } from "@/components/common/product-stats";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Loader2, Plus, Package, Barcode as BarcodeIcon } from "lucide-react";
+import {
+  Loader2,
+  Plus,
+  Package,
+  Barcode as BarcodeIcon,
+  ChartBar,
+} from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import productService, {
   CreateProductRequest,
@@ -22,8 +29,15 @@ import productService, {
 } from "@/service/product.service";
 import categoryService from "@/service/category.service";
 import Barcode from "react-barcode";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useFilteredTableData } from "@/hooks/useFilteredTableData";
 
-// Helper để lấy tên category từ populated field
 const getCategoryName = (categoryId: Product["categoryId"]): string => {
   if (typeof categoryId === "object" && categoryId?.name) {
     return categoryId.name;
@@ -32,77 +46,46 @@ const getCategoryName = (categoryId: Product["categoryId"]): string => {
 };
 
 export default function Page() {
-  const [data, setData] = React.useState<Product[]>([]);
+  // Use custom hooks
+  const { 
+    data, 
+    loading, 
+    searchTerm, 
+    pagination, 
+    filters,
+    handlePageChange, 
+    handleSearch,
+    updateFilter,
+    refetch 
+  } = useFilteredTableData<Product, { status?: string; categoryId?: string }>({
+    fetchFn: productService.getAll,
+    initialFilters: { status: undefined, categoryId: undefined },
+  });
+
   const [categories, setCategories] = React.useState<Category[]>([]);
-  const [loading, setLoading] = React.useState(true);
   const [selectedItem, setSelectedItem] = React.useState<Product | null>(null);
   const [selectedItems, setSelectedItems] = React.useState<Product[]>([]);
+  const [showStats, setShowStats] = React.useState(true);
 
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  // Server pagination state
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [debouncedSearch, setDebouncedSearch] = React.useState("");
-  const [pagination, setPagination] = React.useState<ServerPagination>({
-    page: 1,
-    limit: 10,
-    total: 0,
-    totalPages: 0,
-  });
-
-  // Debounce search
+  // Fetch categories
   React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
-      setPagination((prev) => ({ ...prev, page: 1 }));
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  // Fetch data
-  const fetchData = React.useCallback(async () => {
-    try {
-      setLoading(true);
-      const [productsRes, categoriesRes] = await Promise.all([
-        productService.getAll({
-          page: pagination.page,
-          limit: pagination.limit,
-          search: debouncedSearch || undefined,
-        }),
-        categoryService.getAll(),
-      ]);
-
-      if (productsRes.data) {
-        setData(productsRes.data);
+    const fetchCategories = async () => {
+      try {
+        const res = await categoryService.getAll();
+        if (res.data) {
+          setCategories(res.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch categories:", error);
       }
-      if (productsRes.pagination) {
-        setPagination(productsRes.pagination);
-      }
-      if (categoriesRes.data) {
-        setCategories(categoriesRes.data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
-      toast.error("Không thể tải dữ liệu");
-    } finally {
-      setLoading(false);
-    }
-  }, [pagination.page, pagination.limit, debouncedSearch]);
-
-  React.useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handlePageChange = (page: number) => {
-    setPagination((prev) => ({ ...prev, page }));
-  };
-
-  const handleSearch = (search: string) => {
-    setSearchTerm(search);
-  };
+    };
+    fetchCategories();
+  }, []);
 
   // Handlers
   const handleView = (item: Product) => {
@@ -146,7 +129,7 @@ export default function Page() {
       }
       setIsFormOpen(false);
       setSelectedItem(null);
-      fetchData();
+      refetch();
     } catch (error: unknown) {
       console.error("Form submit error:", error);
       const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
@@ -164,7 +147,6 @@ export default function Page() {
         await productService.remove(selectedItem._id);
         toast.success("Đã xóa sản phẩm thành công");
       } else if (selectedItems.length > 0) {
-        // Delete multiple using the new bulk API
         const ids = selectedItems.map((item) => item._id);
         await productService.removeMany(ids);
         toast.success(`Đã xóa ${selectedItems.length} sản phẩm thành công`);
@@ -172,7 +154,7 @@ export default function Page() {
       }
       setIsDeleteOpen(false);
       setSelectedItem(null);
-      fetchData();
+      refetch();
     } catch (error: unknown) {
       console.error("Delete error:", error);
       const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
@@ -192,9 +174,7 @@ export default function Page() {
               table.getIsAllPageRowsSelected() ||
               (table.getIsSomePageRowsSelected() && "indeterminate")
             }
-            onCheckedChange={(value) =>
-              table.toggleAllPageRowsSelected(!!value)
-            }
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
             aria-label="Select all"
           />
         ),
@@ -246,10 +226,10 @@ export default function Page() {
             <div className="flex items-center">
               <Barcode
                 value={barcode}
-                width={1}
-                height={30}
-                fontSize={10}
-                margin={0}
+                width={1.5}
+                height={40}
+                fontSize={12}
+                margin={5}
                 displayValue={true}
               />
             </div>
@@ -266,14 +246,11 @@ export default function Page() {
           </div>
         ),
       },
-
       {
         accessorKey: "categoryId",
         header: "Loại",
         cell: ({ row }) => (
-          <Badge variant="outline">
-            {getCategoryName(row.original.categoryId)}
-          </Badge>
+          <Badge variant="outline">{getCategoryName(row.original.categoryId)}</Badge>
         ),
       },
       {
@@ -315,8 +292,7 @@ export default function Page() {
       {
         id: "actions",
         cell: ({ row, table }) => {
-          const isAnyRowSelected =
-            table.getFilteredSelectedRowModel().rows.length > 0;
+          const isAnyRowSelected = table.getFilteredSelectedRowModel().rows.length > 0;
           return (
             <RowActions
               onView={() => handleView(row.original)}
@@ -331,15 +307,63 @@ export default function Page() {
     []
   );
 
+  const toolbarActions = (
+    <>
+      <Select 
+        value={filters.categoryId || "all"} 
+        onValueChange={(value) => updateFilter("categoryId", value === "all" ? undefined : value)}
+      >
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Danh mục" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Tất cả danh mục</SelectItem>
+          {categories.map((cat) => (
+            <SelectItem key={cat._id} value={cat._id}>
+              {cat.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <Select 
+        value={filters.status || "all"} 
+        onValueChange={(value) => updateFilter("status", value === "all" ? undefined : value)}
+      >
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Trạng thái" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Tất cả trạng thái</SelectItem>
+          <SelectItem value="active">Đang bán</SelectItem>
+          <SelectItem value="inactive">Ngừng bán</SelectItem>
+        </SelectContent>
+      </Select>
+    </>
+  )
+
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Quản lý sản phẩm</h1>
-        <Button onClick={handleCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Thêm sản phẩm
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={showStats ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => setShowStats(!showStats)}
+          >
+            <ChartBar className="mr-2 h-4 w-4" />
+            {showStats ? "Ẩn thống kê" : "Hiện thống kê"}
+          </Button>
+          <Button onClick={handleCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Thêm sản phẩm
+          </Button>
+        </div>
       </div>
+
+      {/* Stats Cards */}
+      {showStats && <ProductStats products={data} categories={categories} />}
 
       {loading ? (
         <div className="flex flex-1 items-center justify-center">
@@ -350,10 +374,11 @@ export default function Page() {
           columns={columns}
           data={data}
           filterCol="name"
-          filterPlaceholder="Tìm sản phẩm..."
+          filterPlaceholder="Tìm sản phẩm (Tên, Barcode)..."
           onBulkAction={handleDeleteMany}
           bulkActionLabel="Xóa đã chọn"
           bulkActionIcon="trash"
+          toolbarActions={toolbarActions}
           serverPagination={pagination}
           onPageChange={handlePageChange}
           onSearch={handleSearch}
@@ -440,10 +465,7 @@ export default function Page() {
                   {selectedItem.name}
                 </h2>
                 <div className="mt-2 flex items-center gap-2">
-                  <Badge
-                    variant="secondary"
-                    className="px-3 py-1 text-sm font-normal"
-                  >
+                  <Badge variant="secondary" className="px-3 py-1 text-sm font-normal">
                     {getCategoryName(selectedItem.categoryId)}
                   </Badge>
                   <span className="text-muted-foreground">•</span>
@@ -467,7 +489,11 @@ export default function Page() {
                     Trạng thái
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className={`flex h-2 w-2 rounded-full ${selectedItem.status === "active" ? "bg-green-500" : "bg-gray-400"}`} />
+                    <span
+                      className={`flex h-2 w-2 rounded-full ${
+                        selectedItem.status === "active" ? "bg-green-500" : "bg-gray-400"
+                      }`}
+                    />
                     <span className="font-medium">
                       {selectedItem.status === "active" ? "Đang bán" : "Ngừng bán"}
                     </span>
@@ -476,29 +502,21 @@ export default function Page() {
               </div>
 
               <div className="space-y-2">
-                <h3 className="font-semibold leading-none tracking-tight">
-                  Mô tả
-                </h3>
+                <h3 className="font-semibold leading-none tracking-tight">Mô tả</h3>
                 <div className="rounded-md border bg-muted/10 p-4 text-sm leading-relaxed text-muted-foreground">
                   {selectedItem.desc || (
-                    <span className="italic">
-                      Chưa có mô tả cho sản phẩm này.
-                    </span>
+                    <span className="italic">Chưa có mô tả cho sản phẩm này.</span>
                   )}
                 </div>
               </div>
 
               <div className="mt-auto grid grid-cols-2 gap-4 border-t pt-4 text-xs text-muted-foreground">
                 <div>
-                  <span className="font-medium text-foreground">
-                    Ngày tạo:{" "}
-                  </span>
+                  <span className="font-medium text-foreground">Ngày tạo: </span>
                   {format(new Date(selectedItem.createdAt), "dd/MM/yyyy HH:mm")}
                 </div>
                 <div>
-                  <span className="font-medium text-foreground">
-                    Cập nhật cuối:{" "}
-                  </span>
+                  <span className="font-medium text-foreground">Cập nhật cuối: </span>
                   {format(new Date(selectedItem.updatedAt), "dd/MM/yyyy HH:mm")}
                 </div>
               </div>

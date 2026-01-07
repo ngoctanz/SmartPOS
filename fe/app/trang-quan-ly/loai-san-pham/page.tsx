@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { CommonTable, ServerPagination } from "@/components/common/common-table";
-import { mockCategories } from "@/mock/categories";
+import { CommonTable } from "@/components/common/common-table";
 import { Category } from "@/types/category";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,14 +12,24 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { categoryService } from "@/service";
-import { Loader2 } from "lucide-react";
+import { StatsCard } from "@/components/common/stats-card";
+import { LayoutGrid } from "lucide-react";
+import { useTableData } from "@/hooks/useTableData";
+import { useStats } from "@/hooks/useStats";
 
 export default function Page() {
-  const [data, setData] = useState<Category[]>([])
-  const [loading, setLoading] = useState(false)
+  // Use custom hooks
+  const { data, loading, searchTerm, pagination, handlePageChange, handleSearch, refetch } = 
+    useTableData<Category>({
+      fetchFn: categoryService.getAll,
+    });
+
+  const { stats } = useStats<{ total: number }>({
+    fetchFn: categoryService.getStats,
+  });
   
   const [selectedItem, setSelectedItem] = useState<Category | null>(null)
   const [selectedItems, setSelectedItems] = useState<Category[]>([])
@@ -29,59 +38,6 @@ export default function Page() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false)
   
   const [formData, setFormData] = useState<{ name: string; desc: string }>({ name: "", desc: "" })
-
-  // Server pagination state
-  const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [pagination, setPagination] = useState<ServerPagination>({
-    page: 1,
-    limit: 10,
-    total: 0,
-    totalPages: 0,
-  });
-
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
-      setPagination((prev) => ({ ...prev, page: 1 }));
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await categoryService.getAll({
-        page: pagination.page,
-        limit: pagination.limit,
-        search: debouncedSearch || undefined,
-      });
-      if (res.data) {
-        setData(res.data);
-      }
-      if (res.pagination) {
-        setPagination(res.pagination);
-      }
-    } catch (error) {
-      toast.error("Không thể tải danh sách loại sản phẩm");
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  }, [pagination.page, pagination.limit, debouncedSearch]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handlePageChange = (page: number) => {
-    setPagination((prev) => ({ ...prev, page }));
-  };
-
-  const handleSearch = (search: string) => {
-    setSearchTerm(search);
-  };
 
   const handleCreate = () => {
     setSelectedItem(null);
@@ -125,7 +81,7 @@ export default function Page() {
             toast.success(`Đã xóa ${selectedItems.length} danh mục thành công`)
             setSelectedItems([])
         }
-        fetchData()
+        refetch()
     } catch (error) {
         toast.error("Xóa danh mục thất bại")
         console.error(error)
@@ -151,7 +107,7 @@ export default function Page() {
         toast.success("Tạo danh mục thành công");
       }
       setIsDetailOpen(false);
-      fetchData();
+      refetch();
     } catch (error: any) {
       toast.error(error?.message || "Có lỗi xảy ra");
     }
@@ -229,25 +185,28 @@ export default function Page() {
             </div>
       </div>
 
-      {loading ? (
-        <div className="flex flex-1 items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : (
-        <CommonTable 
-          columns={columns} 
-          data={data} 
-          filterCol="name" 
-          filterPlaceholder="Tìm loại sản phẩm..." 
-          onBulkAction={handleDeleteMany}
-          bulkActionLabel="Xóa đã chọn"
-          bulkActionIcon="trash"
-          serverPagination={pagination}
-          onPageChange={handlePageChange}
-          onSearch={handleSearch}
-          searchValue={searchTerm}
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatsCard
+          title="Tổng danh mục"
+          value={stats?.total || 0}
+          icon={LayoutGrid}
+          description="Số lượng danh mục sản phẩm"
         />
-      )}
+      </div>
+
+      <CommonTable 
+        columns={columns} 
+        data={data} 
+        filterCol="name" 
+        filterPlaceholder="Tìm loại sản phẩm..." 
+        onBulkAction={handleDeleteMany}
+        bulkActionLabel="Xóa đã chọn"
+        bulkActionIcon="trash"
+        serverPagination={pagination}
+        onPageChange={handlePageChange}
+        onSearch={handleSearch}
+        searchValue={searchTerm}
+      />
       
        <ConfirmDeleteDialog 
         open={isDeleteOpen}
@@ -292,16 +251,16 @@ export default function Page() {
                 />
             </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Mô tả</Label>
-                <Input 
-                    value={formData.desc}
-                    onChange={(e) => setFormData({...formData, desc: e.target.value})}
-                    className="col-span-3" 
-                    readOnly={!isEdit} 
-                    disabled={!isEdit}
-                    placeholder="Nhập mô tả"
-                />
-            </div>
+                    <Label className="text-right">Mô tả</Label>
+                    <Input 
+                        value={formData.desc}
+                        onChange={(e) => setFormData({...formData, desc: e.target.value})}
+                        className="col-span-3" 
+                        readOnly={!isEdit} 
+                        disabled={!isEdit}
+                        placeholder="Nhập mô tả"
+                    />
+                </div>
         </div>
       </DetailModal>
     </div>

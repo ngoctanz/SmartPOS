@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { CommonTable, ServerPagination } from "@/components/common/common-table";
-import { ImportReceipt } from "@/service/import-receipt.service";
+import { CommonTable } from "@/components/common/common-table";
+import { ImportReceipt, ImportReceiptStats } from "@/service/import-receipt.service";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -18,13 +18,21 @@ import { DetailModal } from "@/components/common/detail-modal";
 import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
 import { ImportReceiptFormModal } from "@/components/forms/import-receipt-form-modal";
 import { toast } from "sonner";
-import { Loader2, Plus, Check, X } from "lucide-react";
+import { Loader2, Plus, Check, X, FileText, CheckCircle, Clock, DollarSign } from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import { useAuth } from "@/hooks/useAuth";
-import importReceiptService, {
-  CreateImportReceiptRequest,
-} from "@/service/import-receipt.service";
+import importReceiptService, { CreateImportReceiptRequest } from "@/service/import-receipt.service";
 import branchService, { Branch } from "@/service/branch.service";
+import { StatsCard } from "@/components/common/stats-card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useFilteredTableData } from "@/hooks/useFilteredTableData";
+import { useStats } from "@/hooks/useStats";
 
 // Helper để lấy tên từ populated field
 const getBranchName = (branchId: ImportReceipt["branchId"]): string => {
@@ -48,10 +56,7 @@ const getStatusBadge = (status: ImportReceipt["status"]) => {
     pending: { label: "Chờ xử lý", variant: "secondary" as const },
     cancelled: { label: "Đã hủy", variant: "destructive" as const },
   };
-  const { label, variant } = config[status] || {
-    label: status,
-    variant: "outline" as const,
-  };
+  const { label, variant } = config[status] || { label: status, variant: "outline" as const };
   return <Badge variant={variant}>{label}</Badge>;
 };
 
@@ -60,12 +65,29 @@ export default function Page() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
 
-  const [data, setData] = React.useState<ImportReceipt[]>([]);
+  // Use custom hooks
+  const { 
+    data, 
+    loading, 
+    searchTerm, 
+    pagination, 
+    filters,
+    handlePageChange, 
+    handleSearch,
+    updateFilter,
+    refetch 
+  } = useFilteredTableData<ImportReceipt, { branchId?: string; status?: string }>({
+    fetchFn: importReceiptService.getAll,
+    initialFilters: { branchId: undefined, status: undefined },
+  });
+
+  const { stats } = useStats<ImportReceiptStats>({
+    fetchFn: () => importReceiptService.getStats(isAdmin ? filters.branchId : undefined),
+    dependencies: [filters.branchId, isAdmin],
+  });
+
   const [branches, setBranches] = React.useState<Branch[]>([]);
-  const [loading, setLoading] = React.useState(true);
-  const [selectedItem, setSelectedItem] = React.useState<ImportReceipt | null>(
-    null
-  );
+  const [selectedItem, setSelectedItem] = React.useState<ImportReceipt | null>(null);
   const [selectedItems, setSelectedItems] = React.useState<ImportReceipt[]>([]);
 
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
@@ -76,30 +98,21 @@ export default function Page() {
   const [cancelReason, setCancelReason] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  // Server pagination state
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [debouncedSearch, setDebouncedSearch] = React.useState("");
-  const [pagination, setPagination] = React.useState<ServerPagination>({
-    page: 1,
-    limit: 10,
-    total: 0,
-    totalPages: 0,
-  });
-
-  // Debounce search
+  // Fetch branches
   React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
-      setPagination((prev) => ({ ...prev, page: 1 }));
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  // ... (keep fetchData) ...
+    const fetchBranches = async () => {
+      try {
+        const res = await branchService.getAll();
+        if (res.data) setBranches(res.data);
+      } catch (error) {
+        console.error("Failed to fetch branches:", error);
+      }
+    };
+    fetchBranches();
+  }, []);
 
   const handleDeleteMany = (items: ImportReceipt[]) => {
-    // Filter only pending items
-    const pendingItems = items.filter(i => i.status === "pending");
+    const pendingItems = items.filter((i) => i.status === "pending");
     if (pendingItems.length === 0) {
       toast.error("Chỉ có thể hủy các phiếu đang ở trạng thái chờ xử lý");
       return;
@@ -107,7 +120,7 @@ export default function Page() {
     if (pendingItems.length < items.length) {
       toast.warning("Một số phiếu không ở trạng thái chờ xử lý đã bị bỏ qua");
     }
-    
+
     setSelectedItems(pendingItems);
     setSelectedItem(null);
     setCancelReason("");
@@ -117,62 +130,20 @@ export default function Page() {
   const confirmBulkCancel = async () => {
     try {
       setIsSubmitting(true);
-      const promises = selectedItems.map(item => 
+      const promises = selectedItems.map((item) =>
         importReceiptService.cancel(item._id, cancelReason || "Hủy hàng loạt")
       );
       await Promise.all(promises);
       toast.success(`Đã hủy ${selectedItems.length} phiếu nhập`);
       setSelectedItems([]);
       setIsBulkCancelOpen(false);
-      fetchData();
+      refetch();
     } catch (error) {
       console.error("Bulk cancel error:", error);
       toast.error("Có lỗi xảy ra khi hủy phiếu");
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  // Fetch data
-  const fetchData = React.useCallback(async () => {
-    try {
-      setLoading(true);
-      const [receiptsRes, branchesRes] = await Promise.all([
-        importReceiptService.getAll({
-          page: pagination.page,
-          limit: pagination.limit,
-          search: debouncedSearch || undefined,
-        }),
-        branchService.getAll(),
-      ]);
-
-      if (receiptsRes.data) {
-        setData(receiptsRes.data);
-      }
-      if (receiptsRes.pagination) {
-        setPagination(receiptsRes.pagination);
-      }
-      if (branchesRes.data) {
-        setBranches(branchesRes.data);
-      }
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
-      toast.error("Không thể tải dữ liệu");
-    } finally {
-      setLoading(false);
-    }
-  }, [pagination.page, pagination.limit, debouncedSearch]);
-
-  React.useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handlePageChange = (page: number) => {
-    setPagination((prev) => ({ ...prev, page }));
-  };
-
-  const handleSearch = (search: string) => {
-    setSearchTerm(search);
   };
 
   // Handlers
@@ -203,7 +174,7 @@ export default function Page() {
       await importReceiptService.create(formData);
       toast.success("Tạo phiếu nhập thành công!");
       setIsFormOpen(false);
-      fetchData();
+      refetch();
     } catch (error: unknown) {
       console.error("Create error:", error);
       const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
@@ -222,7 +193,7 @@ export default function Page() {
       toast.success("Xác nhận phiếu nhập thành công! Đã cập nhật tồn kho.");
       setIsConfirmOpen(false);
       setSelectedItem(null);
-      fetchData();
+      refetch();
     } catch (error: unknown) {
       console.error("Confirm error:", error);
       const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
@@ -241,7 +212,7 @@ export default function Page() {
       toast.success("Đã hủy phiếu nhập!");
       setIsCancelOpen(false);
       setSelectedItem(null);
-      fetchData();
+      refetch();
     } catch (error: unknown) {
       console.error("Cancel error:", error);
       const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
@@ -261,9 +232,7 @@ export default function Page() {
               table.getIsAllPageRowsSelected() ||
               (table.getIsSomePageRowsSelected() && "indeterminate")
             }
-            onCheckedChange={(value) =>
-              table.toggleAllPageRowsSelected(!!value)
-            }
+            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
             aria-label="Select all"
           />
         ),
@@ -304,10 +273,7 @@ export default function Page() {
         header: "Ngày tạo",
         cell: ({ row }) => {
           try {
-            return format(
-              new Date(row.getValue("createdAt")),
-              "dd/MM/yyyy HH:mm"
-            );
+            return format(new Date(row.getValue("createdAt")), "dd/MM/yyyy HH:mm");
           } catch {
             return row.getValue("createdAt");
           }
@@ -346,6 +312,43 @@ export default function Page() {
     []
   );
 
+  const toolbarActions = (
+    <>
+      {isAdmin && (
+        <Select 
+          value={filters.branchId || "all"} 
+          onValueChange={(value) => updateFilter("branchId", value === "all" ? undefined : value)}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Tất cả chi nhánh" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tất cả chi nhánh</SelectItem>
+            {branches.map((branch) => (
+              <SelectItem key={branch._id} value={branch._id}>
+                {branch.branchName}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      <Select 
+        value={filters.status || "all"} 
+        onValueChange={(value) => updateFilter("status", value === "all" ? undefined : value)}
+      >
+        <SelectTrigger className="w-[180px]">
+          <SelectValue placeholder="Trạng thái" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Tất cả trạng thái</SelectItem>
+          <SelectItem value="pending">Chờ xử lý</SelectItem>
+          <SelectItem value="completed">Hoàn thành</SelectItem>
+          <SelectItem value="cancelled">Đã hủy</SelectItem>
+        </SelectContent>
+      </Select>
+    </>
+  );
+
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
       <div className="flex items-center justify-between">
@@ -354,6 +357,36 @@ export default function Page() {
           <Plus className="mr-2 h-4 w-4" />
           Tạo phiếu nhập
         </Button>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatsCard
+          title="Tổng phiếu nhập"
+          value={stats?.totalReceipts || 0}
+          icon={FileText}
+          description="Tổng số phiếu nhập hàng"
+        />
+        <StatsCard
+          title="Chờ xử lý"
+          value={stats?.pendingCount || 0}
+          icon={Clock}
+          description="Phiếu nhập đang chờ duyệt"
+          trend="neutral"
+        />
+        <StatsCard
+          title="Hoàn thành"
+          value={stats?.completedCount || 0}
+          icon={CheckCircle}
+          description="Phiếu nhập đã hoàn tất"
+          trend="positive"
+        />
+        <StatsCard
+          title="Tổng giá trị nhập"
+          value={formatCurrency(stats?.totalValue || 0)}
+          icon={DollarSign}
+          description="Giá trị hàng đã nhập kho"
+        />
       </div>
 
       {loading ? (
@@ -369,6 +402,7 @@ export default function Page() {
           onBulkAction={handleDeleteMany}
           bulkActionLabel="Hủy đã chọn"
           bulkActionIcon="trash"
+          toolbarActions={toolbarActions}
           serverPagination={pagination}
           onPageChange={handlePageChange}
           onSearch={handleSearch}
@@ -487,9 +521,7 @@ export default function Page() {
               </div>
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Trạng thái</Label>
-                <div className="pt-2">
-                  {getStatusBadge(selectedItem.status)}
-                </div>
+                <div className="pt-2">{getStatusBadge(selectedItem.status)}</div>
               </div>
             </div>
 
@@ -507,18 +539,12 @@ export default function Page() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Người tạo</Label>
-                <Input
-                  value={getCreatedByName(selectedItem.createdBy)}
-                  readOnly
-                />
+                <Input value={getCreatedByName(selectedItem.createdBy)} readOnly />
               </div>
               <div className="space-y-2">
                 <Label className="text-muted-foreground">Ngày tạo</Label>
                 <Input
-                  value={format(
-                    new Date(selectedItem.createdAt),
-                    "dd/MM/yyyy HH:mm"
-                  )}
+                  value={format(new Date(selectedItem.createdAt), "dd/MM/yyyy HH:mm")}
                   readOnly
                 />
               </div>
@@ -549,10 +575,7 @@ export default function Page() {
                   </thead>
                   <tbody>
                     {selectedItem.listProduct.map((p, index) => (
-                      <tr
-                        key={index}
-                        className="border-b last:border-0 hover:bg-muted/50"
-                      >
+                      <tr key={index} className="border-b last:border-0 hover:bg-muted/50">
                         <td className="p-3 py-4">
                           {p.barcode ? (
                             <div className="flex">

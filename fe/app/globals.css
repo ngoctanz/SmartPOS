@@ -47,7 +47,7 @@
 }
 
 :root {
-  --radius: 0.625rem;
+  --radius: 0.375rem;
   --background: #ffffff;
   --foreground: oklch(0.145 0 0);
   --card: #ffffff;
@@ -63,8 +63,8 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
+  --border: oklch(0.85 0 0);
+  --input: oklch(0.85 0 0);
   --ring: #0070f4;
   --chart-1: #0070f4;
   --chart-2: #2d8eff;
@@ -77,7 +77,7 @@
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #0070f4;
   --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-border: oklch(0.85 0 0);
   --sidebar-ring: #0070f4;
 }
 
@@ -123,8 +123,37 @@
     @apply bg-background text-foreground;
   }
 }
+
 @layer utilities {
   .bg-sidebar {
     background-color: var(--sidebar) !important;
   }
+
+  /* Card shadows for light theme */
+  .card-shadow {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  }
+  .card-shadow-md {
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  }
+  .card-shadow-lg {
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1),
+      0 4px 6px -4px rgb(0 0 0 / 0.1);
+  }
+}
+
+/* Enhanced component shadows for light theme */
+:root {
+  /* Apply subtle shadows to cards and popovers */
+  --card-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --popover-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1),
+    0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --dropdown-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+.dark {
+  --card-shadow: none;
+  --popover-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.3);
+  --dropdown-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4);
 }

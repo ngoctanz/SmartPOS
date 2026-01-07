@@ -40,6 +40,12 @@ export interface UserQueryParams {
   branchId?: string;
 }
 
+export interface UserStats {
+  total: number;
+  active: number;
+  inactive: number;
+}
+
 const userService = {
   /**
    * Lấy tất cả người dùng (có phân trang)
@@ -56,6 +62,14 @@ const userService = {
     
     const query = queryParams.toString();
     return apiGet<User[]>(`/user${query ? `?${query}` : ""}`);
+  },
+
+  /**
+   * Lấy thống kê người dùng
+   * GET /api/v1/user/stats
+   */
+  getStats: async (): Promise<ApiResponse<UserStats>> => {
+    return apiGet<UserStats>("/user/stats");
   },
 
   /**

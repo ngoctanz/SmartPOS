@@ -37,7 +37,8 @@ Router.get(
 // Get by branch - cần check branch access
 Router.get("/branch/:branchId", checkBranchAccess, importReceiptController.getByBranch);
 
-// Get by ID - cần validate branch access
+Router.get("/stats", injectUserBranch(), importReceiptController.getStats);
+
 Router.get(
   "/:id",
   validateRecordBranchAccess(async (req) => {
@@ -46,6 +47,7 @@ Router.get(
   }),
   importReceiptController.getById
 );
+
 
 // Admin only - tạo phiếu nhập cần branchId
 Router.post(

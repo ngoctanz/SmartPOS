@@ -38,6 +38,31 @@ branchProductSchema.index({ "products.productId": 1 });
 
 // Static methods
 branchProductSchema.statics = {
+  async getStats(branchId) {
+    const pipeline = [
+      { $unwind: "$products" },
+      {
+        $group: {
+            _id: null,
+            totalItems: { $sum: 1 },
+            totalQuantity: { $sum: "$products.stock" },
+            lowStockCount: {
+                $sum: {
+                    $cond: [{ $lte: ["$products.stock", "$products.minStock"] }, 1, 0]
+                }
+            }
+        }
+    }
+    ];
+
+    if (branchId) {
+        pipeline.unshift({ $match: { branchId: new mongoose.Types.ObjectId(branchId) } });
+    }
+
+    const result = await this.aggregate(pipeline);
+    return result[0] || { totalItems: 0, totalQuantity: 0, lowStockCount: 0 };
+  },
+
   async findAll(options = {}) {
     const { 
       branchId, 

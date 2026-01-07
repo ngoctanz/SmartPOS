@@ -20,6 +20,7 @@ Router.get("/date-range", receiptController.getByDateRange);
 Router.get("/revenue", receiptController.getRevenue);
 Router.get("/daily-revenue", receiptController.getDailyRevenue);
 Router.get("/top-products", receiptController.getTopProducts);
+Router.get("/stats", receiptController.getStats);
 Router.get("/payment-status/:orderCode", receiptController.checkPaymentStatus);
 
 // Get by code - cần validate branch access

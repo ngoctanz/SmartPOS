@@ -62,7 +62,25 @@ export interface TotalImportData {
   totalReceipts: number;
 }
 
+export interface ImportReceiptStats {
+  totalReceipts: number;
+  pendingCount: number;
+  completedCount: number;
+  cancelledCount: number;
+  totalValue: number;
+}
+
 const importReceiptService = {
+  /**
+   * Get stats for import receipts
+   * GET /api/v1/import-receipt/stats
+   */
+  getStats: async (branchId?: string): Promise<ApiResponse<ImportReceiptStats>> => {
+    const queryParams = new URLSearchParams();
+    if (branchId) queryParams.append("branchId", branchId);
+    return apiGet<ImportReceiptStats>(`/import-receipt/stats?${queryParams.toString()}`);
+  },
+
   /**
    * Lấy tất cả phiếu nhập (có phân trang)
    * GET /api/v1/import-receipt

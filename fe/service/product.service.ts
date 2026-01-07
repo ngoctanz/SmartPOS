@@ -61,7 +61,21 @@ export interface ProductQueryParams {
   status?: string;
 }
 
+export interface ProductStats {
+  total: number;
+  active: number;
+  inactive: number;
+}
+
 const productService = {
+  /**
+   * Lấy thống kê sản phẩm
+   * GET /api/v1/product/stats
+   */
+  getStats: async (): Promise<ApiResponse<ProductStats>> => {
+    return apiGet<ProductStats>("/product/stats");
+  },
+
   /**
    * Lấy tất cả sản phẩm (có phân trang)
    * GET /api/v1/product
@@ -71,8 +85,12 @@ const productService = {
     if (params?.page) queryParams.append("page", String(params.page));
     if (params?.limit) queryParams.append("limit", String(params.limit));
     if (params?.search) queryParams.append("search", params.search);
-    if (params?.categoryId) queryParams.append("categoryId", params.categoryId);
-    if (params?.status) queryParams.append("status", params.status);
+    if (params?.categoryId && params.categoryId !== "all") {
+      queryParams.append("categoryId", params.categoryId);
+    }
+    if (params?.status && params?.status !== "all") {
+      queryParams.append("status", params.status);
+    }
     
     const query = queryParams.toString();
     return apiGet<Product[]>(`/product${query ? `?${query}` : ""}`);

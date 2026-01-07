@@ -7,6 +7,15 @@ import { getDateRange } from "../utils/calculators.js";
 import { payosService } from "./payosService.js";
 import { validateBranchAccess, buildSecureFilter, validateRecordAccess } from "../utils/branchSecurity.js";
 
+
+const getStats = async (branchId) => {
+    try {
+        return await Receipt.getStats(branchId);
+    } catch (error) {
+        throw new Error(error.message || error);
+    }
+};
+
 const create = async (data, user) => {
   try {
     // Defense-in-depth: Double check branch access
@@ -26,7 +35,7 @@ const create = async (data, user) => {
       if (stock < item.quantity) {
         throw new ApiError(
           400,
-          `Insufficient stock for ${product.name}. Available: ${stock}, Requested: ${item.quantity}`
+          `Không đủ hàng cho "${product.name}". Tồn kho: ${stock}, Yêu cầu: ${item.quantity}`
         );
       }
 
@@ -59,26 +68,34 @@ const create = async (data, user) => {
 
     // If transfer payment, create PayOS payment link
     if (isTransfer) {
-      const orderCode = payosService.generateOrderCode();
-      const baseUrl = process.env.CLIENT_URL || "http://localhost:3000";
+      try {
+        const orderCode = payosService.generateOrderCode();
+        const baseUrl = process.env.CLIENT_URL || "http://localhost:3000";
 
-      const paymentResult = await payosService.createPaymentLink({
-        orderCode,
-        amount: Math.round(totalAmount),
-        description: `Thanh toan don hang SmartPOS`,
-        returnUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
-        cancelUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
-        expiredAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
-      });
-
-      if (paymentResult.success) {
-        receiptData.paymentInfo = {
+        const paymentResult = await payosService.createPaymentLink({
           orderCode,
-          linkId: paymentResult.data.paymentLinkId,
-          qrCode: paymentResult.data.qrCode,
-          checkoutUrl: paymentResult.data.checkoutUrl,
-          status: "pending",
-        };
+          amount: Math.round(totalAmount),
+          description: `${orderCode}`.slice(0, 25), // Max 25 chars
+          returnUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
+          cancelUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
+          expiredAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+        });
+
+        if (paymentResult.success) {
+          receiptData.paymentInfo = {
+            orderCode,
+            linkId: paymentResult.data.paymentLinkId,
+            qrCode: paymentResult.data.qrCode,
+            checkoutUrl: paymentResult.data.checkoutUrl,
+            status: "pending",
+          };
+        }
+      } catch (payosError) {
+        console.error("PayOS Error:", payosError);
+        throw new ApiError(
+          500,
+          `Lỗi tạo thanh toán PayOS: ${payosError.message}`
+        );
       }
     }
 
@@ -450,6 +467,7 @@ const update = async (id, data) => {
 };
 
 export const receiptService = {
+  getStats,
   create,
   cancel,
   update,
