@@ -108,7 +108,9 @@ export default function Page() {
         lowStockOnly: filterLowStock === 'low'
       };
 
-      const targetBranchId = (isAdmin && filterBranchId !== "all") ? filterBranchId : undefined;
+      const targetBranchId = isAdmin
+          ? (filterBranchId !== "all" ? filterBranchId : undefined)
+          : user?.branchId;
 
       const [res, statsRes] = await Promise.all([
           targetBranchId 
@@ -133,7 +135,7 @@ export default function Page() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, filterBranchId, debouncedSearch, pagination.page, pagination.limit, filterLowStock]);
+  }, [isAdmin, filterBranchId, debouncedSearch, pagination.page, pagination.limit, filterLowStock, user]);
 
   // Fetch branches
   const fetchBranches = React.useCallback(async () => {

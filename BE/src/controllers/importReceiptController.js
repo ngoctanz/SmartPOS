@@ -1,5 +1,6 @@
 import { StatusCodes } from "http-status-codes";
 import { importReceiptService } from "../services/importReceiptService.js";
+import ApiError from "../utils/apiError.js";
 
 const create = async (req, res, next) => {
   try {
@@ -33,10 +34,8 @@ const confirm = async (req, res, next) => {
 const getStats = async (req, res, next) => {
     try {
         const { branchId } = req.query;
-        // If user is staff, force branchId
-        const effectiveBranchId = req.user.role === 'staff' ? req.user.branchId : branchId;
-
-        const stats = await importReceiptService.getStats(effectiveBranchId);
+        // branchId is already injected for staff by middleware
+        const stats = await importReceiptService.getStats(branchId);
         res.status(StatusCodes.OK).json({
             success: true,
             message: "Get import receipt stats successfully",
@@ -65,7 +64,13 @@ const getAll = async (req, res, next) => {
   try {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
-    if (req.query.branchId) filter.branchId = req.query.branchId;
+    
+    // req.query.branchId is handled by middleware (injected for staff)
+    if (req.query.branchId) {
+       filter.branchId = req.query.branchId;
+    }
+    
+    console.log("getAll Filter:", filter); // Debug log
 
     const receipts = await importReceiptService.getAll(filter);
     res.status(StatusCodes.OK).json({
@@ -123,6 +128,9 @@ const getByBranch = async (req, res, next) => {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
 
+    // Permission check is handled by middleware
+
+
     const receipts = await importReceiptService.getByBranch(
       req.params.branchId,
       filter
@@ -141,6 +149,7 @@ const getByBranch = async (req, res, next) => {
 const getByDateRange = async (req, res, next) => {
   try {
     const { startDate, endDate, branchId } = req.query;
+
     const receipts = await importReceiptService.getByDateRange(
       startDate,
       endDate,
@@ -160,6 +169,7 @@ const getByDateRange = async (req, res, next) => {
 const getTotalImport = async (req, res, next) => {
   try {
     const { period, branchId } = req.query;
+
     const result = await importReceiptService.getTotalImport(
       period || "month",
       branchId || null

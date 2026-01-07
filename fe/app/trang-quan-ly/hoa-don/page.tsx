@@ -82,7 +82,9 @@ export default function Page() {
     setIsLoading(true);
     try {
         const status = filterStatus !== "all" ? filterStatus : undefined;
-        const targetBranchId = (isAdmin && filterBranchId !== "all") ? filterBranchId : undefined;
+        const targetBranchId = isAdmin 
+            ? (filterBranchId !== "all" ? filterBranchId : undefined)
+            : user?.branchId;
 
         const [receiptsRes, branchesRes, statsRes] = await Promise.all([
           receiptService.getAll({
@@ -107,7 +109,7 @@ export default function Page() {
     } finally {
       setIsLoading(false);
     }
-  }, [isAdmin, filterBranchId, filterStatus]);
+  }, [isAdmin, filterBranchId, filterStatus, user]);
 
   useEffect(() => {
     fetchData();

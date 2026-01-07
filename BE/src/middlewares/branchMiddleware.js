@@ -9,7 +9,7 @@ export const checkBranchAccess = (req, res, next) => {
   try {
     const { role, branchId: userBranchId } = req.user;
     const requestedBranchId =
-      req.params.branchId || req.body.branchId || req.query.branchId;
+      req.params.branchId || (req.body && req.body.branchId) || req.query.branchId;
 
     // Admin can access all branches
     if (role === "admin") {
@@ -67,7 +67,7 @@ export const injectUserBranch = (req, res, next) => {
     }
 
     // Inject vào body (cho POST/PUT/PATCH)
-    if (!req.body.branchId) {
+    if (isWriteOperation && req.body && !req.body.branchId) {
       req.body.branchId = userBranchId;
     }
     
@@ -76,11 +76,16 @@ export const injectUserBranch = (req, res, next) => {
       req.query.branchId = userBranchId;
     }
 
-    // Kiểm tra nếu user cố tình truyền branchId khác với branchId của mình
-    const requestedBranchId = req.body.branchId || req.query.branchId;
-    if (requestedBranchId && requestedBranchId.toString() !== userBranchId.toString()) {
+    // Kiểm tra nếu user cố tình truyền branchId khác với branchId của mình (bao gồm params, body, query)
+    // Lưu ý: params thường có tên là branchId, nhưng cũng có thể khác tùy route, nhưng chuẩn là branchId
+    const explicitBranchId = 
+        req.params.branchId || 
+        (req.body && req.body.branchId) || 
+        req.query.branchId;
+
+    if (explicitBranchId && explicitBranchId.toString() !== userBranchId.toString()) {
       return next(
-        new ApiError(403, "You can only access your own branch")
+        new ApiError(403, "Forbidden: You can only access your own branch")
       );
     }
 

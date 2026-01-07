@@ -1,5 +1,6 @@
 import { StatusCodes } from "http-status-codes";
 import { receiptService } from "../services/receiptService.js";
+import ApiError from "../utils/apiError.js";
 
 const create = async (req, res, next) => {
   try {
@@ -70,8 +71,14 @@ const getAll = async (req, res, next) => {
   try {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
-    // branchId đã được inject từ middleware cho staff
-    if (req.query.branchId) filter.branchId = req.query.branchId;
+    
+    // Check role to filter by branch
+    if (req.user.role === 'staff') {
+      filter.branchId = req.user.branchId;
+    } else if (req.query.branchId) {
+      filter.branchId = req.query.branchId;
+    }
+
     if (req.query.paymentMethod) filter.paymentMethod = req.query.paymentMethod;
 
     const receipts = await receiptService.getAll(filter);
@@ -117,6 +124,11 @@ const getByBranch = async (req, res, next) => {
     const filter = {};
     if (req.query.status) filter.status = req.query.status;
 
+    // Check permission if staff
+    if (req.user.role === 'staff' && req.user.branchId !== req.params.branchId) {
+       throw new ApiError(StatusCodes.FORBIDDEN, "Forbidden: You do not have permission");
+    }
+
     const receipts = await receiptService.getByBranch(
       req.params.branchId,
       filter
@@ -135,10 +147,12 @@ const getByBranch = async (req, res, next) => {
 const getByDateRange = async (req, res, next) => {
   try {
     const { startDate, endDate, branchId } = req.query;
+    const effectiveBranchId = req.user.role === 'staff' ? req.user.branchId : branchId;
+
     const receipts = await receiptService.getByDateRange(
       startDate,
       endDate,
-      branchId || null
+      effectiveBranchId || null
     );
     res.status(StatusCodes.OK).json({
       success: true,
@@ -154,9 +168,11 @@ const getByDateRange = async (req, res, next) => {
 const getRevenue = async (req, res, next) => {
   try {
     const { period, branchId } = req.query;
+    const effectiveBranchId = req.user.role === 'staff' ? req.user.branchId : branchId;
+
     const result = await receiptService.getRevenue(
       period || "month",
-      branchId || null
+      effectiveBranchId || null
     );
     res.status(StatusCodes.OK).json({
       success: true,
@@ -171,9 +187,11 @@ const getRevenue = async (req, res, next) => {
 const getDailyRevenue = async (req, res, next) => {
   try {
     const { period, branchId } = req.query;
+    const effectiveBranchId = req.user.role === 'staff' ? req.user.branchId : branchId;
+
     const result = await receiptService.getDailyRevenue(
       period || "month",
-      branchId || null
+      effectiveBranchId || null
     );
     res.status(StatusCodes.OK).json({
       success: true,
@@ -188,9 +206,11 @@ const getDailyRevenue = async (req, res, next) => {
 const getTopProducts = async (req, res, next) => {
   try {
     const { period, branchId, limit } = req.query;
+    const effectiveBranchId = req.user.role === 'staff' ? req.user.branchId : branchId;
+
     const result = await receiptService.getTopProducts(
       period || "month",
-      branchId || null,
+      effectiveBranchId || null,
       parseInt(limit) || 10
     );
     res.status(StatusCodes.OK).json({

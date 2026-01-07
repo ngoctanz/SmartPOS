@@ -15,5 +15,6 @@ Router.use(authLimiter);
 Router.post("/login", loginLimiter, authValidation.login, authController.login);
 Router.post("/logout", authMiddleware, authController.logout);
 Router.post("/refresh_token", refreshLimiter, authController.refreshToken);
+Router.get("/me", authMiddleware, authController.me);
 
 export const authRouter = Router;

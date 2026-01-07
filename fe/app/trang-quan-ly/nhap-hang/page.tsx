@@ -139,7 +139,9 @@ export default function Page() {
       setLoading(true);
       
       const status = filterStatus !== "all" ? filterStatus : undefined;
-      const targetBranchId = (isAdmin && filterBranchId !== "all") ? filterBranchId : undefined;
+      const targetBranchId = isAdmin
+          ? (filterBranchId !== "all" ? filterBranchId : undefined)
+          : user?.branchId;
 
       // Note: currently getAll doesn't support complex filters perfectly in one go from default API structure 
       // but we can pass branchId and status query params if getAll supports it
@@ -167,7 +169,7 @@ export default function Page() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, filterBranchId, filterStatus]);
+  }, [isAdmin, filterBranchId, filterStatus, user]);
 
   React.useEffect(() => {
     fetchData();

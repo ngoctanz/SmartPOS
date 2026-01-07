@@ -1,8 +1,12 @@
 import { StatusCodes } from "http-status-codes";
 import { branchProductService } from "../services/branchProductService.js";
+import ApiError from "../utils/apiError.js";
 
 const getByBranch = async (req, res, next) => {
   try {
+    // Permission check handled by middleware
+
+
     const { search, page, limit, lowStockOnly } = req.query;
     const options = {
       search,
@@ -26,10 +30,8 @@ const getByBranch = async (req, res, next) => {
 const getStats = async (req, res, next) => {
     try {
         const { branchId } = req.query;
-        // If user is staff, force branchId
-        const effectiveBranchId = req.user.role === 'staff' ? req.user.branchId : branchId;
-
-        const stats = await branchProductService.getStats(effectiveBranchId);
+        // branchId is already injected for staff by middleware
+        const stats = await branchProductService.getStats(branchId);
         res.status(StatusCodes.OK).json({
             success: true,
             message: "Get stock stats successfully",
@@ -57,6 +59,10 @@ const getByProduct = async (req, res, next) => {
 const getStock = async (req, res, next) => {
   try {
     const { branchId, productId } = req.params;
+    
+    // Permission check handled by middleware
+
+
     const stock = await branchProductService.getStock(branchId, productId);
     res.status(StatusCodes.OK).json({
       success: true,
@@ -71,6 +77,10 @@ const getStock = async (req, res, next) => {
 const setMinStock = async (req, res, next) => {
   try {
     const { branchId, productId } = req.params;
+    
+    // Permission check handled by middleware
+
+
     const { minStock } = req.body;
     const result = await branchProductService.setMinStock(branchId, productId, minStock);
     res.status(StatusCodes.OK).json({
@@ -85,6 +95,9 @@ const setMinStock = async (req, res, next) => {
 
 const getLowStock = async (req, res, next) => {
   try {
+    // Permission check handled by middleware
+
+    
     const lowStockProducts = await branchProductService.getLowStock(req.params.branchId);
     res.status(StatusCodes.OK).json({
       success: true,
@@ -100,6 +113,10 @@ const getLowStock = async (req, res, next) => {
 const checkAvailability = async (req, res, next) => {
   try {
     const { branchId, productId } = req.params;
+    
+    // Permission check handled by middleware
+
+
     const { quantity } = req.query;
     const result = await branchProductService.checkStockAvailability(
       branchId,
@@ -120,8 +137,11 @@ const getAll = async (req, res, next) => {
   try {
     const { branchId, search, page, limit, lowStockOnly } = req.query;
     
+    // branchId is already injected for staff by middleware
+    let effectiveBranchId = branchId;
+    
     const options = {
-      branchId,
+      branchId: effectiveBranchId,
       search,
       page: parseInt(page) || 1,
       limit: parseInt(limit) || 20,
