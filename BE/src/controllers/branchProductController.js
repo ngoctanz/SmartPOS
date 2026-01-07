@@ -11,7 +11,8 @@ const getByBranch = async (req, res, next) => {
       lowStockOnly: lowStockOnly === "true",
     };
     
-    const result = await branchProductService.getByBranch(req.params.branchId, options);
+    // Pass user for defense-in-depth security
+    const result = await branchProductService.getByBranch(req.params.branchId, options, req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get stock by branch successfully",
@@ -68,7 +69,8 @@ const setMinStock = async (req, res, next) => {
 
 const getLowStock = async (req, res, next) => {
   try {
-    const lowStockProducts = await branchProductService.getLowStock(req.params.branchId);
+    // Pass user for defense-in-depth security
+    const lowStockProducts = await branchProductService.getLowStock(req.params.branchId, req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get low stock products successfully",
@@ -111,7 +113,8 @@ const getAll = async (req, res, next) => {
       lowStockOnly: lowStockOnly === "true",
     };
     
-    const result = await branchProductService.getAll(options);
+    // Pass user for defense-in-depth security
+    const result = await branchProductService.getAll(options, req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get all stock successfully",
@@ -126,8 +129,8 @@ const getAll = async (req, res, next) => {
 const create = async (req, res, next) => {
   try {
     // branchId đã được inject từ middleware cho staff
-    // Admin có thể chỉ định branchId trong body
-    const data = await branchProductService.create(req.body);
+    // Pass user for defense-in-depth security
+    const data = await branchProductService.create(req.body, req.user);
     res.status(StatusCodes.CREATED).json({
       success: true,
       message: "Stock report created successfully",

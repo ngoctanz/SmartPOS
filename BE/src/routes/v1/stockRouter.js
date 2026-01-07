@@ -1,20 +1,21 @@
 import express from "express";
 import { branchProductController } from "../../controllers/branchProductController.js";
 import { authMiddleware, authorize } from "../../middlewares/authMiddleware.js";
-import { injectUserBranch } from "../../middlewares/branchMiddleware.js";
+import { injectUserBranch, checkBranchAccess } from "../../middlewares/branchMiddleware.js";
 
 const Router = express.Router();
 
 Router.use(authMiddleware);
-Router.use(injectUserBranch); 
+Router.use(injectUserBranch()); 
 
-// Get stock info
-Router.get("/branch/:branchId", branchProductController.getByBranch);
+// Get stock info - cần check branch access cho routes có :branchId
+Router.get("/branch/:branchId", checkBranchAccess, branchProductController.getByBranch);
 Router.get("/product/:productId", branchProductController.getByProduct);
-Router.get("/branch/:branchId/product/:productId", branchProductController.getStock);
-Router.get("/branch/:branchId/low-stock", branchProductController.getLowStock);
+Router.get("/branch/:branchId/product/:productId", checkBranchAccess, branchProductController.getStock);
+Router.get("/branch/:branchId/low-stock", checkBranchAccess, branchProductController.getLowStock);
 Router.get(
   "/branch/:branchId/product/:productId/check",
+  checkBranchAccess,
   branchProductController.checkAvailability
 );
 

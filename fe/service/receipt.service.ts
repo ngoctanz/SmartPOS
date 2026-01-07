@@ -32,7 +32,7 @@ export interface Receipt {
 }
 
 export interface CreateReceiptRequest {
-  branchId: string;
+  branchId?: string; // Optional: Staff không cần gửi (backend inject), Admin bắt buộc
   listProduct: {
     productId: string;
     productName: string;

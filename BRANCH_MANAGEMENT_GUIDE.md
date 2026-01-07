@@ -10,6 +10,96 @@ Dự án đã được cập nhật để hỗ trợ quản lý đa chi nhánh v
 
 ---
 
+## 🔒 Bảo mật Chi nhánh (Branch Security)
+
+### Kiến trúc Defense-in-Depth
+
+Hệ thống sử dụng **2 lớp bảo vệ** để đảm bảo an toàn tối đa:
+
+```
+Request → Middleware Layer → Controller → Service Layer → Database
+              ↓                              ↓
+         injectUserBranch()           validateBranchAccess()
+         checkBranchAccess()          buildSecureFilter()
+         validateRecordBranchAccess() validateRecordAccess()
+```
+
+### Lớp 1: Middleware Layer (First Line of Defense)
+
+#### 1. `injectUserBranch()` - Tự động inject branchId
+- Áp dụng cho: GET (list), POST, PUT, PATCH
+- Staff: Tự động inject branchId từ token vào `req.body` và `req.query`
+- Admin: Phải truyền branchId cho các thao tác ghi (POST/PUT/PATCH)
+- **Chặn**: Staff cố tình truyền branchId khác → 403 Forbidden
+
+#### 2. `checkBranchAccess` - Kiểm tra quyền truy cập branch
+- Áp dụng cho: Routes có `:branchId` trong params
+- Staff: Chỉ được truy cập branchId của mình
+- Admin: Được truy cập tất cả
+- **Chặn**: Staff truy cập `/stock/branch/OTHER_BRANCH_ID` → 403 Forbidden
+
+#### 3. `validateRecordBranchAccess` - Kiểm tra quyền truy cập record
+- Áp dụng cho: GET /:id, GET /code/:code (xem chi tiết)
+- Fetch record từ DB, kiểm tra branchId của record có khớp với user không
+- **Chặn**: Staff xem hóa đơn của chi nhánh khác → 403 Forbidden
+
+### Lớp 2: Service Layer (Second Line of Defense)
+
+File: `BE/src/utils/branchSecurity.js`
+
+#### 1. `validateBranchAccess(user, branchId, action)`
+- Double-check quyền truy cập branch trước khi thực hiện thao tác
+- Được gọi trong các service functions như `create()`, `getByBranch()`
+
+#### 2. `buildSecureFilter(user, baseFilter)`
+- Tự động thêm `branchId` vào filter cho staff
+- Đảm bảo staff không thể bypass filter
+
+#### 3. `validateRecordAccess(user, record, recordType)`
+- Kiểm tra record có thuộc branch của user không
+- Được gọi sau khi fetch record từ DB
+
+### Lợi ích của Defense-in-Depth
+
+| Scenario | Middleware | Service | Result |
+|----------|------------|---------|--------|
+| Normal request | ✅ Pass | ✅ Pass | Success |
+| Middleware bug | ❌ Bypass | ✅ Block | Protected |
+| Dev quên middleware | ❌ Missing | ✅ Block | Protected |
+| Both layers fail | ❌ Fail | ❌ Fail | Vulnerable |
+
+**Xác suất bị tấn công thành công = P(middleware fail) × P(service fail) ≈ 0**
+
+### Bảng tổng hợp bảo mật
+
+| Route | Middleware | Mô tả |
+|-------|------------|-------|
+| `GET /receipt` | `injectUserBranch` | Staff chỉ thấy hóa đơn chi nhánh mình |
+| `GET /receipt/:id` | `validateRecordBranchAccess` | Staff chỉ xem được hóa đơn chi nhánh mình |
+| `GET /receipt/code/:code` | `validateRecordBranchAccess` | Staff chỉ xem được hóa đơn chi nhánh mình |
+| `POST /receipt` | `injectUserBranch` | Tự động gán branchId của staff |
+| `GET /stock/branch/:branchId` | `checkBranchAccess` | Staff chỉ xem được kho chi nhánh mình |
+| `GET /import-receipt/:id` | `validateRecordBranchAccess` | Staff chỉ xem được phiếu nhập chi nhánh mình |
+
+### Ví dụ tấn công bị chặn
+
+```javascript
+// ❌ Staff cố tình truyền branchId khác
+POST /receipt
+{ "branchId": "OTHER_BRANCH_ID", "items": [...] }
+// → 403: "You can only access your own branch"
+
+// ❌ Staff cố xem hóa đơn chi nhánh khác
+GET /receipt/HD001  // HD001 thuộc chi nhánh khác
+// → 403: "You do not have access to this record"
+
+// ❌ Staff cố xem kho chi nhánh khác
+GET /stock/branch/OTHER_BRANCH_ID
+// → 403: "You do not have access to this branch"
+```
+
+---
+
 ## Backend Changes
 
 ### 1. JWT Token bao gồm branchId
@@ -42,10 +132,15 @@ Các routes sau đã thêm middleware `injectUserBranch`:
 - `BE/src/routes/v1/receiptRouter.js`
 - `BE/src/routes/v1/importReceiptRouter.js`
 - `BE/src/routes/v1/stockRouter.js`
+- `BE/src/routes/v1/dashboardRouter.js`
 
 ```javascript
 Router.use(authMiddleware);
-Router.use(injectUserBranch); // ✅ Tự động inject branchId
+Router.use(injectUserBranch()); // ✅ Factory function - tự động inject branchId
+
+// Hoặc với options
+Router.use(injectUserBranch({ requireBranchForWrite: true })); // Admin phải truyền branchId cho POST/PUT/PATCH
+Router.use(injectUserBranch({ requireBranchForWrite: false })); // Không bắt buộc branchId
 ```
 
 ### 4. Controllers đã được đơn giản hóa

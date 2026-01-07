@@ -2,12 +2,19 @@ import { BranchProduct } from "../models/branchProductModel.js";
 import { Branch } from "../models/branchModel.js";
 import { Product } from "../models/productModel.js";
 import ApiError from "../utils/apiError.js";
+import { validateBranchAccess, buildSecureFilter } from "../utils/branchSecurity.js";
 
-const getByBranch = async (branchId, options = {}) => {
+const getByBranch = async (branchId, options = {}, user = null) => {
   try {
     if (!branchId || branchId.trim() === "") {
       throw new ApiError(400, "Branch ID is required!");
     }
+    
+    // Defense-in-depth: Validate branch access
+    if (user) {
+      validateBranchAccess(user, branchId, "view stock for");
+    }
+    
     await Branch.findBranchById(branchId);
     return await BranchProduct.findByBranch(branchId, options);
   } catch (error) {
@@ -46,11 +53,17 @@ const setMinStock = async (branchId, productId, minStock) => {
   }
 };
 
-const getLowStock = async (branchId) => {
+const getLowStock = async (branchId, user = null) => {
   try {
     if (!branchId || branchId.trim() === "") {
       throw new ApiError(400, "Branch ID is required!");
     }
+    
+    // Defense-in-depth: Validate branch access
+    if (user) {
+      validateBranchAccess(user, branchId, "view low stock for");
+    }
+    
     return await BranchProduct.getLowStockByBranch(branchId);
   } catch (error) {
     throw new Error(error.message || error);
@@ -71,21 +84,21 @@ const checkStockAvailability = async (branchId, productId, quantity) => {
   }
 };
 
-const getAll = async (options = {}) => {
+const getAll = async (options = {}, user = null) => {
   try {
+    // Defense-in-depth: Apply secure filter if user provided
+    if (user && user.role !== 'admin' && user.branchId) {
+      options.branchId = user.branchId;
+    }
     return await BranchProduct.findAll(options);
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
-const create = async (data) => {
+const create = async (data, user = null) => {
   try {
     // data: { branchId, items: [{ productId, stock, minStock }] }
-    // If usage is single item creation from admin, wrap in list.
-    // If usage is bulk report from manager, it's a list.
-    // Let's support { branchId, productId, stock, minStock } (old single) and { branchId, items } (new bulk)
-    
     let { branchId, items, productId, stock, minStock } = data;
     
     if (!items && productId) {
@@ -94,6 +107,11 @@ const create = async (data) => {
     
     if (!branchId || !items || items.length === 0) {
         throw new ApiError(400, "Branch and items are required");
+    }
+
+    // Defense-in-depth: Validate branch access
+    if (user) {
+      validateBranchAccess(user, branchId, "create stock for");
     }
 
     return await BranchProduct.bulkUpdateStock(branchId, items);

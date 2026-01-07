@@ -4,10 +4,14 @@ import { BranchProduct } from "../models/branchProductModel.js";
 import { Branch } from "../models/branchModel.js";
 import ApiError from "../utils/apiError.js";
 import { getDateRange } from "../utils/calculators.js";
+import { validateBranchAccess, buildSecureFilter, validateRecordAccess } from "../utils/branchSecurity.js";
 
-const create = async (data, userId) => {
+const create = async (data, user) => {
   try {
-    // Validate branch
+    // Defense-in-depth: Double check branch access
+    validateBranchAccess(user, data.branchId, "create import receipt for");
+    
+    // Validate branch exists
     await Branch.findBranchById(data.branchId);
 
     // Prepare list products
@@ -33,7 +37,7 @@ const create = async (data, userId) => {
     const receiptData = {
       branchId: data.branchId,
       supplierName: data.supplierName || "",
-      createdBy: userId,
+      createdBy: user.userId,
       listProduct,
       totalAmount,
       status: "pending",
@@ -86,34 +90,47 @@ const cancel = async (id) => {
   }
 };
 
-const getAll = async (filter = {}) => {
+const getAll = async (filter = {}, user = null) => {
   try {
-    return await ImportReceipt.findAllImportReceipts(filter);
+    // Defense-in-depth: Apply secure filter if user provided
+    const secureFilter = user ? buildSecureFilter(user, filter) : filter;
+    return await ImportReceipt.findAllImportReceipts(secureFilter);
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
-const getAllPaginated = async (options = {}) => {
+const getAllPaginated = async (options = {}, user = null) => {
   try {
+    // Defense-in-depth: Ensure branchId filter for staff
+    if (user && user.role !== 'admin' && user.branchId) {
+      options.branchId = user.branchId;
+    }
     return await ImportReceipt.findAllImportReceiptsPaginated(options);
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
-const getById = async (id) => {
+const getById = async (id, user = null) => {
   try {
     if (!id || id.trim() === "") {
       throw new ApiError(400, "Import receipt ID is required!");
     }
-    return await ImportReceipt.findImportReceiptById(id);
+    const receipt = await ImportReceipt.findImportReceiptById(id);
+    
+    // Defense-in-depth: Validate access if user provided
+    if (user) {
+      validateRecordAccess(user, receipt, "import receipt");
+    }
+    
+    return receipt;
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
-const getByCode = async (code) => {
+const getByCode = async (code, user = null) => {
   try {
     if (!code || code.trim() === "") {
       throw new ApiError(400, "Code is required!");
@@ -122,13 +139,19 @@ const getByCode = async (code) => {
     if (!receipt) {
       throw new ApiError(404, "Import receipt not found");
     }
+    
+    // Defense-in-depth: Validate access if user provided
+    if (user) {
+      validateRecordAccess(user, receipt, "import receipt");
+    }
+    
     return receipt;
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
-const getByBarcode = async (barcode) => {
+const getByBarcode = async (barcode, user = null) => {
   try {
     if (!barcode || barcode.trim() === "") {
       throw new ApiError(400, "Barcode is required!");
@@ -137,6 +160,12 @@ const getByBarcode = async (barcode) => {
     if (!receipt) {
       throw new ApiError(404, "Import receipt not found");
     }
+    
+    // Defense-in-depth: Validate access if user provided
+    if (user) {
+      validateRecordAccess(user, receipt, "import receipt");
+    }
+    
     return receipt;
   } catch (error) {
     throw new Error(error.message || error);

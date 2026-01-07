@@ -3,10 +3,8 @@ import { importReceiptService } from "../services/importReceiptService.js";
 
 const create = async (req, res, next) => {
   try {
-    const receipt = await importReceiptService.create(
-      req.body,
-      req.user.userId
-    );
+    // Pass full user object for defense-in-depth security check
+    const receipt = await importReceiptService.create(req.body, req.user);
     res.status(StatusCodes.CREATED).json({
       success: true,
       message: "Import receipt created successfully!",
@@ -56,7 +54,8 @@ const getAll = async (req, res, next) => {
         page: parseInt(page) || 1,
         limit: parseInt(limit) || 20,
       };
-      const result = await importReceiptService.getAllPaginated(options);
+      // Pass user for defense-in-depth security
+      const result = await importReceiptService.getAllPaginated(options, req.user);
       return res.status(StatusCodes.OK).json({
         success: true,
         message: "Get import receipts successfully",
@@ -70,7 +69,8 @@ const getAll = async (req, res, next) => {
     if (status) filter.status = status;
     if (branchId) filter.branchId = branchId;
 
-    const receipts = await importReceiptService.getAll(filter);
+    // Pass user for defense-in-depth security
+    const receipts = await importReceiptService.getAll(filter, req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get import receipts successfully",
@@ -84,7 +84,8 @@ const getAll = async (req, res, next) => {
 
 const getById = async (req, res, next) => {
   try {
-    const receipt = await importReceiptService.getById(req.params.id);
+    // Pass user for defense-in-depth security
+    const receipt = await importReceiptService.getById(req.params.id, req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get import receipt successfully",
@@ -97,7 +98,8 @@ const getById = async (req, res, next) => {
 
 const getByCode = async (req, res, next) => {
   try {
-    const receipt = await importReceiptService.getByCode(req.params.code);
+    // Pass user for defense-in-depth security
+    const receipt = await importReceiptService.getByCode(req.params.code, req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get import receipt successfully",
@@ -110,7 +112,8 @@ const getByCode = async (req, res, next) => {
 
 const getByBarcode = async (req, res, next) => {
   try {
-    const receipt = await importReceiptService.getByBarcode(req.params.barcode);
+    // Pass user for defense-in-depth security
+    const receipt = await importReceiptService.getByBarcode(req.params.barcode, req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get import receipt by barcode successfully",

@@ -6,7 +6,7 @@ import { injectUserBranch } from "../../middlewares/branchMiddleware.js";
 const Router = express.Router();
 
 Router.use(authMiddleware);
-Router.use(injectUserBranch); // Tự động inject branchId cho staff
+Router.use(injectUserBranch()); // Tự động inject branchId cho staff
 
 // Dashboard routes - Admin only
 Router.get(

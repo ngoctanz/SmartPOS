@@ -183,8 +183,10 @@ export default function CreateImportReceiptPage() {
 
     setIsSubmitting(true);
     try {
+      // Staff không cần gửi branchId - backend tự inject từ token
+      // Admin bắt buộc phải gửi branchId
       const receiptData: CreateImportReceiptRequest = {
-        branchId: selectedBranch,
+        ...(isAdmin && { branchId: selectedBranch }),
         listProduct: importItems.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
@@ -193,10 +195,6 @@ export default function CreateImportReceiptPage() {
         supplierName: supplierName || undefined,
         note: note || undefined,
       };
-
-      if (!isAdmin) {
-        delete receiptData.branchId;
-      }
 
       const response = await importReceiptService.create(receiptData);
 

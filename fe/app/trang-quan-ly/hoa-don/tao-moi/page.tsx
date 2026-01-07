@@ -177,7 +177,8 @@ export default function CreateReceiptPage() {
 
   // Submit - Direct without confirmation for speed
   const handleSubmit = React.useCallback(async () => {
-    if (!selectedBranch) {
+    // Admin phải chọn chi nhánh, staff không cần (backend tự inject)
+    if (isAdmin && !selectedBranch) {
       toast.error("Vui lòng chọn chi nhánh");
       return;
     }
@@ -194,8 +195,10 @@ export default function CreateReceiptPage() {
         0
       );
 
+      // Staff không cần gửi branchId - backend tự inject từ token
+      // Admin bắt buộc phải gửi branchId
       const receiptData: CreateReceiptRequest = {
-        branchId: selectedBranch,
+        ...(isAdmin && { branchId: selectedBranch }),
         listProduct: cartItems.map((item) => ({
           productId: item.productId,
           productName: item.productName,
@@ -228,7 +231,7 @@ export default function CreateReceiptPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedBranch, cartItems, paymentMethod]);
+  }, [selectedBranch, cartItems, paymentMethod, isAdmin]);
 
   // Keyboard shortcuts - F9 to submit directly
   React.useEffect(() => {

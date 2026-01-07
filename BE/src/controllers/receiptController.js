@@ -4,7 +4,8 @@ import { receiptService } from "../services/receiptService.js";
 const create = async (req, res, next) => {
   try {
     // branchId đã được inject từ middleware hoặc từ request body (admin)
-    const receipt = await receiptService.create(req.body, req.user.userId);
+    // Pass full user object for defense-in-depth security check
+    const receipt = await receiptService.create(req.body, req.user);
 
     // If transfer payment, include payment info in response
     const responseData = {
@@ -62,7 +63,8 @@ const getAll = async (req, res, next) => {
         page: parseInt(page) || 1,
         limit: parseInt(limit) || 20,
       };
-      const result = await receiptService.getAllPaginated(options);
+      // Pass user for defense-in-depth security
+      const result = await receiptService.getAllPaginated(options, req.user);
       return res.status(StatusCodes.OK).json({
         success: true,
         message: "Get receipts successfully",
@@ -77,7 +79,8 @@ const getAll = async (req, res, next) => {
     if (branchId) filter.branchId = branchId;
     if (paymentMethod) filter.paymentMethod = paymentMethod;
 
-    const receipts = await receiptService.getAll(filter);
+    // Pass user for defense-in-depth security
+    const receipts = await receiptService.getAll(filter, req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get receipts successfully",
@@ -91,7 +94,8 @@ const getAll = async (req, res, next) => {
 
 const getById = async (req, res, next) => {
   try {
-    const receipt = await receiptService.getById(req.params.id);
+    // Pass user for defense-in-depth security
+    const receipt = await receiptService.getById(req.params.id, req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get receipt successfully",
@@ -104,7 +108,8 @@ const getById = async (req, res, next) => {
 
 const getByCode = async (req, res, next) => {
   try {
-    const receipt = await receiptService.getByCode(req.params.code);
+    // Pass user for defense-in-depth security
+    const receipt = await receiptService.getByCode(req.params.code, req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get receipt successfully",
