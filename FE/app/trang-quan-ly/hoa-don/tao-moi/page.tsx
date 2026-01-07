@@ -24,7 +24,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { usePaymentNotifications } from "@/hooks/usePaymentNotifications";
+import { useSocket } from "@/hooks/useSocket";
 import { formatCurrency } from "@/utils/format.utils";
 
 export default function CreateReceiptPage() {
@@ -44,8 +44,8 @@ export default function CreateReceiptPage() {
   const [showQRDialog, setShowQRDialog] = React.useState(false);
   const [paymentData, setPaymentData] = React.useState<Receipt | null>(null);
 
-  // Real-time payment notifications
-  usePaymentNotifications({
+  // Real-time payment notifications via WebSocket
+  useSocket({
     onPaymentSuccess: (data) => {
       toast.success(
         `Đơn hàng ${

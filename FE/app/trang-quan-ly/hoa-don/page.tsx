@@ -61,7 +61,9 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useFilteredTableData } from "@/hooks/useFilteredTableData";
 import { useStats } from "@/hooks/useStats";
-import { usePaymentNotifications } from "@/hooks/usePaymentNotifications";
+import { useSocket } from "@/hooks/useSocket";
+import { toast } from "sonner";
+import { formatCurrency } from "@/utils/format.utils";
 
 export default function Page() {
   const router = useRouter();
@@ -99,8 +101,8 @@ export default function Page() {
   const [selectedReceipts, setSelectedReceipts] = React.useState<Receipt[]>([]);
   const multiplePrintRef = React.useRef<HTMLDivElement>(null);
 
-  // Real-time payment notifications
-  usePaymentNotifications({
+  // Real-time payment notifications via WebSocket
+  useSocket({
     onPaymentSuccess: (data) => {
       toast.success(
         `Đơn hàng ${
@@ -187,7 +189,8 @@ export default function Page() {
     branchId: string | { _id: string; branchName: string } | null | undefined
   ) => {
     if (!branchId) return "—";
-    if (typeof branchId === "object" && branchId?.branchName) return branchId.branchName;
+    if (typeof branchId === "object" && branchId?.branchName)
+      return branchId.branchName;
     const branch = branches.find((b) => b._id === branchId);
     return branch ? branch.branchName : "—";
   };

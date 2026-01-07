@@ -3,13 +3,16 @@ import { APIs_V1 } from "./routes/v1/index.js";
 import "dotenv/config";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import { createServer } from "http";
 import {
   errorHandlingMiddleware,
   notFoundHandler,
 } from "./middlewares/errorHandlingMiddlewares.js";
 import { CONNECT_DB } from "./config/mongodb.js";
+import { socketService } from "./services/socketService.js";
 
 const app = express();
+const httpServer = createServer(app);
 const port = process.env.APP_PORT;
 const host = process.env.APP_HOST;
 
@@ -47,7 +50,10 @@ const START_SERVER = () => {
   //xử lí lỗi tập trung
   app.use(errorHandlingMiddleware);
 
-  app.listen(port, host, () => {
+  // Initialize WebSocket server
+  socketService.initializeSocket(httpServer);
+
+  httpServer.listen(port, host, () => {
     console.log(`Example app listening on http://${host}:${port}`);
   });
 };

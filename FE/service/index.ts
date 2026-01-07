@@ -8,6 +8,7 @@ export { default as receiptService } from "./receipt.service";
 export { default as importReceiptService } from "./import-receipt.service";
 export { default as stockService } from "./stock.service";
 export { default as dashboardService } from "./dashboard.service";
+export { default as notificationService } from "./notification.service";
 
 // Export API utilities
 export { setAccessToken, getAccessToken } from "./api.service";

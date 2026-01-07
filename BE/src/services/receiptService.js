@@ -5,7 +5,7 @@ import { Branch } from "../models/branchModel.js";
 import ApiError from "../utils/apiError.js";
 import { getDateRange } from "../utils/calculators.js";
 import { payosService } from "./payosService.js";
-import { notificationService } from "./notificationService.js";
+import { socketService } from "./socketService.js";
 import {
   validateBranchAccess,
   buildSecureFilter,
@@ -347,8 +347,8 @@ const handlePaymentWebhook = async (webhookData) => {
 
       console.log(`[Webhook] ✓ Payment confirmed for receipt: ${receipt.code}`);
 
-      // Broadcast payment success notification to connected clients
-      notificationService.broadcastPaymentSuccess(branchId.toString(), {
+      // Broadcast payment success via WebSocket
+      socketService.broadcastPaymentSuccess(branchId.toString(), {
         receiptCode: receipt.code,
         amount: receipt.total,
         timestamp: new Date().toISOString(),
