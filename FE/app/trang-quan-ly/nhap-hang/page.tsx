@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CommonTable } from "@/components/common/common-table";
-import { ImportReceipt, ImportReceiptStats } from "@/service/import-receipt.service";
+import { ImportReceipt, ImportReceiptStats, ErrorReceiptStats } from "@/service/import-receipt.service";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ import { DetailModal } from "@/components/common/detail-modal";
 import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
 import { ImportReceiptFormModal } from "@/components/forms/import-receipt-form-modal";
 import { toast } from "sonner";
-import { Loader2, Plus, Check, X, FileText, CheckCircle, Clock, DollarSign } from "lucide-react";
+import { Loader2, Plus, Check, X, FileText, CheckCircle, Clock, DollarSign, AlertTriangle, Trash2, RefreshCw } from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import { useAuth } from "@/hooks/useAuth";
 import importReceiptService, { CreateImportReceiptRequest } from "@/service/import-receipt.service";
@@ -31,8 +31,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFilteredTableData } from "@/hooks/useFilteredTableData";
 import { useStats } from "@/hooks/useStats";
+import { ErrorReceiptsTab } from "@/components/import-receipt/error-receipts-tab";
 
 // Helper để lấy tên từ populated field
 const getBranchName = (branchId: ImportReceipt["branchId"]): string => {
@@ -96,8 +98,11 @@ export default function Page() {
   const [isConfirmOpen, setIsConfirmOpen] = React.useState(false);
   const [isCancelOpen, setIsCancelOpen] = React.useState(false);
   const [isBulkCancelOpen, setIsBulkCancelOpen] = React.useState(false);
+  const [isMarkErrorOpen, setIsMarkErrorOpen] = React.useState(false);
   const [cancelReason, setCancelReason] = React.useState("");
+  const [errorNote, setErrorNote] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [activeTab, setActiveTab] = React.useState("normal");
 
   // Fetch branches for admin filter dropdown
   React.useEffect(() => {
@@ -168,6 +173,12 @@ export default function Page() {
     setIsCancelOpen(true);
   };
 
+  const handleMarkError = (item: ImportReceipt) => {
+    setSelectedItem(item);
+    setErrorNote("");
+    setIsMarkErrorOpen(true);
+  };
+
   // Create receipt
   const handleFormSubmit = async (formData: CreateImportReceiptRequest) => {
     try {
@@ -216,6 +227,33 @@ export default function Page() {
       refetch();
     } catch (error: unknown) {
       console.error("Cancel error:", error);
+      const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
+      toast.error(errMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Mark as error
+  const markAsError = async () => {
+    if (!selectedItem) return;
+    
+    // Validate errorNote
+    if (!errorNote || errorNote.trim() === "") {
+      toast.error("Vui lòng nhập lý do đánh dấu lỗi");
+      return;
+    }
+    
+    try {
+      setIsSubmitting(true);
+      await importReceiptService.markAsError(selectedItem._id, errorNote);
+      toast.success("Đã đánh dấu phiếu lỗi! Kho hàng đã được hoàn lại.");
+      setIsMarkErrorOpen(false);
+      setSelectedItem(null);
+      setErrorNote("");
+      refetch();
+    } catch (error: unknown) {
+      console.error("Mark error:", error);
       const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
       toast.error(errMsg);
     } finally {
@@ -296,17 +334,38 @@ export default function Page() {
         cell: ({ row, table }) => {
           const item = row.original;
           const isPending = item.status === "pending";
+          const isCompleted = item.status === "completed";
           const isAnyRowSelected = table.getFilteredSelectedRowModel().rows.length > 0;
 
+          // Check nếu phiếu được tạo trong vòng 30 phút
+          const createdAt = new Date(item.createdAt);
+          const now = new Date();
+          const diffInMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+          const canMarkError = isCompleted && isAdmin && diffInMinutes <= 30;
+
           return (
-            <RowActions
-              onView={() => handleView(item)}
-              onAction={isPending ? () => handleConfirm(item) : undefined}
-              actionLabel="Xác nhận"
-              actionIcon="check"
-              onDelete={isPending ? () => handleCancel(item) : undefined}
-              disabled={isAnyRowSelected}
-            />
+            <div className="flex items-center gap-2">
+              <RowActions
+                onView={() => handleView(item)}
+                onAction={isPending ? () => handleConfirm(item) : undefined}
+                actionLabel="Xác nhận"
+                actionIcon="check"
+                onDelete={isPending ? () => handleCancel(item) : undefined}
+                disabled={isAnyRowSelected}
+              />
+              {canMarkError && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleMarkError(item)}
+                  disabled={isAnyRowSelected}
+                  className="h-8 text-destructive hover:text-destructive"
+                  title="Đánh dấu lỗi (chỉ trong 30 phút)"
+                >
+                  <AlertTriangle className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           );
         },
       },
@@ -361,56 +420,80 @@ export default function Page() {
         </Button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatsCard
-          title="Tổng phiếu nhập"
-          value={stats?.totalReceipts || 0}
-          icon={FileText}
-          description="Tổng số phiếu nhập hàng"
-        />
-        <StatsCard
-          title="Chờ xử lý"
-          value={stats?.pendingCount || 0}
-          icon={Clock}
-          description="Phiếu nhập đang chờ duyệt"
-          trend="neutral"
-        />
-        <StatsCard
-          title="Hoàn thành"
-          value={stats?.completedCount || 0}
-          icon={CheckCircle}
-          description="Phiếu nhập đã hoàn tất"
-          trend="positive"
-        />
-        <StatsCard
-          title="Tổng giá trị nhập"
-          value={formatCurrency(stats?.totalValue || 0)}
-          icon={DollarSign}
-          description="Giá trị hàng đã nhập kho"
-        />
-      </div>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="normal">
+            <FileText className="mr-2 h-4 w-4" />
+            Phiếu nhập
+          </TabsTrigger>
+          <TabsTrigger value="error">
+            <AlertTriangle className="mr-2 h-4 w-4" />
+            Phiếu lỗi
+          </TabsTrigger>
+        </TabsList>
 
-      {loading ? (
-        <div className="flex flex-1 items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      ) : (
-        <CommonTable
-          columns={columns}
-          data={data}
-          filterCol="code"
-          filterPlaceholder="Tìm mã phiếu nhập..."
-          onBulkAction={handleDeleteMany}
-          bulkActionLabel="Hủy đã chọn"
-          bulkActionIcon="trash"
-          toolbarActions={toolbarActions}
-          serverPagination={pagination}
-          onPageChange={handlePageChange}
-          onSearch={handleSearch}
-          searchValue={searchTerm}
-        />
-      )}
+        <TabsContent value="normal" className="flex-1 flex flex-col gap-4 mt-4">
+          {/* Stats Cards */}
+          <div className="grid gap-4 md:grid-cols-4">
+            <StatsCard
+              title="Tổng phiếu nhập"
+              value={stats?.totalReceipts || 0}
+              icon={FileText}
+              description="Tổng số phiếu nhập hàng"
+            />
+            <StatsCard
+              title="Chờ xử lý"
+              value={stats?.pendingCount || 0}
+              icon={Clock}
+              description="Phiếu nhập đang chờ duyệt"
+              trend="neutral"
+            />
+            <StatsCard
+              title="Hoàn thành"
+              value={stats?.completedCount || 0}
+              icon={CheckCircle}
+              description="Phiếu nhập đã hoàn tất"
+              trend="positive"
+            />
+            <StatsCard
+              title="Tổng giá trị nhập"
+              value={formatCurrency(stats?.totalValue || 0)}
+              icon={DollarSign}
+              description="Giá trị hàng đã nhập kho"
+            />
+          </div>
+
+          {loading ? (
+            <div className="flex flex-1 items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            <CommonTable
+              columns={columns}
+              data={data}
+              filterCol="code"
+              filterPlaceholder="Tìm mã phiếu nhập..."
+              onBulkAction={handleDeleteMany}
+              bulkActionLabel="Hủy đã chọn"
+              bulkActionIcon="trash"
+              toolbarActions={toolbarActions}
+              serverPagination={pagination}
+              onPageChange={handlePageChange}
+              onSearch={handleSearch}
+              searchValue={searchTerm}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="error" className="flex-1 flex flex-col mt-4">
+          <ErrorReceiptsTab
+            isAdmin={isAdmin}
+            branches={branches}
+            userBranchId={user?.branchId}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Create Form Modal */}
       <ImportReceiptFormModal
@@ -481,6 +564,48 @@ export default function Page() {
         }
       />
 
+      {/* Mark Error Dialog */}
+      <ConfirmDeleteDialog
+        open={isMarkErrorOpen}
+        onOpenChange={setIsMarkErrorOpen}
+        onConfirm={markAsError}
+        isSubmitting={isSubmitting}
+        title="Đánh dấu phiếu lỗi?"
+        description={
+          <div className="space-y-4">
+            <p className="text-destructive font-medium">
+              Đánh dấu phiếu {selectedItem?.code} là phiếu lỗi?
+            </p>
+            <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3">
+              <div className="flex items-start gap-2">
+                <Clock className="h-4 w-4 text-amber-600 mt-0.5" />
+                <div className="text-sm text-amber-800">
+                  <p className="font-medium mb-1">Điều kiện đánh dấu lỗi</p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Chỉ trong vòng 30 phút sau khi tạo phiếu</li>
+                    <li>Tồn kho phải đủ để hoàn lại (không được âm)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Hệ thống sẽ kiểm tra tồn kho trước khi hoàn lại. Nếu hàng đã được bán hết, bạn sẽ không thể đánh dấu lỗi.
+            </p>
+            <div className="space-y-2">
+              <Label>Lý do đánh dấu lỗi <span className="text-destructive">*</span></Label>
+              <Textarea
+                value={errorNote}
+                onChange={(e) => setErrorNote(e.target.value)}
+                placeholder="Ví dụ: Nhập sai số lượng, nhập sai giá, nhà cung cấp giao sai hàng..."
+                rows={3}
+              />
+            </div>
+          </div>
+        }
+        variant="destructive"
+        confirmLabel="Đánh dấu lỗi"
+      />
+
       {/* Detail Modal */}
       <DetailModal
         open={isDetailOpen}
@@ -488,27 +613,51 @@ export default function Page() {
         title="Chi tiết phiếu nhập"
         className="max-w-4xl"
         footer={
-          selectedItem?.status === "pending" ? (
+          selectedItem ? (
             <div className="flex gap-2">
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  setIsDetailOpen(false);
-                  handleCancel(selectedItem);
-                }}
-              >
-                <X className="mr-2 h-4 w-4" />
-                Hủy phiếu
-              </Button>
-              <Button
-                onClick={() => {
-                  setIsDetailOpen(false);
-                  handleConfirm(selectedItem);
-                }}
-              >
-                <Check className="mr-2 h-4 w-4" />
-                Xác nhận
-              </Button>
+              {selectedItem.status === "pending" ? (
+                <>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      setIsDetailOpen(false);
+                      handleCancel(selectedItem);
+                    }}
+                  >
+                    <X className="mr-2 h-4 w-4" />
+                    Hủy phiếu
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setIsDetailOpen(false);
+                      handleConfirm(selectedItem);
+                    }}
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Xác nhận
+                  </Button>
+                </>
+              ) : selectedItem.status === "completed" && isAdmin ? (
+                (() => {
+                  const createdAt = new Date(selectedItem.createdAt);
+                  const now = new Date();
+                  const diffInMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
+                  const canMarkError = diffInMinutes <= 30;
+                  
+                  return canMarkError ? (
+                    <Button
+                      variant="destructive"
+                      onClick={() => {
+                        setIsDetailOpen(false);
+                        handleMarkError(selectedItem);
+                      }}
+                    >
+                      <AlertTriangle className="mr-2 h-4 w-4" />
+                      Đánh dấu lỗi
+                    </Button>
+                  ) : null;
+                })()
+              ) : null}
             </div>
           ) : undefined
         }

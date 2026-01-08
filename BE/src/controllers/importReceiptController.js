@@ -60,6 +60,85 @@ const cancel = async (req, res, next) => {
   }
 };
 
+const markAsError = async (req, res, next) => {
+  try {
+    const { errorNote } = req.body;
+    const receipt = await importReceiptService.markAsError(
+      req.params.id, 
+      errorNote, 
+      req.user
+    );
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Import receipt marked as error and stock reverted!",
+      data: receipt,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getErrorStats = async (req, res, next) => {
+  try {
+    const { branchId } = req.query;
+    const stats = await importReceiptService.getErrorStats(branchId);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get error receipt stats successfully",
+      data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getAllErrorReceipts = async (req, res, next) => {
+  try {
+    const { search, branchId, page, limit } = req.query;
+    
+    if (page || limit || search) {
+      const options = {
+        search,
+        branchId,
+        page: parseInt(page) || 1,
+        limit: parseInt(limit) || 20,
+      };
+      const result = await importReceiptService.getAllErrorReceiptsPaginated(options, req.user);
+      return res.status(StatusCodes.OK).json({
+        success: true,
+        message: "Get error receipts successfully",
+        data: result.data,
+        pagination: result.pagination,
+      });
+    }
+    
+    const filter = {};
+    if (branchId) filter.branchId = branchId;
+
+    const receipts = await importReceiptService.getAllErrorReceipts(filter, req.user);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get error receipts successfully",
+      results: receipts.length,
+      data: receipts,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const deleteErrorReceipt = async (req, res, next) => {
+  try {
+    await importReceiptService.deleteErrorReceipt(req.params.id, req.user);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Error receipt deleted successfully!",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getAll = async (req, res, next) => {
   try {
     const { search, branchId, status, page, limit } = req.query;
@@ -206,9 +285,13 @@ const getTotalImport = async (req, res, next) => {
 
 export const importReceiptController = {
   getStats,
+  getErrorStats,
   create,
   confirm,
   cancel,
+  markAsError,
+  getAllErrorReceipts,
+  deleteErrorReceipt,
   getAll,
   getById,
   getByCode,

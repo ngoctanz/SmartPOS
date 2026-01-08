@@ -14,6 +14,10 @@ Router.get("/", injectUserBranch(), importReceiptController.getAll);
 Router.get("/date-range", injectUserBranch(), importReceiptController.getByDateRange);
 Router.get("/total", injectUserBranch(), importReceiptController.getTotalImport);
 
+// Error receipts routes
+Router.get("/errors", injectUserBranch(), importReceiptController.getAllErrorReceipts);
+Router.get("/errors/stats", injectUserBranch(), importReceiptController.getErrorStats);
+
 // Get by code - cần validate branch access
 Router.get(
   "/code/:code",
@@ -69,6 +73,20 @@ Router.patch(
   "/:id/cancel",
   authorize("admin"),
   importReceiptController.cancel
+);
+
+// Mark as error - hoàn lại kho nếu đã completed
+Router.patch(
+  "/:id/mark-error",
+  authorize("admin"),
+  importReceiptController.markAsError
+);
+
+// Delete error receipt - chỉ admin
+Router.delete(
+  "/errors/:id",
+  authorize("admin"),
+  importReceiptController.deleteErrorReceipt
 );
 
 export const importReceiptRouter = Router;

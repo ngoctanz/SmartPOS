@@ -82,6 +82,25 @@ const importReceiptSchema = new mongoose.Schema(
       enum: ["pending", "completed", "cancelled"],
       default: "pending",
     },
+    isError: {
+      type: Boolean,
+      default: false,
+    },
+    errorNote: {
+      type: String,
+      trim: true,
+      maxlength: [500, "Error note max 500 characters"],
+      default: "",
+    },
+    errorMarkedAt: {
+      type: Date,
+      default: null,
+    },
+    errorMarkedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
     note: {
       type: String,
       trim: true,
@@ -99,11 +118,14 @@ importReceiptSchema.index({ branchId: 1 });
 importReceiptSchema.index({ createdBy: 1 });
 importReceiptSchema.index({ status: 1 });
 importReceiptSchema.index({ createdAt: -1 });
+importReceiptSchema.index({ isError: 1 });
 
 // Static methods
 importReceiptSchema.statics = {
   async getStats(branchId) {
     const pipeline = [
+      // Loại trừ phiếu lỗi khỏi thống kê
+      { $match: { isError: { $ne: true } } },
       {
         $group: {
             _id: null,
@@ -125,7 +147,9 @@ importReceiptSchema.statics = {
     ];
 
     if (branchId) {
-        pipeline.unshift({ $match: { branchId: new mongoose.Types.ObjectId(branchId) } });
+        pipeline.unshift({ $match: { branchId: new mongoose.Types.ObjectId(branchId), isError: { $ne: true } } });
+        // Remove the default isError filter since we combined it
+        pipeline.splice(1, 1);
     }
 
     const result = await this.aggregate(pipeline);
@@ -138,7 +162,29 @@ importReceiptSchema.statics = {
     };
   },
 
+  // Get stats for error receipts
+  async getErrorStats(branchId) {
+    const pipeline = [
+      { $match: { isError: true } },
+      {
+        $group: {
+          _id: null,
+          totalErrorReceipts: { $sum: 1 },
+          totalErrorValue: { $sum: "$totalAmount" }
+        }
+      }
+    ];
+
+    if (branchId) {
+      pipeline[0].$match.branchId = new mongoose.Types.ObjectId(branchId);
+    }
+
+    const result = await this.aggregate(pipeline);
+    return result[0] || { totalErrorReceipts: 0, totalErrorValue: 0 };
+  },
+
   async generateCode() {
+    // Lấy phiếu cuối cùng (bao gồm cả phiếu lỗi) để tránh trùng code
     const lastReceipt = await this.findOne().sort({ createdAt: -1 });
     if (!lastReceipt) return "PN001";
     const lastNumber = parseInt(lastReceipt.code.replace("PN", ""), 10);
@@ -162,26 +208,79 @@ importReceiptSchema.statics = {
     return receipt;
   },
 
-  // Tìm theo barcode
-  async findImportReceiptByBarcode(barcode) {
-    return this.findOne({ barcode })
-      .populate("branchId", "branchName")
-      .populate("createdBy", "userName name")
-      .lean();
-  },
-
   async findAllImportReceipts(filter = {}) {
-    return this.find(filter)
+    // Mặc định loại trừ phiếu lỗi, trừ khi filter chỉ định rõ
+    const queryFilter = { ...filter };
+    if (queryFilter.isError === undefined) {
+      queryFilter.isError = { $ne: true };
+    }
+    return this.find(queryFilter)
       .populate("branchId", "branchName")
       .populate("createdBy", "userName name")
       .sort({ createdAt: -1 })
       .lean();
   },
 
+  // Lấy danh sách phiếu lỗi
+  async findAllErrorReceipts(filter = {}) {
+    const queryFilter = { ...filter, isError: true };
+    return this.find(queryFilter)
+      .populate("branchId", "branchName")
+      .populate("createdBy", "userName name")
+      .populate("errorMarkedBy", "userName name")
+      .sort({ errorMarkedAt: -1 })
+      .lean();
+  },
+
+  async findAllErrorReceiptsPaginated(options = {}) {
+    const { search, branchId, page = 1, limit = 20 } = options;
+    
+    const query = { isError: true };
+    
+    if (search && search.trim()) {
+      query.$or = [
+        { code: { $regex: search, $options: "i" } },
+        { supplierName: { $regex: search, $options: "i" } },
+        { errorNote: { $regex: search, $options: "i" } },
+      ];
+    }
+    
+    if (branchId) {
+      query.branchId = new mongoose.Types.ObjectId(branchId);
+    }
+
+    const total = await this.countDocuments(query);
+    const skip = (page - 1) * limit;
+    
+    const data = await this.find(query)
+      .populate("branchId", "branchName")
+      .populate("createdBy", "userName name")
+      .populate("errorMarkedBy", "userName name")
+      .sort({ errorMarkedAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  },
+
   async findAllImportReceiptsPaginated(options = {}) {
-    const { search, branchId, status, page = 1, limit = 20 } = options;
+    const { search, branchId, status, page = 1, limit = 20, includeError = false } = options;
     
     const query = {};
+    
+    // Mặc định loại trừ phiếu lỗi
+    if (!includeError) {
+      query.isError = { $ne: true };
+    }
     
     // Search by code or supplier name
     if (search && search.trim()) {
@@ -227,6 +326,7 @@ importReceiptSchema.statics = {
     const receipt = await this.findById(id)
       .populate("branchId", "branchName address")
       .populate("createdBy", "userName name")
+      .populate("errorMarkedBy", "userName name")
       .lean();
     if (!receipt) throw new Error("Import receipt not found");
     return receipt;
@@ -236,11 +336,25 @@ importReceiptSchema.statics = {
     return this.findOne({ code })
       .populate("branchId", "branchName")
       .populate("createdBy", "userName name")
+      .populate("errorMarkedBy", "userName name")
+      .lean();
+  },
+
+  async findImportReceiptByBarcode(barcode) {
+    return this.findOne({ barcode })
+      .populate("branchId", "branchName")
+      .populate("createdBy", "userName name")
+      .populate("errorMarkedBy", "userName name")
       .lean();
   },
 
   async findImportReceiptsByBranch(branchId, filter = {}) {
-    return this.find({ branchId, ...filter })
+    // Mặc định loại trừ phiếu lỗi
+    const queryFilter = { branchId, ...filter };
+    if (queryFilter.isError === undefined) {
+      queryFilter.isError = { $ne: true };
+    }
+    return this.find(queryFilter)
       .populate("branchId", "branchName")
       .populate("createdBy", "userName name")
       .sort({ createdAt: -1 })
@@ -251,6 +365,7 @@ importReceiptSchema.statics = {
     const query = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
+      isError: { $ne: true }, // Loại trừ phiếu lỗi
     };
     if (branchId) query.branchId = branchId;
     return this.find(query)
@@ -273,6 +388,7 @@ importReceiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
+      isError: { $ne: true }, // Loại trừ phiếu lỗi
     };
     if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
 
@@ -287,6 +403,33 @@ importReceiptSchema.statics = {
       },
     ]);
     return result[0] || { totalAmount: 0, count: 0 };
+  },
+
+  // Đánh dấu phiếu lỗi
+  async markAsError(id, errorNote, userId) {
+    const receipt = await this.findByIdAndUpdate(
+      id,
+      { 
+        isError: true,
+        errorNote: errorNote || "",
+        errorMarkedAt: new Date(),
+        errorMarkedBy: userId
+      },
+      { new: true, runValidators: true }
+    )
+    .populate("branchId", "branchName")
+    .populate("createdBy", "userName name")
+    .populate("errorMarkedBy", "userName name");
+    
+    if (!receipt) throw new Error("Import receipt not found");
+    return receipt;
+  },
+
+  // Xóa phiếu lỗi (chỉ admin)
+  async deleteErrorReceipt(id) {
+    const receipt = await this.findOneAndDelete({ _id: id, isError: true });
+    if (!receipt) throw new Error("Error receipt not found or not an error receipt");
+    return receipt;
   },
 };
 

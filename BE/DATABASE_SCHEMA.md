@@ -99,11 +99,13 @@ Lãi       = Doanh thu - Vốn (tính trên Dashboard)
 {
   "_id": ObjectId,
   "code": String,           // "PN001", "PN002"...
+  "barcode": String,        // Barcode phiếu nhập
   "branchId": ObjectId,
   "supplierName": String,
   "createdBy": ObjectId,
   "listProduct": [{
     "productId": ObjectId,
+    "barcode": String,
     "productName": String,
     "quantity": Number,
     "importPrice": Number,
@@ -111,6 +113,10 @@ Lãi       = Doanh thu - Vốn (tính trên Dashboard)
   }],
   "totalAmount": Number,    // Tổng tiền nhập
   "status": String,         // "pending", "completed", "cancelled"
+  "isError": Boolean,       // Đánh dấu phiếu lỗi
+  "errorNote": String,      // Ghi chú lý do lỗi
+  "errorMarkedAt": Date,    // Thời điểm đánh dấu lỗi
+  "errorMarkedBy": ObjectId,// Người đánh dấu lỗi
   "note": String,
   "createdAt": Date,
   "updatedAt": Date

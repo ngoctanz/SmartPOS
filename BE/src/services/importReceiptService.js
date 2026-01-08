@@ -15,6 +15,14 @@ const getStats = async (branchId) => {
     }
 };
 
+const getErrorStats = async (branchId) => {
+    try {
+        return await ImportReceipt.getErrorStats(branchId);
+    } catch (error) {
+        throw new Error(error.message || error);
+    }
+};
+
 const create = async (data, user) => {
   try {
     // Defense-in-depth: Double check branch access
@@ -68,6 +76,9 @@ const confirm = async (id, user = null) => {
       validateRecordAccess(user, receipt, "import receipt");
     }
 
+    if (receipt.isError) {
+      throw new ApiError(400, "Cannot confirm error receipt");
+    }
     if (receipt.status === "completed") {
       throw new ApiError(400, "Import receipt already completed");
     }
@@ -104,7 +115,126 @@ const cancel = async (id, user = null) => {
     if (receipt.status === "completed") {
       throw new ApiError(400, "Cannot cancel completed receipt");
     }
+    if (receipt.isError) {
+      throw new ApiError(400, "Cannot cancel error receipt");
+    }
     return await ImportReceipt.updateStatus(id, "cancelled");
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+// Đánh dấu phiếu lỗi và hoàn lại kho
+const markAsError = async (id, errorNote, user) => {
+  try {
+    const receipt = await ImportReceipt.findImportReceiptById(id);
+    
+    // Defense-in-depth: Validate access if user provided
+    if (user) {
+      validateRecordAccess(user, receipt, "import receipt");
+    }
+    
+    if (receipt.isError) {
+      throw new ApiError(400, "Receipt is already marked as error");
+    }
+    
+    if (receipt.status === "cancelled") {
+      throw new ApiError(400, "Cannot mark cancelled receipt as error");
+    }
+
+    // Check thời gian tạo phiếu - chỉ cho phép đánh dấu lỗi trong vòng 30 phút
+    const createdAt = new Date(receipt.createdAt);
+    const now = new Date();
+    const diffInMinutes = (now - createdAt) / (1000 * 60);
+    
+    if (diffInMinutes > 30) {
+      throw new ApiError(400, "Chỉ có thể đánh dấu lỗi trong vòng 30 phút sau khi tạo phiếu");
+    }
+
+    const branchId = receipt.branchId._id || receipt.branchId;
+
+    // Nếu phiếu đã completed, check stock trước khi hoàn lại
+    if (receipt.status === "completed") {
+      // Check tất cả sản phẩm có đủ stock để hoàn lại không
+      const insufficientProducts = [];
+      
+      for (const item of receipt.listProduct) {
+        const currentStock = await BranchProduct.getStock(branchId, item.productId);
+        if (currentStock < item.quantity) {
+          // Lấy thông tin sản phẩm để hiển thị tên
+          insufficientProducts.push({
+            name: item.productName,
+            required: item.quantity,
+            current: currentStock,
+            shortage: item.quantity - currentStock
+          });
+        }
+      }
+
+      // Nếu có sản phẩm không đủ stock, throw error với thông tin chi tiết
+      if (insufficientProducts.length > 0) {
+        const errorDetails = insufficientProducts.map(p => 
+          `${p.name}: cần ${p.required}, còn ${p.current} (thiếu ${p.shortage})`
+        ).join('; ');
+        
+        throw new ApiError(
+          400, 
+          `Không thể đánh dấu lỗi vì một số sản phẩm đã được bán và không đủ tồn kho để hoàn lại: ${errorDetails}`
+        );
+      }
+
+      // Nếu đủ stock, tiến hành hoàn lại
+      for (const item of receipt.listProduct) {
+        await BranchProduct.decreaseStock(
+          branchId,
+          item.productId,
+          item.quantity
+        );
+      }
+    }
+
+    return await ImportReceipt.markAsError(id, errorNote, user.userId);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+// Lấy danh sách phiếu lỗi
+const getAllErrorReceipts = async (filter = {}, user = null) => {
+  try {
+    const secureFilter = user ? buildSecureFilter(user, filter) : filter;
+    return await ImportReceipt.findAllErrorReceipts(secureFilter);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+const getAllErrorReceiptsPaginated = async (options = {}, user = null) => {
+  try {
+    if (user && user.role !== 'admin' && user.branchId) {
+      options.branchId = user.branchId;
+    }
+    return await ImportReceipt.findAllErrorReceiptsPaginated(options);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+// Xóa phiếu lỗi (chỉ admin)
+const deleteErrorReceipt = async (id, user = null) => {
+  try {
+    const receipt = await ImportReceipt.findImportReceiptById(id);
+    
+    if (!receipt.isError) {
+      throw new ApiError(400, "Can only delete error receipts");
+    }
+    
+    // Defense-in-depth: Validate access if user provided
+    if (user) {
+      validateRecordAccess(user, receipt, "import receipt");
+    }
+    
+    return await ImportReceipt.deleteErrorReceipt(id);
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -230,9 +360,14 @@ const getTotalImport = async (period, branchId = null) => {
 
 export const importReceiptService = {
   getStats,
+  getErrorStats,
   create,
   confirm,
   cancel,
+  markAsError,
+  getAllErrorReceipts,
+  getAllErrorReceiptsPaginated,
+  deleteErrorReceipt,
   getAll,
   getAllPaginated,
   getById,

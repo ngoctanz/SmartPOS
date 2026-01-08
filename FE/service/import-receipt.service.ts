@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPatch } from "./api.service";
+import { apiGet, apiPost, apiPatch, apiDelete } from "./api.service";
 import { ApiResponse } from "./api.config";
 
 export interface ImportReceiptItem {
@@ -19,6 +19,10 @@ export interface ImportReceipt {
   listProduct: ImportReceiptItem[];
   totalAmount: number;
   status: "pending" | "completed" | "cancelled";
+  isError?: boolean;
+  errorNote?: string;
+  errorMarkedAt?: string;
+  errorMarkedBy?: string | { _id: string; userName: string; name?: string };
   supplierName?: string;
   note?: string;
   createdAt: string;
@@ -68,6 +72,11 @@ export interface ImportReceiptStats {
   completedCount: number;
   cancelledCount: number;
   totalValue: number;
+}
+
+export interface ErrorReceiptStats {
+  totalErrorReceipts: number;
+  totalErrorValue: number;
 }
 
 const importReceiptService = {
@@ -199,6 +208,54 @@ const importReceiptService = {
     reason: string
   ): Promise<ApiResponse<ImportReceipt>> => {
     return apiPatch<ImportReceipt>(`/import-receipt/${id}/cancel`, { reason });
+  },
+
+  /**
+   * Đánh dấu phiếu lỗi
+   * PATCH /api/v1/import-receipt/:id/mark-error
+   */
+  markAsError: async (
+    id: string,
+    errorNote: string
+  ): Promise<ApiResponse<ImportReceipt>> => {
+    return apiPatch<ImportReceipt>(`/import-receipt/${id}/mark-error`, { errorNote });
+  },
+
+  /**
+   * Lấy danh sách phiếu lỗi
+   * GET /api/v1/import-receipt/errors
+   */
+  getErrorReceipts: async (
+    params?: GetImportReceiptParams
+  ): Promise<ApiResponse<ImportReceipt[]> & { pagination?: Pagination }> => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append("page", String(params.page));
+    if (params?.limit) queryParams.append("limit", String(params.limit));
+    if (params?.branchId) queryParams.append("branchId", params.branchId);
+    if (params?.search) queryParams.append("search", params.search);
+
+    const query = queryParams.toString();
+    return apiGet<ImportReceipt[]>(
+      `/import-receipt/errors${query ? `?${query}` : ""}`
+    );
+  },
+
+  /**
+   * Lấy stats phiếu lỗi
+   * GET /api/v1/import-receipt/errors/stats
+   */
+  getErrorStats: async (branchId?: string): Promise<ApiResponse<ErrorReceiptStats>> => {
+    const queryParams = new URLSearchParams();
+    if (branchId) queryParams.append("branchId", branchId);
+    return apiGet<ErrorReceiptStats>(`/import-receipt/errors/stats?${queryParams.toString()}`);
+  },
+
+  /**
+   * Xóa phiếu lỗi (chỉ admin)
+   * DELETE /api/v1/import-receipt/errors/:id
+   */
+  deleteErrorReceipt: async (id: string): Promise<ApiResponse<void>> => {
+    return apiDelete<void>(`/import-receipt/errors/${id}`);
   },
 };
 
