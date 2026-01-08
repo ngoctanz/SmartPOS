@@ -9,28 +9,24 @@ import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft,
   Printer,
-  Edit2,
-  Save,
-  X,
   Loader2,
   Receipt as ReceiptIcon,
   Calendar,
   User,
   Store,
   CreditCard,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import receiptService, { Receipt } from "@/service/receipt.service";
-import productService, { Product } from "@/service/product.service";
 import { ROUTES } from "@/configs/routes.config";
 import {
-  CartItemsTable,
-  CartItem,
   PrintBill,
   printStyles,
+  MarkErrorDialog,
 } from "@/components/receipt";
-import { SmartProductInput } from "@/components/common/smart-product-input";
 import {
   Dialog,
   DialogContent,
@@ -42,6 +38,7 @@ import {
 import { formatCurrency } from "@/utils/format.utils";
 import { useSocket } from "@/hooks/useSocket";
 import { useAuthContext } from "@/contexts/auth-context";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function ReceiptDetailPage() {
   const params = useParams();
@@ -51,13 +48,10 @@ export default function ReceiptDetailPage() {
 
   const [receipt, setReceipt] = React.useState<Receipt | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [isEditing, setIsEditing] = React.useState(false);
-  const [isSaving, setIsSaving] = React.useState(false);
   const [showPrintDialog, setShowPrintDialog] = React.useState(false);
-  const [showConfirmSave, setShowConfirmSave] = React.useState(false);
+  const [showMarkErrorDialog, setShowMarkErrorDialog] = React.useState(false);
+  const [isMarkingError, setIsMarkingError] = React.useState(false);
 
-  // Edit mode state
-  const [cartItems, setCartItems] = React.useState<CartItem[]>([]);
   const printRef = React.useRef<HTMLDivElement>(null);
 
   // Real-time payment notifications via WebSocket
@@ -97,16 +91,6 @@ export default function ReceiptDetailPage() {
         const response = await receiptService.getByCode(code);
         if (response.success && response.data) {
           setReceipt(response.data);
-          // Convert to cart items for editing
-          const items: CartItem[] = response.data.listProduct.map((p) => ({
-            productId: p.productId,
-            productName: p.productName,
-            barcode: "",
-            quantity: p.quantity,
-            salePrice: p.salePrice,
-            unit: "",
-          }));
-          setCartItems(items);
         } else {
           toast.error("Không tìm thấy hóa đơn");
           router.push(ROUTES.INVOICES);
@@ -155,191 +139,32 @@ export default function ReceiptDetailPage() {
     }
   };
 
-  // Handle barcode scanned
-  const handleBarcodeScanned = React.useCallback(
-    async (barcode: string) => {
-      const existingItem = cartItems.find((item) => item.barcode === barcode);
-
-      if (existingItem) {
-        setCartItems((prev) =>
-          prev.map((item) =>
-            item.barcode === barcode
-              ? { ...item, quantity: item.quantity + 1 }
-              : item
-          )
-        );
-        toast.success(`+1 ${existingItem.productName}`);
-      } else {
-        try {
-          const response = await productService.getByBarcode(barcode);
-          if (response.success && response.data) {
-            const product = response.data;
-            setCartItems((prev) => [
-              ...prev,
-              {
-                productId: product._id,
-                productName: product.name,
-                barcode: product.barcode || barcode,
-                quantity: 1,
-                salePrice: product.currentSalePrice,
-                unit: product.unit,
-                image: product.image,
-              },
-            ]);
-            toast.success(`Đã thêm: ${product.name}`);
-          } else {
-            toast.error("Không tìm thấy sản phẩm");
-          }
-        } catch (error) {
-          toast.error((error as Error).message || "Không tìm thấy sản phẩm");
-        }
-      }
-    },
-    [cartItems]
-  );
-
-  // Handle search
-  const handleSearch = React.useCallback(async (term: string) => {
-    const response = await productService.search({ name: term });
-    return response.success && response.data ? response.data : [];
-  }, []);
-
-  // Get product by barcode for SmartProductInput
-  const getProductByBarcode = React.useCallback(
-    async (barcode: string): Promise<Product | null> => {
-      try {
-        const response = await productService.getByBarcode(barcode);
-        if (response.success && response.data) {
-          return response.data;
-        }
-        return null;
-      } catch {
-        return null;
-      }
-    },
-    []
-  );
-
-  // Handle product select from search
-  const handleProductSelect = React.useCallback(
-    (product: Product) => {
-      const existingItem = cartItems.find(
-        (item) => item.productId === product._id
-      );
-
-      if (existingItem) {
-        setCartItems((prev) =>
-          prev.map((item) =>
-            item.productId === product._id
-              ? { ...item, quantity: item.quantity + 1 }
-              : item
-          )
-        );
-        toast.success(`+1 ${product.name}`);
-      } else {
-        setCartItems((prev) => [
-          ...prev,
-          {
-            productId: product._id,
-            productName: product.name,
-            barcode: product.barcode || "",
-            quantity: 1,
-            salePrice: product.currentSalePrice,
-            unit: product.unit,
-            image: product.image,
-          },
-        ]);
-        toast.success(`Đã thêm: ${product.name}`);
-      }
-    },
-    [cartItems]
-  );
-
-  // Update quantity
-  const updateQuantity = (productId: string, newQuantity: number) => {
-    if (newQuantity < 1) {
-      setCartItems((prev) =>
-        prev.filter((item) => item.productId !== productId)
-      );
-      return;
-    }
-    setCartItems((prev) =>
-      prev.map((item) =>
-        item.productId === productId ? { ...item, quantity: newQuantity } : item
-      )
-    );
-  };
-
-  // Remove item
-  const removeItem = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.productId !== productId));
-  };
-
-  // Clear cart
-  const clearCart = () => {
-    setCartItems([]);
-  };
-
-  // Calculate total
-  const calculateTotal = () => {
-    return cartItems.reduce(
-      (sum, item) => sum + item.salePrice * item.quantity,
-      0
-    );
-  };
-
-  // Cancel edit
-  const handleCancelEdit = () => {
-    if (receipt) {
-      const items: CartItem[] = receipt.listProduct.map((p) => ({
-        productId: p.productId,
-        productName: p.productName,
-        barcode: "",
-        quantity: p.quantity,
-        salePrice: p.salePrice,
-        unit: "",
-      }));
-      setCartItems(items);
-    }
-    setIsEditing(false);
-  };
-
-  // Save changes
-  const handleSaveChanges = async () => {
+  // Mark receipt as error
+  const handleMarkError = async (errorReason?: string) => {
     if (!receipt) return;
 
-    if (cartItems.length === 0) {
-      toast.error("Hóa đơn phải có ít nhất 1 sản phẩm");
-      return;
-    }
-
-    setIsSaving(true);
+    setIsMarkingError(true);
     try {
-      const updateData = {
-        listProduct: cartItems.map((item) => ({
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          salePrice: item.salePrice,
-        })),
-        totalAmount: calculateTotal(),
-      };
-
-      const response = await receiptService.update(receipt._id, updateData);
+      const response = await receiptService.markAsError(receipt._id, errorReason);
 
       if (response.success && response.data) {
         setReceipt(response.data);
-        setIsEditing(false);
-        setShowConfirmSave(false);
-        toast.success("Cập nhật hóa đơn thành công!");
+        setShowMarkErrorDialog(false);
+        toast.success("Đã đánh dấu hóa đơn lỗi và hoàn hàng về kho!");
       } else {
-        toast.error(response.message || "Không thể cập nhật hóa đơn");
+        toast.error(response.message || "Không thể đánh dấu hóa đơn lỗi");
       }
     } catch (error) {
-      toast.error((error as Error).message || "Lỗi cập nhật hóa đơn");
+      toast.error((error as Error).message || "Lỗi đánh dấu hóa đơn lỗi");
     } finally {
-      setIsSaving(false);
+      setIsMarkingError(false);
     }
+  };
+
+  // Recreate receipt from error
+  const handleRecreateReceipt = () => {
+    if (!receipt) return;
+    router.push(`/trang-quan-ly/hoa-don/tao-moi?fromError=${receipt.code}`);
   };
 
   // Print bill
@@ -380,7 +205,7 @@ export default function ReceiptDetailPage() {
   return (
     <div className="flex flex-col h-full p-4 pt-0">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -390,58 +215,101 @@ export default function ReceiptDetailPage() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-semibold">Hóa đơn {receipt.code}</h1>
-              <Badge
-                variant={
-                  receipt.status === "completed"
-                    ? "default"
+              {receipt.isError && (
+                <Badge variant="destructive">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Hóa đơn lỗi
+                </Badge>
+              )}
+              {!receipt.isError && (
+                <Badge
+                  variant={
+                    receipt.status === "completed"
+                      ? "default"
+                      : receipt.status === "pending"
+                      ? "secondary"
+                      : "destructive"
+                  }
+                >
+                  {receipt.status === "completed"
+                    ? "Hoàn thành"
                     : receipt.status === "pending"
-                    ? "secondary"
-                    : "destructive"
-                }
-              >
-                {receipt.status === "completed"
-                  ? "Hoàn thành"
-                  : receipt.status === "pending"
-                  ? "Chờ thanh toán"
-                  : "Đã hủy"}
-              </Badge>
+                    ? "Chờ thanh toán"
+                    : "Đã hủy"}
+                </Badge>
+              )}
             </div>
             <p className="text-sm text-muted-foreground">
-              Chi tiết và chỉnh sửa hóa đơn
+              {receipt.isError
+                ? "Hóa đơn đã được đánh dấu lỗi"
+                : "Chi tiết và chỉnh sửa hóa đơn"}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" onClick={handlePrint}>
-            <Printer className="h-4 w-4 mr-2" />
-            In hóa đơn
+            <Printer className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">In hóa đơn</span>
           </Button>
-          {!isEditing && receipt.status !== "cancelled" && (
-            <Button onClick={() => setIsEditing(true)}>
-              <Edit2 className="h-4 w-4 mr-2" />
-              Chỉnh sửa
+          
+          {/* Normal receipt - show mark error button */}
+          {!receipt.isError && receipt.status !== "cancelled" && (
+            <Button
+              variant="destructive"
+              onClick={() => setShowMarkErrorDialog(true)}
+            >
+              <AlertTriangle className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Đánh dấu lỗi</span>
             </Button>
           )}
-          {isEditing && (
-            <>
-              <Button variant="outline" onClick={handleCancelEdit}>
-                <X className="h-4 w-4 mr-2" />
-                Hủy
-              </Button>
-              <Button onClick={() => setShowConfirmSave(true)}>
-                <Save className="h-4 w-4 mr-2" />
-                Lưu thay đổi
-              </Button>
-            </>
+
+          {/* Error receipt - show recreate button */}
+          {receipt.isError && (
+            <Button onClick={handleRecreateReceipt}>
+              <RefreshCw className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Tạo lại hóa đơn</span>
+            </Button>
           )}
         </div>
       </div>
 
+      {/* Error Info Alert */}
+      {receipt.isError && receipt.markedErrorBy && (
+        <Alert variant="destructive" className="mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Hóa đơn đã được đánh dấu lỗi</AlertTitle>
+          <AlertDescription>
+            <div className="mt-2 space-y-1 text-sm">
+              <p>
+                <strong>Người đánh dấu:</strong>{" "}
+                {typeof receipt.markedErrorBy === "object"
+                  ? receipt.markedErrorBy.name || receipt.markedErrorBy.userName
+                  : "—"}
+              </p>
+              {receipt.markedErrorAt && (
+                <p>
+                  <strong>Thời gian:</strong>{" "}
+                  {format(new Date(receipt.markedErrorAt), "dd/MM/yyyy HH:mm")}
+                </p>
+              )}
+              {receipt.errorReason && (
+                <p>
+                  <strong>Lý do:</strong> {receipt.errorReason}
+                </p>
+              )}
+              <p className="mt-2 text-muted-foreground">
+                Sản phẩm đã được hoàn về kho. Bạn có thể tạo lại hóa đơn mới.
+              </p>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Main Content */}
-      <div className="flex gap-4 flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
         {/* Left Panel - Receipt Info & Products */}
         <div className="flex-1 flex flex-col min-w-0 gap-4">
           {/* Receipt Info Card */}
@@ -485,81 +353,54 @@ export default function ReceiptDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Edit Mode - Add Products */}
-          {isEditing && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Thêm sản phẩm</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <SmartProductInput
-                  onProductSelect={handleProductSelect}
-                  searchFn={handleSearch}
-                  getByBarcodeFn={getProductByBarcode}
-                  placeholder="Quét mã barcode hoặc nhập tên sản phẩm..."
-                  autoFocus
-                />
-              </CardContent>
-            </Card>
-          )}
-
           {/* Products Table */}
-          {isEditing ? (
-            <CartItemsTable
-              items={cartItems}
-              onUpdateQuantity={updateQuantity}
-              onRemove={removeItem}
-              onClearAll={clearCart}
-            />
-          ) : (
-            <Card className="flex-1">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">
-                  Danh sách sản phẩm ({receipt.listProduct.length} sản phẩm)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="border rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-muted/50">
-                      <tr>
-                        <th className="text-left p-3 font-medium">STT</th>
-                        <th className="text-left p-3 font-medium">Sản phẩm</th>
-                        <th className="text-right p-3 font-medium">Đơn giá</th>
-                        <th className="text-center p-3 font-medium">SL</th>
-                        <th className="text-right p-3 font-medium">
-                          Thành tiền
-                        </th>
+          <Card className="flex-1">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">
+                Danh sách sản phẩm ({receipt.listProduct.length} sản phẩm)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="text-left p-3 font-medium">STT</th>
+                      <th className="text-left p-3 font-medium">Sản phẩm</th>
+                      <th className="text-right p-3 font-medium">Đơn giá</th>
+                      <th className="text-center p-3 font-medium">SL</th>
+                      <th className="text-right p-3 font-medium">
+                        Thành tiền
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {receipt.listProduct.map((item, index) => (
+                      <tr key={index} className="border-t">
+                        <td className="p-3 text-muted-foreground">
+                          {index + 1}
+                        </td>
+                        <td className="p-3 font-medium">
+                          {item.productName}
+                        </td>
+                        <td className="p-3 text-right">
+                          {formatCurrency(item.salePrice)}
+                        </td>
+                        <td className="p-3 text-center">{item.quantity}</td>
+                        <td className="p-3 text-right font-semibold">
+                          {formatCurrency(item.salePrice * item.quantity)}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {receipt.listProduct.map((item, index) => (
-                        <tr key={index} className="border-t">
-                          <td className="p-3 text-muted-foreground">
-                            {index + 1}
-                          </td>
-                          <td className="p-3 font-medium">
-                            {item.productName}
-                          </td>
-                          <td className="p-3 text-right">
-                            {formatCurrency(item.salePrice)}
-                          </td>
-                          <td className="p-3 text-center">{item.quantity}</td>
-                          <td className="p-3 text-right font-semibold">
-                            {formatCurrency(item.salePrice * item.quantity)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Right Panel - Summary */}
-        <div className="w-80 flex flex-col gap-4">
+        <div className="lg:w-80 lg:flex-shrink-0 flex flex-col gap-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Thanh toán</CardTitle>
@@ -579,21 +420,12 @@ export default function ReceiptDetailPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Số lượng SP:</span>
                   <span>
-                    {isEditing
-                      ? cartItems.reduce((sum, p) => sum + p.quantity, 0)
-                      : receipt.listProduct.reduce(
-                          (sum, p) => sum + p.quantity,
-                          0
-                        )}
+                    {receipt.listProduct.reduce((sum, p) => sum + p.quantity, 0)}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Tạm tính:</span>
-                  <span>
-                    {formatCurrency(
-                      isEditing ? calculateTotal() : receipt.totalAmount
-                    )}
-                  </span>
+                  <span>{formatCurrency(receipt.totalAmount)}</span>
                 </div>
               </div>
 
@@ -602,9 +434,7 @@ export default function ReceiptDetailPage() {
               <div className="flex justify-between items-center">
                 <span className="font-semibold">Tổng cộng:</span>
                 <span className="text-2xl font-bold text-primary">
-                  {formatCurrency(
-                    isEditing ? calculateTotal() : receipt.totalAmount
-                  )}
+                  {formatCurrency(receipt.totalAmount)}
                 </span>
               </div>
 
@@ -736,46 +566,19 @@ export default function ReceiptDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirm Save Dialog */}
-      <Dialog open={showConfirmSave} onOpenChange={setShowConfirmSave}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Xác nhận cập nhật</DialogTitle>
-            <DialogDescription>
-              Bạn có chắc chắn muốn cập nhật hóa đơn này không?
-              <br />
-              Tổng tiền mới:{" "}
-              <span className="font-semibold text-primary">
-                {formatCurrency(calculateTotal())}
-              </span>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowConfirmSave(false)}
-              disabled={isSaving}
-            >
-              Hủy
-            </Button>
-            <Button onClick={handleSaveChanges} disabled={isSaving}>
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Đang lưu...
-                </>
-              ) : (
-                "Xác nhận"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       {/* Hidden Print Component */}
       <div className="hidden">
         <PrintBill ref={printRef} receipt={receipt} />
       </div>
+
+      {/* Mark Error Dialog */}
+      <MarkErrorDialog
+        open={showMarkErrorDialog}
+        onOpenChange={setShowMarkErrorDialog}
+        receipt={receipt}
+        onConfirm={handleMarkError}
+        isSubmitting={isMarkingError}
+      />
     </div>
   );
 }

@@ -182,7 +182,7 @@ export function ImportReceiptFormModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[90vw] md:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Tạo phiếu nhập hàng</DialogTitle>
           <DialogDescription>
@@ -256,8 +256,8 @@ export function ImportReceiptFormModal({
           {products.length > 0 && (
             <div className="space-y-2">
               <Label>Danh sách sản phẩm nhập ({products.length})</Label>
-              <div className="rounded-md border">
-                <table className="w-full text-sm">
+              <div className="rounded-md border overflow-x-auto">
+                <table className="w-full text-sm min-w-[600px]">
                   <thead className="bg-muted">
                     <tr>
                       <th className="p-2 text-left font-medium">Sản phẩm</th>

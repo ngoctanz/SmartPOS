@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 
 import { useState } from "react";
 import { useLogin } from "@/hooks/useAuth";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { parseError } from "@/lib/error-handler";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,6 +23,7 @@ export function LoginForm({
     message: string;
     suggestion?: string;
   } | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
   const { login } = useLogin();
 
   const {
@@ -101,18 +102,32 @@ export function LoginForm({
               <FieldLabel htmlFor="password" className="text-sm font-medium">
                 Mật khẩu
               </FieldLabel>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                disabled={isSubmitting}
-                className={cn(
-                  "h-10",
-                  errors.password &&
-                    "border-destructive focus-visible:ring-destructive"
-                )}
-                {...register("password", { onChange: () => setError(null) })}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  disabled={isSubmitting}
+                  className={cn(
+                    "h-10 pr-10",
+                    errors.password &&
+                      "border-destructive focus-visible:ring-destructive"
+                  )}
+                  {...register("password", { onChange: () => setError(null) })}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  disabled={isSubmitting}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
               {errors.password && (
                 <p className="text-sm text-destructive">
                   {errors.password.message}

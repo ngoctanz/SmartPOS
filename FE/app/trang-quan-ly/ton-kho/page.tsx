@@ -118,18 +118,16 @@ export default function Page() {
         lowStockOnly: filterLowStock === 'low'
       };
 
-      const targetBranchId = (isAdmin && filterBranchId !== "all") ? filterBranchId : undefined;
-
       // When admin selects "All branches", use aggregated API
       const stockPromise = isAdmin && filterBranchId === "all"
         ? stockService.getAggregatedByProduct(params)
-        : targetBranchId 
-          ? stockService.getByBranch(targetBranchId, params)
+        : effectiveBranchId 
+          ? stockService.getByBranch(effectiveBranchId, params)
           : stockService.getAll(params);
 
       const [res, statsRes] = await Promise.all([
           stockPromise,
-          stockService.getStats(targetBranchId)
+          stockService.getStats(effectiveBranchId)
       ]);
 
       if (res.data) {

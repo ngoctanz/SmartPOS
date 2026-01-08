@@ -16,27 +16,27 @@ Router.get("/:id", categoryController.getById);
 
 Router.post(
   "/",
-  authorize("admin", "user"),
+  authorize("admin", "staff"),
   categoryValidation.create,
   categoryController.create
 );
 
 Router.put(
   "/:id",
-  authorize("admin", "user"),
+  authorize("admin", "staff"),
   categoryValidation.update,
   categoryController.update
 );
 
 Router.delete(
   "/:id",
-  authorize("admin", "user"),
+  authorize("admin", "staff"),
   categoryController.remove
 );
 
 Router.post(
   "/delete-many",
-  authorize("admin", "user"),
+  authorize("admin", "staff"),
   categoryController.deleteMany
 );
 

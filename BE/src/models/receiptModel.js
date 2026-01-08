@@ -67,6 +67,26 @@ const receiptSchema = new mongoose.Schema(
       enum: ["completed", "cancelled", "pending"],
       default: "completed",
     },
+    // Error receipt fields
+    isError: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    markedErrorBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    markedErrorAt: {
+      type: Date,
+      default: null,
+    },
+    errorReason: {
+      type: String,
+      default: null,
+      maxlength: [500, "Error reason cannot exceed 500 characters"],
+    },
     // PayOS payment info (only for transfer payments)
     paymentInfo: {
       orderCode: { type: Number },
@@ -98,11 +118,15 @@ receiptSchema.index({ status: 1 });
 receiptSchema.index({ createdAt: -1 });
 receiptSchema.index({ paymentMethod: 1 });
 receiptSchema.index({ "paymentInfo.orderCode": 1 });
+receiptSchema.index({ isError: 1 });
+receiptSchema.index({ isError: 1, branchId: 1 });
 
 // Static methods
 receiptSchema.statics = {
   async getStats(branchId) {
     const pipeline = [
+      // Filter out error receipts
+      { $match: { isError: false } },
       {
         $group: {
           _id: null,
@@ -174,6 +198,7 @@ receiptSchema.statics = {
       paymentMethod,
       page = 1,
       limit = 20,
+      includeErrors = false, // New option to include error receipts
     } = options;
 
     // Auto-expire pending transfer payments older than 15 minutes
@@ -194,6 +219,11 @@ receiptSchema.statics = {
     );
 
     const query = {};
+
+    // Exclude error receipts by default
+    if (!includeErrors) {
+      query.isError = false;
+    }
 
     // Search by code
     if (search && search.trim()) {
@@ -221,6 +251,7 @@ receiptSchema.statics = {
     const data = await this.find(query)
       .populate("branchId", "branchName")
       .populate("createdBy", "userName name")
+      .populate("markedErrorBy", "userName name")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -241,6 +272,7 @@ receiptSchema.statics = {
     const receipt = await this.findById(id)
       .populate("branchId", "branchName address")
       .populate("createdBy", "userName name")
+      .populate("markedErrorBy", "userName name")
       .lean();
     if (!receipt) throw new Error("Receipt not found");
     return receipt;
@@ -250,6 +282,7 @@ receiptSchema.statics = {
     return this.findOne({ code })
       .populate("branchId", "branchName")
       .populate("createdBy", "userName name")
+      .populate("markedErrorBy", "userName name")
       .lean();
   },
 
@@ -284,6 +317,7 @@ receiptSchema.statics = {
     const query = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
+      isError: false, // Exclude error receipts
     };
     if (branchId) query.branchId = branchId;
     return this.find(query)
@@ -306,6 +340,7 @@ receiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
+      isError: false, // Exclude error receipts
     };
     if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
 
@@ -326,6 +361,7 @@ receiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
+      isError: false, // Exclude error receipts
     };
     if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
 
@@ -346,6 +382,7 @@ receiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
+      isError: false, // Exclude error receipts
     };
     if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
 
@@ -373,6 +410,7 @@ receiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
+      isError: false, // Exclude error receipts
     };
     if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
 
@@ -392,6 +430,7 @@ receiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
+      isError: false, // Exclude error receipts
     };
     if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
 
@@ -442,6 +481,7 @@ receiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
+      isError: false, // Exclude error receipts
     };
 
     return this.aggregate([
@@ -478,6 +518,7 @@ receiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
+      isError: false, // Exclude error receipts
     };
     if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
 

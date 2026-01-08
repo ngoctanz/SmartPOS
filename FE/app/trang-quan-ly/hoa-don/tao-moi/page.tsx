@@ -88,6 +88,88 @@ export default function CreateReceiptPage() {
     loadBranches();
   }, [user?.branchId]);
 
+  // Prefill from error receipt if fromError param exists
+  React.useEffect(() => {
+    const loadFromError = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const errorCode = params.get("fromError");
+
+      if (errorCode) {
+        try {
+          const response = await receiptService.getByCode(errorCode);
+          if (response.success && response.data) {
+            const errorReceipt = response.data;
+
+            // Verify it's actually an error receipt
+            if (!errorReceipt.isError) {
+              toast.error("Hóa đơn này không phải hóa đơn lỗi");
+              return;
+            }
+
+            // Fetch full product details to get barcode and unit
+            const items: CartItem[] = await Promise.all(
+              errorReceipt.listProduct.map(async (p) => {
+                try {
+                  const productResponse = await productService.getById(
+                    p.productId
+                  );
+                  const product = productResponse.data;
+
+                  return {
+                    productId: p.productId,
+                    productName: p.productName,
+                    barcode: product?.barcode || "",
+                    quantity: p.quantity,
+                    salePrice: p.salePrice,
+                    unit: product?.unit || "",
+                    image: product?.image,
+                  };
+                } catch (error) {
+                  // If product fetch fails, use basic info
+                  console.error(
+                    `Failed to fetch product ${p.productId}:`,
+                    error
+                  );
+                  return {
+                    productId: p.productId,
+                    productName: p.productName,
+                    barcode: "",
+                    quantity: p.quantity,
+                    salePrice: p.salePrice,
+                    unit: "",
+                    image: undefined,
+                  };
+                }
+              })
+            );
+
+            setCartItems(items);
+            // Only set payment method if it's cash or transfer (not card)
+            if (
+              errorReceipt.paymentMethod === "cash" ||
+              errorReceipt.paymentMethod === "transfer"
+            ) {
+              setPaymentMethod(errorReceipt.paymentMethod);
+            }
+
+            toast.success(
+              `Đã tải ${items.length} sản phẩm từ hóa đơn lỗi ${errorCode}`,
+              {
+                description: "Vui lòng kiểm tra và chỉnh sửa nếu cần",
+                duration: 5000,
+              }
+            );
+          }
+        } catch (error) {
+          console.error("Failed to load error receipt:", error);
+          toast.error("Không thể tải hóa đơn lỗi");
+        }
+      }
+    };
+
+    loadFromError();
+  }, []);
+
   // Handle barcode scanned
   const handleBarcodeScanned = React.useCallback(
     async (barcode: string) => {
@@ -304,7 +386,7 @@ export default function CreateReceiptPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex gap-4 flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
         {/* Left Panel */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Search Section */}
@@ -328,18 +410,20 @@ export default function CreateReceiptPage() {
         </div>
 
         {/* Right Panel - Payment Summary */}
-        <PaymentSummary
-          items={cartItems}
-          branches={branches}
-          selectedBranch={selectedBranch}
-          onBranchChange={setSelectedBranch}
-          paymentMethod={paymentMethod}
-          onPaymentMethodChange={setPaymentMethod}
-          isAdmin={isAdmin}
-          onSubmit={handleSubmit}
-          disabled={cartItems.length === 0 || !selectedBranch}
-          isSubmitting={isSubmitting}
-        />
+        <div className="lg:w-96 lg:flex-shrink-0">
+          <PaymentSummary
+            items={cartItems}
+            branches={branches}
+            selectedBranch={selectedBranch}
+            onBranchChange={setSelectedBranch}
+            paymentMethod={paymentMethod}
+            onPaymentMethodChange={setPaymentMethod}
+            isAdmin={isAdmin}
+            onSubmit={handleSubmit}
+            disabled={cartItems.length === 0 || !selectedBranch}
+            isSubmitting={isSubmitting}
+          />
+        </div>
       </div>
 
       {/* Payment QR Code Dialog */}

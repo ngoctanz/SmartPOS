@@ -21,6 +21,7 @@ interface DetailModalProps {
   onEdit?: () => void;
   footer?: React.ReactNode;
   className?: string;
+  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
 }
 
 export function DetailModal({
@@ -31,11 +32,22 @@ export function DetailModal({
   onEdit,
   footer,
   className,
+  maxWidth = "lg",
 }: DetailModalProps) {
+  const maxWidthClass = {
+    sm: "sm:max-w-sm",
+    md: "sm:max-w-md",
+    lg: "sm:max-w-lg",
+    xl: "sm:max-w-xl",
+    "2xl": "sm:max-w-2xl",
+    "3xl": "sm:max-w-3xl",
+    "4xl": "sm:max-w-4xl",
+  }[maxWidth];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className={cn("max-h-[90vh] overflow-y-auto sm:max-w-lg", className)}
+        className={cn("max-h-[90vh] overflow-y-auto", maxWidthClass, className)}
       >
         <DialogHeader className="pb-4 border-b">
           <DialogTitle className="text-lg">{title}</DialogTitle>

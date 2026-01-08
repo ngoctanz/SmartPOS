@@ -30,6 +30,11 @@ export interface Receipt {
   totalAmount: number;
   paymentMethod: "cash" | "card" | "transfer";
   status: "completed" | "cancelled" | "pending";
+  // Error receipt fields
+  isError: boolean;
+  markedErrorBy?: string | { _id: string; userName: string; name?: string };
+  markedErrorAt?: string;
+  errorReason?: string;
   // PayOS payment info (only for transfer)
   paymentInfo?: PaymentInfo;
   createdAt: string;
@@ -95,6 +100,22 @@ export interface ReceiptStats {
   completedCount: number;
   cancelledCount: number;
   totalRevenue: number;
+}
+
+export interface ErrorStats {
+  totalErrorReceipts: number;
+  totalErrorAmount: number;
+  errorsByBranch: {
+    branchId: string;
+    branchName: string;
+    count: number;
+    totalAmount: number;
+  }[];
+  recentErrors: {
+    code: string;
+    totalAmount: number;
+    markedErrorAt: string;
+  }[];
 }
 
 const receiptService = {
@@ -263,6 +284,48 @@ const receiptService = {
   ): Promise<ApiResponse<{ paymentStatus: string; receipt: Receipt }>> => {
     return apiGet<{ paymentStatus: string; receipt: Receipt }>(
       `/receipt/payment-status/${orderCode}`
+    );
+  },
+
+  /**
+   * Đánh dấu hóa đơn lỗi
+   * PATCH /api/v1/receipt/:id/mark-error
+   */
+  markAsError: async (
+    id: string,
+    errorReason?: string
+  ): Promise<ApiResponse<Receipt>> => {
+    return apiPatch<Receipt>(`/receipt/${id}/mark-error`, { errorReason });
+  },
+
+  /**
+   * Lấy danh sách hóa đơn lỗi
+   * GET /api/v1/receipt/errors
+   */
+  getErrors: async (
+    params?: GetReceiptParams & { sortBy?: string; sortOrder?: string }
+  ): Promise<ApiResponse<Receipt[]> & { pagination?: Pagination }> => {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append("page", String(params.page));
+    if (params?.limit) queryParams.append("limit", String(params.limit));
+    if (params?.branchId) queryParams.append("branchId", params.branchId);
+    if (params?.search) queryParams.append("search", params.search);
+    if (params?.sortBy) queryParams.append("sortBy", params.sortBy);
+    if (params?.sortOrder) queryParams.append("sortOrder", params.sortOrder);
+
+    const query = queryParams.toString();
+    return apiGet<Receipt[]>(`/receipt/errors${query ? `?${query}` : ""}`);
+  },
+
+  /**
+   * Lấy thống kê hóa đơn lỗi
+   * GET /api/v1/receipt/errors/stats
+   */
+  getErrorStats: async (branchId?: string): Promise<ApiResponse<ErrorStats>> => {
+    const queryParams = new URLSearchParams();
+    if (branchId) queryParams.append("branchId", branchId);
+    return apiGet<ErrorStats>(
+      `/receipt/errors/stats${queryParams.toString() ? `?${queryParams.toString()}` : ""}`
     );
   },
 };
