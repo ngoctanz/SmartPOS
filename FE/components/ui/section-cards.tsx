@@ -129,7 +129,7 @@ export function SectionCards({ stats, loading, period = "month", onPeriodChange 
         {cards.map((card, index) => (
           <Card key={index} className="@container/card">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+              <CardTitle className="text-sm font-medium text-muted-foreground text-primary">
                 {card.title}
               </CardTitle>
               <div

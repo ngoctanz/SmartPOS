@@ -143,7 +143,7 @@ export default function DashboardPage() {
         {/* Header with branch filter */}
         <div className="px-4 lg:px-6 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-primary">Dashboard</h1>
             {!isAdmin && (
               <p className="text-sm text-muted-foreground">
                 Thống kê chi nhánh của bạn

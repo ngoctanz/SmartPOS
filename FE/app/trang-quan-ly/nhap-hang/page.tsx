@@ -413,7 +413,7 @@ export default function Page() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Quản lý nhập hàng</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-primary">Quản lý nhập hàng</h1>
         <Button onClick={handleCreate}>
           <Plus className="mr-2 h-4 w-4" />
           Tạo phiếu nhập

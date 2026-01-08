@@ -60,7 +60,7 @@ export function StatsCard({
       )}
     >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">
+        <CardTitle className="text-sm font-medium text-muted-foreground text-primary">
           {title}
         </CardTitle>
         <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">

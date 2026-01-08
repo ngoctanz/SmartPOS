@@ -489,7 +489,7 @@ export default function Page() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Quản lý hóa đơn</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-primary">Quản lý hóa đơn</h1>
         <Button onClick={() => router.push("/trang-quan-ly/hoa-don/tao-moi")}>
           <Plus className="h-4 w-4 mr-2" />
           Tạo hóa đơn
