@@ -1,4 +1,4 @@
-import express from "express";
+  import express from "express";
 import { receiptController } from "../../controllers/receiptController.js";
 import { receiptValidation } from "../../validations/receiptValidation.js";
 import { authMiddleware, authorize } from "../../middlewares/authMiddleware.js";
@@ -20,6 +20,8 @@ Router.use(injectUserBranch()); // Tự động inject branchId cho staff
 
 // Get routes - list (đã được filter bởi injectUserBranch)
 Router.get("/", receiptController.getAll);
+Router.get("/errors", receiptController.getErrors); // Error receipts list
+Router.get("/errors/stats", receiptController.getErrorStats); // Error stats
 Router.get("/date-range", receiptController.getByDateRange);
 Router.get("/revenue", receiptController.getRevenue);
 Router.get("/daily-revenue", receiptController.getDailyRevenue);
@@ -62,5 +64,16 @@ Router.patch("/:id", authorize("admin"), receiptController.update);
 
 // Cancel receipt - Admin only
 Router.patch("/:id/cancel", authorize("admin"), receiptController.cancel);
+
+// Mark receipt as error - Admin and Staff
+Router.patch(
+  "/:id/mark-error",
+  authorize("admin", "staff"),
+  validateRecordBranchAccess(async (req) => {
+    const receipt = await receiptService.getById(req.params.id);
+    return receipt?.branchId;
+  }),
+  receiptController.markError
+);
 
 export const receiptRouter = Router;

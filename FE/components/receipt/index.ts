@@ -4,3 +4,5 @@ export { CartItemsTable, type CartItem } from "./cart-items-table";
 export { PaymentSummary } from "./payment-summary";
 export { ConfirmDialog } from "./confirm-dialog";
 export { PrintBill, MultiplePrintBill, printStyles } from "./print-bill";
+export { MarkErrorDialog } from "./mark-error-dialog";
+export { ErrorReceiptList } from "./error-receipt-list";

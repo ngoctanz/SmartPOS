@@ -353,8 +353,9 @@ branchProductSchema.statics = {
   },
 
   // Increase stock for a product in a branch (used when confirming import receipt)
-  async increaseStock(branchId, productId, quantity) {
-    let doc = await this.findOne({ branchId });
+  async increaseStock(branchId, productId, quantity, session = null) {
+    const options = session ? { session } : {};
+    let doc = await this.findOne({ branchId }).session(session);
     
     if (!doc) {
       // Create new branch product document if not exists
@@ -362,7 +363,7 @@ branchProductSchema.statics = {
         branchId, 
         products: [{ productId, stock: quantity, minStock: 10 }] 
       });
-      await doc.save();
+      await doc.save(options);
       return doc;
     }
 
@@ -380,7 +381,7 @@ branchProductSchema.statics = {
       });
     }
 
-    await doc.save();
+    await doc.save(options);
     return doc;
   },
 

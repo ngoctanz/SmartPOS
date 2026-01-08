@@ -531,6 +531,245 @@ const update = async (id, data) => {
   }
 };
 
+/**
+ * Mark receipt as error and return products to stock
+ */
+const markAsError = async (receiptId, userId, user, errorReason = null) => {
+  try {
+    // Get receipt
+    const receipt = await Receipt.findById(receiptId);
+    if (!receipt) {
+      throw new ApiError(404, "Không tìm thấy hóa đơn");
+    }
+
+    // Extract branchId (could be ObjectId or populated object)
+    const branchId = receipt.branchId._id || receipt.branchId;
+
+    // Validate access
+    validateBranchAccess(user, branchId, "mark error for");
+
+    // Validate status (allow marking error for both pending and completed)
+    if (receipt.status === "cancelled") {
+      throw new ApiError(
+        400,
+        "Không thể đánh dấu lỗi cho hóa đơn đã hủy"
+      );
+    }
+
+    // Validate not already marked as error
+    if (receipt.isError) {
+      throw new ApiError(400, "Hóa đơn đã được đánh dấu lỗi trước đó");
+    }
+
+    // Try to use transaction if available (replica set)
+    // Otherwise, fall back to sequential operations
+    const mongoose = await import("mongoose");
+    let session = null;
+    let useTransaction = false;
+
+    try {
+      // Check if we can use transactions
+      const client = mongoose.default.connection.getClient();
+      const admin = client.db().admin();
+      const serverInfo = await admin.serverStatus();
+
+      // Only use transactions if replica set is available
+      if (serverInfo.repl && serverInfo.repl.setName) {
+        session = await mongoose.default.startSession();
+        session.startTransaction();
+        useTransaction = true;
+      }
+    } catch (error) {
+      console.log("Transactions not available, using sequential operations");
+      useTransaction = false;
+    }
+
+    try {
+      // Return products to stock ONLY if receipt was completed (stock was decreased)
+      if (receipt.status === "completed") {
+        for (const item of receipt.listProduct) {
+          await BranchProduct.increaseStock(
+            branchId,
+            item.productId,
+            item.quantity,
+            session
+          );
+        }
+      }
+
+      // Update receipt
+      receipt.isError = true;
+      receipt.markedErrorBy = userId;
+      receipt.markedErrorAt = new Date();
+      receipt.errorReason = errorReason || null;
+
+      if (useTransaction && session) {
+        await receipt.save({ session });
+        await session.commitTransaction();
+      } else {
+        await receipt.save();
+      }
+
+      // Populate for response
+      const populatedReceipt = await Receipt.findById(receiptId)
+        .populate("branchId", "branchName")
+        .populate("createdBy", "userName name")
+        .populate("markedErrorBy", "userName name")
+        .lean();
+
+      return populatedReceipt;
+    } catch (error) {
+      if (useTransaction && session) {
+        await session.abortTransaction();
+      }
+      throw error;
+    } finally {
+      if (session) {
+        session.endSession();
+      }
+    }
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Get error receipts with pagination
+ */
+const getErrorReceipts = async (options, user) => {
+  try {
+    const { page = 1, limit = 20, search, branchId, sortBy = "markedErrorAt", sortOrder = "desc" } = options;
+
+    // Build query
+    const query = { isError: true };
+
+    // Search by code
+    if (search && search.trim()) {
+      query.code = { $regex: search, $options: "i" };
+    }
+
+    // Branch filter with access control
+    if (user.role === "staff") {
+      // Staff can only see their branch
+      query.branchId = user.branchId;
+    } else if (branchId) {
+      // Admin can filter by branch
+      query.branchId = branchId;
+    }
+
+    // Count total
+    const total = await Receipt.countDocuments(query);
+    const skip = (page - 1) * limit;
+
+    // Sort options
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === "asc" ? 1 : -1;
+
+    // Fetch data
+    const data = await Receipt.find(query)
+      .populate("branchId", "branchName")
+      .populate("createdBy", "userName name")
+      .populate("markedErrorBy", "userName name")
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    return {
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
+/**
+ * Get error receipt statistics
+ */
+const getErrorStats = async (branchId, user) => {
+  try {
+    const query = { isError: true };
+
+    // Access control
+    if (user.role === "staff") {
+      query.branchId = user.branchId;
+    } else if (branchId) {
+      query.branchId = branchId;
+    }
+
+    // Total count and amount
+    const totalResult = await Receipt.aggregate([
+      { $match: query },
+      {
+        $group: {
+          _id: null,
+          totalErrorReceipts: { $sum: 1 },
+          totalErrorAmount: { $sum: "$totalAmount" },
+        },
+      },
+    ]);
+
+    const totals = totalResult[0] || {
+      totalErrorReceipts: 0,
+      totalErrorAmount: 0,
+    };
+
+    // By branch (admin only)
+    let errorsByBranch = [];
+    if (user.role === "admin") {
+      errorsByBranch = await Receipt.aggregate([
+        { $match: { isError: true } },
+        {
+          $group: {
+            _id: "$branchId",
+            count: { $sum: 1 },
+            totalAmount: { $sum: "$totalAmount" },
+          },
+        },
+        {
+          $lookup: {
+            from: "branches",
+            localField: "_id",
+            foreignField: "_id",
+            as: "branch",
+          },
+        },
+        { $unwind: "$branch" },
+        {
+          $project: {
+            branchId: "$_id",
+            branchName: "$branch.branchName",
+            count: 1,
+            totalAmount: 1,
+          },
+        },
+        { $sort: { count: -1 } },
+      ]);
+    }
+
+    // Recent errors
+    const recentErrors = await Receipt.find(query)
+      .select("code totalAmount markedErrorAt")
+      .sort({ markedErrorAt: -1 })
+      .limit(5)
+      .lean();
+
+    return {
+      ...totals,
+      errorsByBranch,
+      recentErrors,
+    };
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 export const receiptService = {
   getStats,
   create,
@@ -548,4 +787,7 @@ export const receiptService = {
   getRevenueByPaymentMethod,
   handlePaymentWebhook,
   checkPaymentStatus,
+  markAsError,
+  getErrorReceipts,
+  getErrorStats,
 };

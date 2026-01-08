@@ -277,6 +277,70 @@ const checkPaymentStatus = async (req, res, next) => {
   }
 };
 
+/**
+ * Mark receipt as error
+ */
+const markError = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { errorReason } = req.body; // Optional reason
+    const userId = req.user.userId;
+    const user = req.user;
+
+    const receipt = await receiptService.markAsError(id, userId, user, errorReason);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Đã đánh dấu hóa đơn lỗi và hoàn hàng về kho",
+      data: receipt,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get error receipts
+ */
+const getErrors = async (req, res, next) => {
+  try {
+    const { page, limit, search, branchId, sortBy, sortOrder } = req.query;
+    const user = req.user;
+
+    const result = await receiptService.getErrorReceipts(
+      { page, limit, search, branchId, sortBy, sortOrder },
+      user
+    );
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: result.data,
+      pagination: result.pagination,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get error receipt stats
+ */
+const getErrorStats = async (req, res, next) => {
+  try {
+    const { branchId } = req.query;
+    const user = req.user;
+
+    const stats = await receiptService.getErrorStats(branchId, user);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const receiptController = {
   getStats,
   create,
@@ -292,4 +356,7 @@ export const receiptController = {
   getTopProducts,
   handlePayosWebhook,
   checkPaymentStatus,
+  markError,
+  getErrors,
+  getErrorStats,
 };

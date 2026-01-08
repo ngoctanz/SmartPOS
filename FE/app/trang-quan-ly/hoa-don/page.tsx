@@ -6,6 +6,7 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { Label } from "@/components/ui/label";
 
@@ -21,6 +22,7 @@ import {
   Clock,
   CheckCircle,
   DollarSign,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import receiptService, {
@@ -47,6 +49,7 @@ import {
   PrintBill,
   MultiplePrintBill,
   printStyles,
+  ErrorReceiptList,
 } from "@/components/receipt";
 import { formatCurrency } from "@/utils/format.utils";
 import { StatsCard } from "@/components/common/stats-card";
@@ -100,6 +103,18 @@ export default function Page() {
   const [selectedReceipts, setSelectedReceipts] = React.useState<Receipt[]>([]);
   const multiplePrintRef = React.useRef<HTMLDivElement>(null);
 
+  // Error receipts state
+  const [activeTab, setActiveTab] = React.useState("all");
+  const [errorReceipts, setErrorReceipts] = React.useState<Receipt[]>([]);
+  const [errorLoading, setErrorLoading] = React.useState(false);
+  const [errorPagination, setErrorPagination] = React.useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+  });
+  const [errorSearch, setErrorSearch] = React.useState("");
+
   // Real-time payment notifications via WebSocket
   useSocket({
     onPaymentSuccess: (data) => {
@@ -130,6 +145,61 @@ export default function Page() {
     };
     fetchBranches();
   }, []);
+
+  // Fetch error receipts
+  const fetchErrorReceipts = React.useCallback(async () => {
+    setErrorLoading(true);
+    try {
+      const response = await receiptService.getErrors({
+        page: errorPagination.page,
+        limit: errorPagination.limit,
+        search: errorSearch,
+        branchId: isAdmin ? filters.branchId : undefined,
+      });
+
+      if (response.success && response.data) {
+        setErrorReceipts(response.data);
+        if (response.pagination) {
+          setErrorPagination(response.pagination);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch error receipts:", error);
+      toast.error("Không thể tải danh sách hóa đơn lỗi");
+    } finally {
+      setErrorLoading(false);
+    }
+  }, [errorPagination.page, errorPagination.limit, errorSearch, filters.branchId, isAdmin]);
+
+  // Fetch error count on mount
+  React.useEffect(() => {
+    const fetchErrorCount = async () => {
+      try {
+        const response = await receiptService.getErrors({
+          page: 1,
+          limit: 1,
+          branchId: isAdmin ? filters.branchId : undefined,
+        });
+        if (response.success && response.pagination) {
+          setErrorPagination((prev) => ({
+            ...prev,
+            total: response.pagination?.total || 0,
+            totalPages: response.pagination?.totalPages || 0,
+          }));
+        }
+      } catch (error) {
+        console.error("Failed to fetch error count:", error);
+      }
+    };
+    fetchErrorCount();
+  }, [isAdmin, filters.branchId]);
+
+  // Fetch error receipts when tab changes
+  React.useEffect(() => {
+    if (activeTab === "errors") {
+      fetchErrorReceipts();
+    }
+  }, [activeTab, fetchErrorReceipts]);
 
   const handleView = (item: Receipt) => {
     setSelectedItem(item);
@@ -456,20 +526,50 @@ export default function Page() {
         />
       </div>
 
-      <CommonTable
-        columns={columns}
-        data={data}
-        filterCol="code"
-        filterPlaceholder="Tìm mã hóa đơn..."
-        toolbarActions={toolbarActions}
-        serverPagination={pagination}
-        onPageChange={handlePageChange}
-        onSearch={handleSearch}
-        searchValue={searchTerm}
-        onBulkAction={handleBulkPrint}
-        bulkActionLabel="In hóa đơn"
-        bulkActionIcon="printer"
-      />
+      {/* Tabs for Normal and Error Receipts */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <TabsList>
+          <TabsTrigger value="all" className="gap-2">
+            Tất cả hóa đơn
+            <Badge variant="secondary">{pagination.total}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="errors" className="gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            Hóa đơn lỗi
+            <Badge variant="destructive">{errorPagination.total}</Badge>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="all" className="flex-1">
+          <CommonTable
+            columns={columns}
+            data={data}
+            filterCol="code"
+            filterPlaceholder="Tìm mã hóa đơn..."
+            toolbarActions={toolbarActions}
+            serverPagination={pagination}
+            onPageChange={handlePageChange}
+            onSearch={handleSearch}
+            searchValue={searchTerm}
+            onBulkAction={handleBulkPrint}
+            bulkActionLabel="In hóa đơn"
+            bulkActionIcon="printer"
+          />
+        </TabsContent>
+
+        <TabsContent value="errors" className="flex-1">
+          <ErrorReceiptList
+            data={errorReceipts}
+            isLoading={errorLoading}
+            pagination={errorPagination}
+            onPageChange={(page) =>
+              setErrorPagination((prev) => ({ ...prev, page }))
+            }
+            onSearch={setErrorSearch}
+            searchValue={errorSearch}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Quick View Modal */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
