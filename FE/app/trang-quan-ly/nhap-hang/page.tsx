@@ -341,7 +341,7 @@ export default function Page() {
           const createdAt = new Date(item.createdAt);
           const now = new Date();
           const diffInMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
-          const canMarkError = isCompleted && isAdmin && diffInMinutes <= 30;
+          const canMarkError = isCompleted && diffInMinutes <= 30; // Cả staff và admin đều có thể đánh dấu lỗi
 
           return (
             <div className="flex items-center gap-2">
@@ -637,12 +637,12 @@ export default function Page() {
                     Xác nhận
                   </Button>
                 </>
-              ) : selectedItem.status === "completed" && isAdmin ? (
+              ) : selectedItem.status === "completed" ? (
                 (() => {
                   const createdAt = new Date(selectedItem.createdAt);
                   const now = new Date();
                   const diffInMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
-                  const canMarkError = diffInMinutes <= 30;
+                  const canMarkError = diffInMinutes <= 30; // Cả staff và admin
                   
                   return canMarkError ? (
                     <Button

@@ -105,16 +105,18 @@ export function ErrorReceiptsTab({ isAdmin, branches, userBranchId }: ErrorRecei
 
   const handleRecreate = (item: ImportReceipt) => {
     // Chuyển đến trang tạo phiếu nhập với data từ phiếu lỗi
+    const productsData = item.listProduct.map(p => ({
+      productId: p.productId,
+      quantity: p.quantity,
+      importPrice: p.importPrice,
+    }));
+    
     const queryParams = new URLSearchParams({
       fromError: item._id,
       branchId: typeof item.branchId === "object" ? item.branchId._id : item.branchId,
       supplierName: item.supplierName || "",
       note: item.note || "",
-      products: JSON.stringify(item.listProduct.map(p => ({
-        productId: p.productId,
-        quantity: p.quantity,
-        importPrice: p.importPrice,
-      }))),
+      products: encodeURIComponent(JSON.stringify(productsData)),
     });
     router.push(`/trang-quan-ly/nhap-hang/tao-moi?${queryParams.toString()}`);
   };
@@ -247,8 +249,8 @@ export function ErrorReceiptsTab({ isAdmin, branches, userBranchId }: ErrorRecei
               onView={() => handleView(item)}
               onAction={() => handleRecreate(item)}
               actionLabel="Tạo lại"
-              actionIcon="refresh"
-              onDelete={isAdmin ? () => handleDelete(item) : undefined}
+              actionIcon="check" // Dùng check thay vì refresh
+              onDelete={isAdmin ? () => handleDelete(item) : undefined} // Chỉ admin mới có nút xóa
               disabled={isAnyRowSelected}
             />
           );
@@ -290,14 +292,12 @@ export function ErrorReceiptsTab({ isAdmin, branches, userBranchId }: ErrorRecei
           value={stats?.totalErrorReceipts || 0}
           icon={AlertTriangle}
           description="Số phiếu nhập bị đánh dấu lỗi"
-          trend="negative"
         />
         <StatsCard
           title="Tổng giá trị lỗi"
           value={formatCurrency(stats?.totalErrorValue || 0)}
           icon={DollarSign}
           description="Tổng giá trị các phiếu lỗi"
-          trend="negative"
         />
       </div>
 
@@ -311,7 +311,7 @@ export function ErrorReceiptsTab({ isAdmin, branches, userBranchId }: ErrorRecei
           data={data}
           filterCol="code"
           filterPlaceholder="Tìm mã phiếu lỗi..."
-          onBulkAction={isAdmin ? handleDeleteMany : undefined}
+          onBulkAction={isAdmin ? handleDeleteMany : undefined} // Chỉ admin mới có bulk delete
           bulkActionLabel="Xóa đã chọn"
           bulkActionIcon="trash"
           toolbarActions={toolbarActions}

@@ -75,10 +75,9 @@ Router.patch(
   importReceiptController.cancel
 );
 
-// Mark as error - hoàn lại kho nếu đã completed
+// Mark as error - cho phép cả staff và admin (trong vòng 30 phút)
 Router.patch(
   "/:id/mark-error",
-  authorize("admin"),
   importReceiptController.markAsError
 );
 

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -38,6 +38,7 @@ import {
 
 export default function CreateImportReceiptPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuthContext();
   const isAdmin = user?.role === "admin";
 
@@ -88,6 +89,60 @@ export default function CreateImportReceiptPage() {
     };
     loadCategories();
   }, []);
+
+  // Load data from error receipt if fromError param exists
+  React.useEffect(() => {
+    const fromError = searchParams.get("fromError");
+    if (!fromError) return;
+
+    const loadErrorReceiptData = async () => {
+      try {
+        // Get data from query params
+        const branchId = searchParams.get("branchId");
+        const supplierName = searchParams.get("supplierName");
+        const note = searchParams.get("note");
+        const productsJson = searchParams.get("products");
+
+        if (branchId) setSelectedBranch(branchId);
+        if (supplierName) setSupplierName(supplierName);
+        if (note) setNote(note);
+
+        if (productsJson) {
+          const products = JSON.parse(decodeURIComponent(productsJson));
+          
+          // Load full product details for each item
+          const loadedItems: ImportItem[] = [];
+          for (const item of products) {
+            try {
+              const response = await productService.getById(item.productId);
+              if (response.success && response.data) {
+                const product = response.data;
+                loadedItems.push({
+                  productId: product._id,
+                  productName: product.name,
+                  barcode: product.barcode || "",
+                  quantity: item.quantity,
+                  importPrice: item.importPrice,
+                  unit: product.unit,
+                  image: product.image,
+                });
+              }
+            } catch (error) {
+              console.error("Failed to load product:", item.productId, error);
+            }
+          }
+          
+          setImportItems(loadedItems);
+          toast.success(`Đã tải ${loadedItems.length} sản phẩm từ phiếu lỗi`);
+        }
+      } catch (error) {
+        console.error("Failed to load error receipt data:", error);
+        toast.error("Không thể tải dữ liệu từ phiếu lỗi");
+      }
+    };
+
+    loadErrorReceiptData();
+  }, [searchParams]);
 
   const handleBarcodeScanned = React.useCallback(
     async (barcode: string) => {
