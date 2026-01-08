@@ -380,7 +380,7 @@ export default function ReceiptDetailPage() {
   return (
     <div className="flex flex-col h-full p-4 pt-0">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-4">
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
@@ -414,26 +414,26 @@ export default function ReceiptDetailPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" onClick={handlePrint}>
-            <Printer className="h-4 w-4 mr-2" />
-            In hóa đơn
+            <Printer className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">In hóa đơn</span>
           </Button>
           {!isEditing && receipt.status !== "cancelled" && (
             <Button onClick={() => setIsEditing(true)}>
-              <Edit2 className="h-4 w-4 mr-2" />
-              Chỉnh sửa
+              <Edit2 className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Chỉnh sửa</span>
             </Button>
           )}
           {isEditing && (
             <>
               <Button variant="outline" onClick={handleCancelEdit}>
-                <X className="h-4 w-4 mr-2" />
-                Hủy
+                <X className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Hủy</span>
               </Button>
               <Button onClick={() => setShowConfirmSave(true)}>
-                <Save className="h-4 w-4 mr-2" />
-                Lưu thay đổi
+                <Save className="h-4 w-4 sm:mr-2" />
+                <span className="hidden sm:inline">Lưu thay đổi</span>
               </Button>
             </>
           )}
@@ -441,7 +441,7 @@ export default function ReceiptDetailPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex gap-4 flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
         {/* Left Panel - Receipt Info & Products */}
         <div className="flex-1 flex flex-col min-w-0 gap-4">
           {/* Receipt Info Card */}
@@ -559,7 +559,7 @@ export default function ReceiptDetailPage() {
         </div>
 
         {/* Right Panel - Summary */}
-        <div className="w-80 flex flex-col gap-4">
+        <div className="lg:w-80 lg:flex-shrink-0 flex flex-col gap-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Thanh toán</CardTitle>

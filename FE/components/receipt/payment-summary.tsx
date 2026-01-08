@@ -47,7 +47,7 @@ export function PaymentSummary({
   );
 
   return (
-    <div className="w-80 flex flex-col gap-4">
+    <div className="flex flex-col gap-4 h-fit lg:sticky lg:top-4">
       {/* Branch Selection - Admin only */}
       {isAdmin && (
         <div className="bg-muted/50 rounded-lg p-4">

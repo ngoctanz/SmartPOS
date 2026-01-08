@@ -304,7 +304,7 @@ export default function CreateReceiptPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex gap-4 flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
         {/* Left Panel */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Search Section */}
@@ -328,18 +328,20 @@ export default function CreateReceiptPage() {
         </div>
 
         {/* Right Panel - Payment Summary */}
-        <PaymentSummary
-          items={cartItems}
-          branches={branches}
-          selectedBranch={selectedBranch}
-          onBranchChange={setSelectedBranch}
-          paymentMethod={paymentMethod}
-          onPaymentMethodChange={setPaymentMethod}
-          isAdmin={isAdmin}
-          onSubmit={handleSubmit}
-          disabled={cartItems.length === 0 || !selectedBranch}
-          isSubmitting={isSubmitting}
-        />
+        <div className="lg:w-96 lg:flex-shrink-0">
+          <PaymentSummary
+            items={cartItems}
+            branches={branches}
+            selectedBranch={selectedBranch}
+            onBranchChange={setSelectedBranch}
+            paymentMethod={paymentMethod}
+            onPaymentMethodChange={setPaymentMethod}
+            isAdmin={isAdmin}
+            onSubmit={handleSubmit}
+            disabled={cartItems.length === 0 || !selectedBranch}
+            isSubmitting={isSubmitting}
+          />
+        </div>
       </div>
 
       {/* Payment QR Code Dialog */}

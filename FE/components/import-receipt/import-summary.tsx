@@ -52,7 +52,7 @@ export function ImportSummary({
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <div className="w-80 flex flex-col bg-card border rounded-lg">
+    <div className="flex flex-col bg-card border rounded-lg h-fit lg:sticky lg:top-4">
       {/* Header */}
       <div className="p-4 border-b">
         <h2 className="font-semibold">Thông tin phiếu nhập</h2>

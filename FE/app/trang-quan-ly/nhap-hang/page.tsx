@@ -486,7 +486,7 @@ export default function Page() {
         open={isDetailOpen}
         onOpenChange={setIsDetailOpen}
         title="Chi tiết phiếu nhập"
-        className="max-w-4xl"
+        maxWidth="3xl"
         footer={
           selectedItem?.status === "pending" ? (
             <div className="flex gap-2">

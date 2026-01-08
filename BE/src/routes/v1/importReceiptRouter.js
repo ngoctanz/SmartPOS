@@ -49,25 +49,25 @@ Router.get(
 );
 
 
-// Admin only - tạo phiếu nhập cần branchId
+// Admin and Staff can create import receipts
 Router.post(
   "/",
-  authorize("admin"),
+  authorize("admin", "staff"),
   injectUserBranch({ requireBranchForWrite: true }),
   receiptValidation.createImportReceipt,
   importReceiptController.create
 );
 
-// Confirm/Cancel - không cần branchId vì phiếu đã có sẵn
+// Confirm/Cancel - Admin and Staff
 Router.patch(
   "/:id/confirm",
-  authorize("admin"),
+  authorize("admin", "staff"),
   importReceiptController.confirm
 );
 
 Router.patch(
   "/:id/cancel",
-  authorize("admin"),
+  authorize("admin", "staff"),
   importReceiptController.cancel
 );
 

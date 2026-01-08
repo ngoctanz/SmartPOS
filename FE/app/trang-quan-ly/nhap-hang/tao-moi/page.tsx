@@ -361,7 +361,7 @@ export default function CreateImportReceiptPage() {
       </div>
 
       {/* Main Content */}
-      <div className="flex gap-4 flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
         {/* Left Panel */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Search Section */}
@@ -388,19 +388,21 @@ export default function CreateImportReceiptPage() {
         </div>
 
         {/* Right Panel - Summary */}
-        <ImportSummary
-          items={importItems}
-          branches={branches}
-          selectedBranch={selectedBranch}
-          onBranchChange={setSelectedBranch}
-          supplierName={supplierName}
-          onSupplierChange={setSupplierName}
-          note={note}
-          onNoteChange={setNote}
-          isAdmin={isAdmin}
-          onSubmit={handleSubmitClick}
-          disabled={importItems.length === 0 || (isAdmin && !selectedBranch)}
-        />
+        <div className="lg:w-96 lg:flex-shrink-0">
+          <ImportSummary
+            items={importItems}
+            branches={branches}
+            selectedBranch={selectedBranch}
+            onBranchChange={setSelectedBranch}
+            supplierName={supplierName}
+            onSupplierChange={setSupplierName}
+            note={note}
+            onNoteChange={setNote}
+            isAdmin={isAdmin}
+            onSubmit={handleSubmitClick}
+            disabled={importItems.length === 0 || (isAdmin && !selectedBranch)}
+          />
+        </div>
       </div>
 
       <ConfirmDialog
