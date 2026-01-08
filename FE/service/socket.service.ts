@@ -5,19 +5,46 @@
 
 import { io, Socket } from "socket.io-client";
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8017";
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:8081";
 
 class SocketService {
   private socket: Socket | null = null;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelay = 3000;
+  private maxReconnectAttempts = 10;
+  private reconnectDelay = 2000; // Start with 2s
+  private maxReconnectDelay = 10000; // Max 10s between attempts
   private listeners: Map<string, Set<Function>> = new Map();
+  private hasExhaustedRetries = false;
+
+  constructor() {
+    // Auto-reconnect when user comes back to the page
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", () => this.handleWindowFocus());
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          this.handleWindowFocus();
+        }
+      });
+    }
+  }
+
+  /**
+   * Handle window focus - try to reconnect if disconnected
+   */
+  private handleWindowFocus() {
+    if (this.socket && !this.socket.connected && this.hasExhaustedRetries) {
+      console.log("[Socket] Window focused, attempting to reconnect...");
+      this.hasExhaustedRetries = false;
+      this.reconnectAttempts = 0;
+      this.socket.connect();
+    }
+  }
 
   /**
    * Connect to WebSocket server
+   * Token is optional - if not provided, will use httpOnly cookie
    */
-  connect(token: string): Socket {
+  connect(token?: string): Socket {
     if (this.socket?.connected) {
       console.log("[Socket] Already connected");
       return this.socket;
@@ -26,12 +53,12 @@ class SocketService {
     console.log("[Socket] Connecting to:", SOCKET_URL);
 
     this.socket = io(SOCKET_URL, {
-      auth: {
-        token,
-      },
+      auth: token ? { token } : undefined,
+      withCredentials: true, // Send cookies automatically
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionDelay: this.reconnectDelay,
+      reconnectionDelayMax: this.maxReconnectDelay,
       reconnectionAttempts: this.maxReconnectAttempts,
       timeout: 20000,
     });
@@ -48,6 +75,7 @@ class SocketService {
 
     this.socket.on("connect", () => {
       this.reconnectAttempts = 0;
+      this.hasExhaustedRetries = false;
       console.log("[Socket] ✓ Connected successfully", this.socket?.id);
       
       // Re-setup payment success listener after reconnection
@@ -77,9 +105,8 @@ class SocketService {
       );
 
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        console.error("[Socket] Max reconnection attempts reached");
-        // Don't disconnect - let socket.io handle reconnection
-        // Just log the error
+        console.error("[Socket] Max reconnection attempts reached, will retry on window focus");
+        this.hasExhaustedRetries = true;
       }
     });
 

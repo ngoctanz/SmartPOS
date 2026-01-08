@@ -7,7 +7,7 @@ import { Server } from "socket.io";
 import jwt from "jsonwebtoken";
 
 let io = null;
-const connectedClients = new Map(); // Map of socket.id -> { socketId, userId, branchId, username }
+const connectedClients = new Map(); // Map of socket.id -> { socketId, userId, userName, branchId }
 
 /**
  * Initialize Socket.IO server
@@ -27,8 +27,18 @@ export const initializeSocket = (server) => {
   // Authentication middleware
   io.use(async (socket, next) => {
     try {
-      // Get token from handshake auth or query
-      const token = socket.handshake.auth.token || socket.handshake.query.token;
+      // Get token from handshake auth, query, or cookie
+      let token = socket.handshake.auth?.token || socket.handshake.query?.token;
+      
+      // Fallback to cookie if no token in auth/query
+      if (!token && socket.handshake.headers.cookie) {
+        const cookies = socket.handshake.headers.cookie.split(";").reduce((acc, cookie) => {
+          const [key, value] = cookie.trim().split("=");
+          acc[key] = value;
+          return acc;
+        }, {});
+        token = cookies.access_token;
+      }
 
       if (!token) {
         console.log("[Socket] Connection rejected: No token provided");
@@ -39,13 +49,13 @@ export const initializeSocket = (server) => {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       socket.user = {
         userId: decoded.userId,
-        username: decoded.username,
+        userName: decoded.userName,
         branchId: decoded.branchId || "all",
         role: decoded.role,
       };
 
       console.log(
-        `[Socket] ✓ Authentication successful for user: ${decoded.username} (branch: ${socket.user.branchId})`
+        `[Socket] ✓ Authentication successful for user: ${decoded.userName} (branch: ${socket.user.branchId})`
       );
       next();
     } catch (error) {
@@ -56,13 +66,13 @@ export const initializeSocket = (server) => {
 
   // Connection handler
   io.on("connection", (socket) => {
-    const { userId, username, branchId } = socket.user;
+    const { userId, userName, branchId } = socket.user;
 
     // Store client info
     connectedClients.set(socket.id, {
       socketId: socket.id,
       userId,
-      username,
+      userName,
       branchId,
     });
 
@@ -76,7 +86,7 @@ export const initializeSocket = (server) => {
     }
 
     console.log(
-      `[Socket] ✓ Client connected: ${username} (${socket.id}) - Branch: ${branchId}`
+      `[Socket] ✓ Client connected: ${userName} (${socket.id}) - Branch: ${branchId}`
     );
     console.log(`[Socket] Total connected clients: ${connectedClients.size}`);
 
@@ -91,7 +101,7 @@ export const initializeSocket = (server) => {
     socket.on("disconnect", (reason) => {
       connectedClients.delete(socket.id);
       console.log(
-        `[Socket] ✗ Client disconnected: ${username} (${socket.id}) - Reason: ${reason}`
+        `[Socket] ✗ Client disconnected: ${userName} (${socket.id}) - Reason: ${reason}`
       );
       console.log(`[Socket] Total connected clients: ${connectedClients.size}`);
     });

@@ -10,7 +10,6 @@ import { importReceiptRouter } from "./importReceiptRouter.js";
 import { receiptRouter } from "./receiptRouter.js";
 import { dashboardRouter } from "./dashboardRouter.js";
 import { uploadRouter } from "./uploadRouter.js";
-import { notificationRouter } from "./notificationRouter.js";
 
 const Router = express.Router();
 
@@ -40,9 +39,6 @@ Router.use("/dashboard", dashboardRouter);
 
 // Upload
 Router.use("/upload", uploadRouter);
-
-// Notifications (SSE)
-Router.use("/notification", notificationRouter);
 
 export const APIs_V1 = {
   Router,

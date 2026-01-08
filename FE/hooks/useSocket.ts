@@ -40,20 +40,9 @@ export const useSocket = (options: UseSocketOptions = {}) => {
 
     const connect = async () => {
       try {
-        // Get access token from cookie (automatically sent by browser)
-        // We need to extract it for socket.io auth
-        const token = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("access_token="))
-          ?.split("=")[1];
-
-        if (!token) {
-          console.error("[Socket] No access token found in cookies");
-          return;
-        }
-
         console.log("[Socket] Connecting with user:", user.userName);
-        socketService.connect(token);
+        // Connect without token - cookie will be sent automatically
+        socketService.connect();
 
         // Setup payment success listener
         handlePaymentSuccess = (data: PaymentSuccessData) => {
@@ -92,32 +81,19 @@ export const useSocket = (options: UseSocketOptions = {}) => {
     }
   }, [isAuthenticated]);
 
-  // Update connection status and handle reconnection
+  // Update connection status (don't auto-reconnect - socket.io handles it)
   useEffect(() => {
+    if (!enabled || !isAuthenticated) return;
+
     const checkConnection = () => {
       const connected = socketService.isConnected();
       setIsConnected(connected);
-
-      // Auto-reconnect if disconnected but should be connected
-      if (!connected && enabled && isAuthenticated && user && connectAttemptedRef.current) {
-        console.log("[Socket] Connection lost, attempting to reconnect...");
-        connectAttemptedRef.current = false;
-        
-        const token = document.cookie
-          .split("; ")
-          .find((row) => row.startsWith("access_token="))
-          ?.split("=")[1];
-
-        if (token) {
-          socketService.connect(token);
-          connectAttemptedRef.current = true;
-        }
-      }
     };
 
-    const interval = setInterval(checkConnection, 5000);
+    // Check connection status periodically (just for UI update, not reconnect)
+    const interval = setInterval(checkConnection, 10000);
     return () => clearInterval(interval);
-  }, [enabled, isAuthenticated, user]);
+  }, [enabled, isAuthenticated]);
 
   // Disconnect on unmount
   useEffect(() => {
