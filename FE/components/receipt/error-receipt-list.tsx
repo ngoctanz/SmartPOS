@@ -110,7 +110,7 @@ export function ErrorReceiptList({
       onRefresh?.();
     } catch (error) {
       console.error("Bulk delete error:", error);
-      toast.error("Có lỗi xảy ra khi xóa hóa đơn");
+      toast.error("Có lỗi xảy ra khi xóa phiếu hoặc bạn ko có quyền thực hiện");
     } finally {
       setIsSubmitting(false);
     }
