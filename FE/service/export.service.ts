@@ -1,4 +1,4 @@
-import { getApiUrl } from "./api.config";
+import { APP_CONFIG } from "@/constants/config";
 
 class ExportService {
   private readonly BASE_URL = "/export";
@@ -23,7 +23,7 @@ class ExportService {
       params.append("search", filters.search);
     }
 
-    const url = `${getApiUrl(this.BASE_URL)}/products?${params.toString()}`;
+    const url = `${APP_CONFIG.API.BASE_URL}${this.BASE_URL}/products?${params.toString()}`;
     
     const response = await fetch(url, {
       method: "GET",
@@ -42,7 +42,7 @@ class ExportService {
    * Download import template
    */
   async downloadTemplate(): Promise<Blob> {
-    const url = getApiUrl(`${this.BASE_URL}/template`);
+    const url = `${APP_CONFIG.API.BASE_URL}${this.BASE_URL}/template`;
     
     const response = await fetch(url, {
       method: "GET",
@@ -61,7 +61,7 @@ class ExportService {
    * Export products by category
    */
   async exportByCategory(): Promise<Blob> {
-    const url = getApiUrl(`${this.BASE_URL}/products/by-category`);
+    const url = `${APP_CONFIG.API.BASE_URL}${this.BASE_URL}/products/by-category`;
     
     const response = await fetch(url, {
       method: "GET",
