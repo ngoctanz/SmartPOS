@@ -6,8 +6,8 @@ const create = async (data) => {
   try {
     const branch = await Branch.createBranch(data);
     
-    // Initialize BranchProduct with all existing products (stock = 0)
-    await BranchProduct.initBranchWithAllProducts(branch._id);
+    // BranchProduct sẽ được tạo tự động khi có phiếu nhập (lazy initialization)
+    // Không cần init tất cả products với stock = 0 để tránh phình database
     
     return branch;
   } catch (error) {

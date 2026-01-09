@@ -179,6 +179,17 @@ const stockService = {
   },
 
   /**
+   * Tìm sản phẩm trong kho theo barcode
+   * GET /api/v1/stock/branch/:branchId/barcode/:barcode
+   */
+  getByBarcode: async (
+    branchId: string,
+    barcode: string
+  ): Promise<ApiResponse<BranchProduct>> => {
+    return apiGet<BranchProduct>(`/stock/branch/${branchId}/barcode/${barcode}`);
+  },
+
+  /**
    * Kiểm tra tồn kho
    * GET /api/v1/stock/branch/:branchId/product/:productId/check
    */

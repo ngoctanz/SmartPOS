@@ -79,6 +79,30 @@ const getLowStock = async (branchId, user = null) => {
   }
 };
 
+const getByBarcode = async (branchId, barcode, user = null) => {
+  try {
+    if (!branchId || branchId.trim() === "") {
+      throw new ApiError(400, "Branch ID is required!");
+    }
+    if (!barcode || barcode.trim() === "") {
+      throw new ApiError(400, "Barcode is required!");
+    }
+    
+    // Defense-in-depth: Validate branch access
+    if (user) {
+      validateBranchAccess(user, branchId, "search stock for");
+    }
+    
+    const result = await BranchProduct.findByBarcode(branchId, barcode);
+    if (!result) {
+      throw new ApiError(404, "Sản phẩm không có trong kho chi nhánh này");
+    }
+    return result;
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 const checkStockAvailability = async (branchId, productId, quantity) => {
   try {
     const stock = await BranchProduct.getStock(branchId, productId);
@@ -254,6 +278,7 @@ export const branchProductService = {
   getStock,
   setMinStock,
   getLowStock,
+  getByBarcode,
   checkStockAvailability,
   create,
   update,

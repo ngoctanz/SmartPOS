@@ -103,6 +103,21 @@ const getLowStock = async (req, res, next) => {
   }
 };
 
+const getByBarcode = async (req, res, next) => {
+  try {
+    const { branchId, barcode } = req.params;
+    // Pass user for defense-in-depth security
+    const result = await branchProductService.getByBarcode(branchId, barcode, req.user);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get stock by barcode successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const checkAvailability = async (req, res, next) => {
   try {
     const { branchId, productId } = req.params;
@@ -256,6 +271,7 @@ export const branchProductController = {
   getAggregatedByProduct,
   getByBranch,
   getByProduct,
+  getByBarcode,
   getStock,
   setMinStock,
   getLowStock,

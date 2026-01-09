@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 import productService, { Product } from "@/service/product.service";
+import stockService, { BranchProduct } from "@/service/stock.service";
 import receiptService, {
   CreateReceiptRequest,
   Receipt,
@@ -183,7 +184,7 @@ export default function CreateReceiptPage() {
     loadFromError();
   }, []);
 
-  // Handle barcode scanned
+  // Handle barcode scanned - search from stock (BranchProduct)
   const handleBarcodeScanned = React.useCallback(
     async (barcode: string) => {
       const existingItem = cartItems.find((item) => item.barcode === barcode);
@@ -199,13 +200,18 @@ export default function CreateReceiptPage() {
         toast.success(`+1 ${existingItem.productName}`);
       } else {
         try {
-          // Admin truyền branchId từ dropdown, staff middleware tự inject
-          const branchId = isAdmin ? selectedBranch : undefined;
-          const response = await productService.getByBarcode(barcode, branchId);
+          // Search from stock (BranchProduct) instead of Product
+          // Staff: middleware inject branchId, Admin: use selectedBranch
+          const branchId = isAdmin ? selectedBranch : user?.branchId;
+          if (!branchId) {
+            toast.error("Vui lòng chọn chi nhánh");
+            return;
+          }
+          
+          const response = await stockService.getByBarcode(branchId, barcode);
           if (response.success && response.data) {
-            const product = response.data;
-            // Ưu tiên salePrice (giá theo chi nhánh), fallback về currentSalePrice
-            const price = product.salePrice ?? product.currentSalePrice;
+            const stockItem = response.data;
+            const product = stockItem.productId;
             
             setCartItems((prev) => [
               ...prev,
@@ -214,45 +220,73 @@ export default function CreateReceiptPage() {
                 productName: product.name,
                 barcode: product.barcode || barcode,
                 quantity: 1,
-                salePrice: price,
+                salePrice: stockItem.salePrice || 0,
                 unit: product.unit,
                 image: product.images?.[0],
               },
             ]);
             toast.success(`Đã thêm: ${product.name}`);
           } else {
-            toast.error("Không tìm thấy sản phẩm");
+            toast.error("Sản phẩm không có trong kho chi nhánh này");
           }
         } catch (error) {
-          toast.error((error as Error).message || "Không tìm thấy sản phẩm");
+          toast.error((error as Error).message || "Sản phẩm không có trong kho chi nhánh này");
         }
       }
     },
-    [cartItems, selectedBranch, isAdmin]
+    [cartItems, selectedBranch, isAdmin, user?.branchId]
   );
 
-  // Handle search - Admin truyền branchId, staff middleware tự inject
-  const handleSearch = React.useCallback(async (term: string) => {
-    const branchId = isAdmin ? selectedBranch : undefined;
-    const response = await productService.search({ name: term, branchId });
-    return response.success && response.data ? response.data : [];
-  }, [selectedBranch, isAdmin]);
+  // Handle search - search from stock (BranchProduct)
+  const handleSearch = React.useCallback(async (term: string): Promise<Product[]> => {
+    const branchId = isAdmin ? selectedBranch : user?.branchId;
+    if (!branchId) return [];
+    
+    const response = await stockService.getByBranch(branchId, { search: term, limit: 10 });
+    if (response.success && response.data) {
+      // Map BranchProduct to Product format for SmartProductInput
+      return response.data.map((item: BranchProduct) => ({
+        _id: item.productId._id,
+        name: item.productId.name,
+        barcode: item.productId.barcode,
+        unit: item.productId.unit,
+        images: item.productId.images || (item.productId.image ? [item.productId.image] : []),
+        currentSalePrice: item.salePrice,
+        salePrice: item.salePrice,
+        stock: item.stock,
+      })) as Product[];
+    }
+    return [];
+  }, [selectedBranch, isAdmin, user?.branchId]);
 
-  // Get product by barcode for SmartProductInput
+  // Get product by barcode for SmartProductInput - search from stock
   const getProductByBarcode = React.useCallback(
     async (barcode: string): Promise<Product | null> => {
       try {
-        const branchId = isAdmin ? selectedBranch : undefined;
-        const response = await productService.getByBarcode(barcode, branchId);
+        const branchId = isAdmin ? selectedBranch : user?.branchId;
+        if (!branchId) return null;
+        
+        const response = await stockService.getByBarcode(branchId, barcode);
         if (response.success && response.data) {
-          return response.data;
+          const stockItem = response.data;
+          const product = stockItem.productId;
+          return {
+            _id: product._id,
+            name: product.name,
+            barcode: product.barcode,
+            unit: product.unit,
+            images: product.images || (product.image ? [product.image] : []),
+            currentSalePrice: stockItem.salePrice,
+            salePrice: stockItem.salePrice,
+            stock: stockItem.stock,
+          } as Product;
         }
         return null;
       } catch {
         return null;
       }
     },
-    [selectedBranch, isAdmin]
+    [selectedBranch, isAdmin, user?.branchId]
   );
 
   // Handle product select from search

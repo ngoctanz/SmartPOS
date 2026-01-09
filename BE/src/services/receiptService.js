@@ -34,6 +34,17 @@ const create = async (data, user) => {
     // Validate stock và prepare list
     for (const item of data.listProduct) {
       const product = await Product.findProductById(item.productId);
+      
+      // Check product đã có trong BranchProduct chưa (đã có phiếu nhập)
+      const branchProductDoc = await BranchProduct.findOne({ 
+        branchId: data.branchId, 
+        "products.productId": item.productId 
+      });
+      
+      if (!branchProductDoc) {
+        throw new ApiError(400, `Sản phẩm "${product.name}" chưa được nhập kho tại chi nhánh này`);
+      }
+      
       const productInfo = await BranchProduct.getProductInfo(data.branchId, item.productId);
 
       // Get sale price: priority is item.salePrice > branchProduct.salePrice > product.currentSalePrice

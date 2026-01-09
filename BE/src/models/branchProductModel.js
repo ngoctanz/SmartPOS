@@ -215,7 +215,7 @@ branchProductSchema.statics = {
 
     const doc = await this.findOne({ branchId })
       .populate("branchId", "branchName")
-      .populate("products.productId", "name barcode unit image")
+      .populate("products.productId", "name barcode unit image images")
       .lean();
 
     if (!doc) {
@@ -245,6 +245,9 @@ branchProductSchema.statics = {
       items = items.filter(item => item.stock <= item.minStock);
     }
 
+    // Sort by stock descending (highest stock first)
+    items.sort((a, b) => b.stock - a.stock);
+
     const total = items.length;
     const paginatedItems = items.slice((page - 1) * limit, page * limit);
 
@@ -271,6 +274,45 @@ branchProductSchema.statics = {
     return doc?.products[0] 
       ? { stock: doc.products[0].stock, salePrice: doc.products[0].salePrice, minStock: doc.products[0].minStock }
       : { stock: 0, salePrice: 0, minStock: 10 };
+  },
+
+  // Find product in branch by barcode
+  async findByBarcode(branchId, barcode) {
+    const { Product } = await import("./productModel.js");
+    
+    // First find product by barcode
+    const product = await Product.findOne({ barcode }).lean();
+    if (!product) return null;
+    
+    // Then check if product exists in branch stock
+    const doc = await this.findOne({ branchId })
+      .populate("branchId", "branchName")
+      .lean();
+    
+    if (!doc) return null;
+    
+    const branchProduct = doc.products.find(
+      p => p.productId.toString() === product._id.toString()
+    );
+    
+    if (!branchProduct) return null;
+    
+    return {
+      _id: branchProduct._id,
+      branchId: doc.branchId,
+      productId: {
+        _id: product._id,
+        name: product.name,
+        barcode: product.barcode,
+        unit: product.unit,
+        images: product.images,
+      },
+      stock: branchProduct.stock,
+      minStock: branchProduct.minStock,
+      salePrice: branchProduct.salePrice || product.currentSalePrice || 0,
+      note: branchProduct.note || null,
+      updatedAt: doc.updatedAt,
+    };
   },
 
   // ============ STOCK OPERATIONS ============

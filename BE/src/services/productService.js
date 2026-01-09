@@ -32,10 +32,6 @@ const create = async (data) => {
     // Validate category exists
     await Category.findCategoryById(data.categoryId);
     const product = await Product.createProduct(data);
-    
-    // Auto add product to all branches with stock = 0 and salePrice from product
-    await BranchProduct.addProductToAllBranches(product._id, product.currentSalePrice || 0);
-    
     return product;
   } catch (error) {
     throw new Error(error.message || error);

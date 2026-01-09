@@ -10,6 +10,7 @@ Router.use(injectUserBranch());
 
 // Get stock info - cần check branch access cho routes có :branchId
 Router.get("/branch/:branchId", checkBranchAccess, branchProductController.getByBranch);
+Router.get("/branch/:branchId/barcode/:barcode", checkBranchAccess, branchProductController.getByBarcode);
 // Get stock info
 Router.get("/stats", authorize("admin", "manager", "staff"), branchProductController.getStats);
 // Get aggregated stock by product (admin only - for "All branches" view)
