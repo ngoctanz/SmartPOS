@@ -80,6 +80,18 @@ const productService = {
   },
 
   /**
+   * Lấy thống kê theo danh mục
+   * GET /api/v1/product/stats/category
+   */
+  getCategoryStats: async (): Promise<ApiResponse<Array<{
+    categoryId: string;
+    categoryName: string;
+    count: number;
+  }>>> => {
+    return apiGet("/product/stats/category");
+  },
+
+  /**
    * Lấy tất cả sản phẩm (có phân trang)
    * GET /api/v1/product
    */

@@ -10,6 +10,7 @@ Router.use(authMiddleware);
 
 // Get routes - inject branchId cho staff để lấy giá theo chi nhánh
 Router.get("/stats", productController.getStats);
+Router.get("/stats/category", productController.getCategoryStats);
 Router.get("/", productController.getAll);
 Router.get("/search", injectUserBranch({ requireBranchForWrite: false }), productController.search);
 Router.get("/barcode/:barcode", injectUserBranch({ requireBranchForWrite: false }), productController.getByBarcode);

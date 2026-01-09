@@ -62,6 +62,46 @@ const getStats = async () => {
   }
 };
 
+const getCategoryStats = async () => {
+  try {
+    // Aggregate products by category
+    const stats = await Product.aggregate([
+      {
+        $group: {
+          _id: "$categoryId",
+          count: { $sum: 1 },
+        },
+      },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "_id",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      {
+        $unwind: "$category",
+      },
+      {
+        $project: {
+          _id: 0,
+          categoryId: "$_id",
+          categoryName: "$category.name",
+          count: 1,
+        },
+      },
+      {
+        $sort: { count: -1 },
+      },
+    ]);
+
+    return stats;
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 const getById = async (id, branchId = null) => {
   try {
     if (!id || id.trim() === "") {
@@ -251,6 +291,7 @@ export const productService = {
   getAll,
   getAllPaginated,
   getStats,
+  getCategoryStats,
   getById,
   getByBarcode,
   getByName,

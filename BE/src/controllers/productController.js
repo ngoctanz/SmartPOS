@@ -64,6 +64,19 @@ const getStats = async (req, res, next) => {
   }
 };
 
+const getCategoryStats = async (req, res, next) => {
+  try {
+    const stats = await productService.getCategoryStats();
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get category stats successfully",
+      data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 const getById = async (req, res, next) => {
   try {
@@ -180,6 +193,7 @@ export const productController = {
   create,
   getAll,
   getStats,
+  getCategoryStats,
   getById,
   getByBarcode,
   search,

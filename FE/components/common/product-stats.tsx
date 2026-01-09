@@ -40,12 +40,26 @@ export function ProductStats({ products, categories }: ProductStatsProps) {
     inactive: 0,
   });
 
+  const [categoryStats, setCategoryStats] = useState<Array<{
+    categoryId: string;
+    categoryName: string;
+    count: number;
+  }>>([]);
+
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await productService.getStats();
-        if (res.data) {
-          setStats(res.data);
+        const [statsRes, categoryStatsRes] = await Promise.all([
+          productService.getStats(),
+          productService.getCategoryStats(),
+        ]);
+        
+        if (statsRes.data) {
+          setStats(statsRes.data);
+        }
+        
+        if (categoryStatsRes.data) {
+          setCategoryStats(categoryStatsRes.data);
         }
       } catch (error) {
         console.error("Failed to fetch product stats:", error);
@@ -54,32 +68,21 @@ export function ProductStats({ products, categories }: ProductStatsProps) {
     fetchStats();
   }, []);
 
-  // Calculate chart data from products prop (still needed for charts as API only returns summary)
+  // Calculate chart data from API stats
   const chartStats = useMemo(() => {
-    // Count products by category
-    const categoryCount = categories.map((cat) => {
-      const count = products.filter((p) => {
-        if (!p.categoryId) return false;
-        const catId =
-          typeof p.categoryId === "object" ? p.categoryId._id : p.categoryId;
-        return catId === cat._id;
-      }).length;
-      return {
-        name: cat.name,
-        value: count,
-      };
-    });
-
     // Sort by count descending and take top 5
-    const topCategories = [...categoryCount]
-      .sort((a, b) => b.value - a.value)
+    const topCategories = [...categoryStats]
+      .sort((a, b) => b.count - a.count)
       .slice(0, 5);
 
     return {
-      categoryCount,
-      topCategories,
+      categoryCount: categoryStats,
+      topCategories: topCategories.map(cat => ({
+        name: cat.categoryName,
+        value: cat.count,
+      })),
     };
-  }, [products, categories]);
+  }, [categoryStats]);
 
   // Pie chart data
   const pieChartData = useMemo(() => {
@@ -183,61 +186,51 @@ export function ProductStats({ products, categories }: ProductStatsProps) {
             Phân bố theo danh mục
           </CardTitle>
           <CardDescription className="text-xs">
-            Top 5 danh mục có nhiều sản phẩm nhất
+            Top danh mục có nhiều sản phẩm nhất
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-4">
           {pieChartData.length > 0 ? (
-            <ChartContainer
-              config={pieChartConfig}
-              className="mx-auto aspect-square max-h-[180px]"
-            >
-              <PieChart>
-                <ChartTooltip
-                  cursor={false}
-                  content={<ChartTooltipContent hideLabel />}
-                />
-                <Pie
-                  data={pieChartData}
-                  dataKey="value"
-                  nameKey="category"
-                  innerRadius={50}
-                  outerRadius={75}
-                  strokeWidth={2}
-                  paddingAngle={2}
-                >
-                  <Label
-                    content={({ viewBox }) => {
-                      if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                        return (
-                          <text
-                            x={viewBox.cx}
-                            y={viewBox.cy}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                          >
-                            <tspan
-                              x={viewBox.cx}
-                              y={viewBox.cy}
-                              className="fill-foreground text-2xl font-bold tracking-tight"
-                            >
-                              {stats.total}
-                            </tspan>
-                            <tspan
-                              x={viewBox.cx}
-                              y={(viewBox.cy || 0) + 18}
-                              className="fill-muted-foreground text-[10px] uppercase font-medium"
-                            >
-                              Sản phẩm
-                            </tspan>
-                          </text>
-                        );
-                      }
-                    }}
+            <div className="space-y-3">
+              <ChartContainer
+                config={pieChartConfig}
+                className="mx-auto aspect-square max-h-[180px]"
+              >
+                <PieChart>
+                  <ChartTooltip
+                    cursor={false}
+                    content={<ChartTooltipContent hideLabel />}
                   />
-                </Pie>
-              </PieChart>
-            </ChartContainer>
+                  <Pie
+                    data={pieChartData}
+                    dataKey="value"
+                    nameKey="category"
+                    outerRadius={80}
+                    strokeWidth={2}
+                    paddingAngle={2}
+                  />
+                </PieChart>
+              </ChartContainer>
+              
+              {/* Legend with percentages */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {pieChartData.map((item, index) => {
+                  const total = pieChartData.reduce((sum, d) => sum + d.value, 0);
+                  const percentage = ((item.value / total) * 100).toFixed(1);
+                  return (
+                    <div key={index} className="flex items-center gap-2">
+                      <div 
+                        className="w-3 h-3 rounded-sm flex-shrink-0" 
+                        style={{ backgroundColor: item.fill }}
+                      />
+                      <span className="text-muted-foreground truncate">
+                        {item.category}: <span className="font-semibold text-foreground">{percentage}%</span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           ) : (
             <div className="flex items-center justify-center h-[180px] text-muted-foreground/50 text-sm">
               Chưa có dữ liệu thống kê
