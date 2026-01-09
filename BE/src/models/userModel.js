@@ -127,9 +127,9 @@ userSchema.statics = {
 
   async findAllUsersPaginated(options = {}) {
     const { search, role, status, branchId, page = 1, limit = 20 } = options;
-    
+
     const query = {};
-    
+
     // Search by userName or name
     if (search && search.trim()) {
       query.$or = [
@@ -137,17 +137,17 @@ userSchema.statics = {
         { name: { $regex: search, $options: "i" } },
       ];
     }
-    
+
     // Filter by role
     if (role) {
       query.role = role;
     }
-    
+
     // Filter by status
     if (status) {
       query.status = status;
     }
-    
+
     // Filter by branch
     if (branchId) {
       query.branchId = branchId;
@@ -155,7 +155,7 @@ userSchema.statics = {
 
     const total = await this.countDocuments(query);
     const skip = (page - 1) * limit;
-    
+
     const data = await this.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -181,11 +181,17 @@ userSchema.statics = {
     return this.find({ userName: new RegExp(name, "i") }).lean();
   },
   async updateUser(id, data) {
-    // If password is being updated, hash it first
+    // If password is being updated, validate and hash it first
     if (data.password) {
+      // Validate password before hashing
+      const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d!@#$%^&*()_+\-=]{6,25}$/;
+      if (!passwordRegex.test(data.password)) {
+        throw new Error("Password must contain at least one letter and one number, no spaces.");
+      }
       data.password = await bcrypt.hash(data.password, 10);
     }
-    
+
+    // Use runValidators but exclude password since we already validated and hashed it
     const user = await this.findByIdAndUpdate(id, data, {
       new: true,
       runValidators: true,
@@ -198,12 +204,12 @@ userSchema.statics = {
   async deleteUser(id) {
     return this.findByIdAndDelete(id);
   },
-  
+
   async getUserStats() {
     const total = await this.countDocuments();
     const active = await this.countDocuments({ status: "active" });
     const inactive = await this.countDocuments({ status: "inactive" });
-    
+
     return {
       total,
       active,
