@@ -21,7 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, ExternalLink } from "lucide-react";
+import { MoreHorizontal, Eye } from "lucide-react";
 
 interface ErrorReceiptListProps {
   data: Receipt[];
