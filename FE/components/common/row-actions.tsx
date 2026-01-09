@@ -28,6 +28,7 @@ interface RowActionsProps {
   onDelete?: () => void;
   actionLabel?: string;
   actionIcon?: "trash" | "lock" | "unlock" | "check" | "cancel";
+  editLabel?: string;
   disabled?: boolean;
 }
 
@@ -47,6 +48,7 @@ export function RowActions({
   onDelete,
   actionLabel = "Xóa",
   actionIcon = "trash",
+  editLabel = "Chỉnh sửa",
   disabled = false,
 }: RowActionsProps) {
   const ActionIcon = ACTION_ICONS[actionIcon];
@@ -71,7 +73,7 @@ export function RowActions({
         {onEdit && (
           <DropdownMenuItem onClick={onEdit}>
             <Edit className="mr-2 h-4 w-4" />
-            Chỉnh sửa
+            {editLabel}
           </DropdownMenuItem>
         )}
         {onAction && (

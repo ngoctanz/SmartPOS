@@ -8,6 +8,7 @@ export interface BranchProduct {
   stock: number;
   minStock: number;
   avgImportPrice: number;
+  note?: string | null; // Ghi chú cho sản phẩm
   branchCount?: number; // Only for aggregated view
   isAggregated?: boolean; // Flag for aggregated data
   createdAt: string;
@@ -190,6 +191,18 @@ const stockService = {
       `/stock/branch/${branchId}/product/${productId}/min-stock`,
       { minStock }
     );
+  },
+
+  /**
+   * Cập nhật ghi chú cho sản phẩm trong kho
+   * PATCH /api/v1/stock/:id/note
+   */
+  updateNote: async (
+    id: string,
+    note: string,
+    branchId?: string
+  ): Promise<ApiResponse<BranchProduct>> => {
+    return apiPatch<BranchProduct>(`/stock/${id}/note`, { note, branchId });
   },
 };
 

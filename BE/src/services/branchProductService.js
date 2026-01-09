@@ -183,6 +183,35 @@ const deleteStock = async (id) => {
   }
 };
 
+const updateNote = async (id, note, user = null, branchId = null) => {
+  try {
+    // First, find the document to check branch access
+    const branchProduct = await BranchProduct.findOne({ "products._id": id });
+    if (!branchProduct) throw new Error("Stock record not found");
+    
+    // Defense-in-depth: Validate branch access
+    if (user) {
+      // Admin: phải truyền branchId và branchId phải khớp với record
+      if (user.role === "admin") {
+        if (!branchId) {
+          throw new ApiError(400, "branchId is required for admin");
+        }
+        // Validate branchId khớp với record
+        if (branchId.toString() !== branchProduct.branchId.toString()) {
+          throw new ApiError(400, "branchId does not match the stock record's branch");
+        }
+      } else {
+        // Staff: validate branch access bằng branchId của user
+        validateBranchAccess(user, branchProduct.branchId, "update note for");
+      }
+    }
+    
+    return await BranchProduct.updateNote(id, note);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 export const branchProductService = {
   getStats,
   getAll,
@@ -195,5 +224,6 @@ export const branchProductService = {
   checkStockAvailability,
   create,
   update,
-  deleteStock
+  deleteStock,
+  updateNote
 };

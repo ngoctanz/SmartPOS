@@ -71,7 +71,6 @@ const receiptSchema = new mongoose.Schema(
     isError: {
       type: Boolean,
       default: false,
-      index: true,
     },
     markedErrorBy: {
       type: Schema.Types.ObjectId,

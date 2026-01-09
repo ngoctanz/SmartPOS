@@ -11,6 +11,7 @@ import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
 import { DetailModal } from "@/components/common/detail-modal";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { format } from "date-fns";
 import stockService from "@/service/stock.service";
 import branchService, { Branch } from "@/service/branch.service";
@@ -23,8 +24,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Package, AlertTriangle, LayoutGrid, Boxes } from "lucide-react";
+import { Loader2, Package, AlertTriangle, LayoutGrid, Boxes, FileEdit } from "lucide-react";
 import { StatsCard } from "@/components/common/stats-card";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function Page() {
   const { user } = useAuth();
@@ -57,6 +67,8 @@ export default function Page() {
   const [selectedItems, setSelectedItems] = React.useState<IBranchProduct[]>([]);
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
+  const [isNoteModalOpen, setIsNoteModalOpen] = React.useState(false);
+  const [noteValue, setNoteValue] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Debounce search
@@ -185,6 +197,32 @@ export default function Page() {
     setSearchTerm(search);
   };
 
+  const handleEditNote = (item: IBranchProduct) => {
+    setSelectedItem(item);
+    setNoteValue(item.note || "");
+    setIsNoteModalOpen(true);
+  };
+
+  const handleSaveNote = async () => {
+    if (!selectedItem) return;
+    
+    try {
+      setIsSubmitting(true);
+      // Admin cần truyền branchId từ filter, staff thì middleware tự inject
+      const branchId = isAdmin ? (filterBranchId !== "all" ? filterBranchId : selectedItem.branchId?._id) : undefined;
+      await stockService.updateNote(selectedItem._id, noteValue, branchId);
+      toast.success("Đã cập nhật ghi chú");
+      setIsNoteModalOpen(false);
+      setSelectedItem(null);
+      fetchData();
+    } catch (error) {
+      console.error("Update note error:", error);
+      toast.error("Không thể cập nhật ghi chú");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Show branch count column when viewing aggregated data (all branches)
   const showBranchCountColumn = isAdmin && filterBranchId === "all";
 
@@ -286,6 +324,23 @@ export default function Page() {
         accessorKey: "minStock",
         header: "Định mức tối thiểu",
       },
+      // Chỉ hiển thị cột ghi chú khi không phải aggregated view
+      ...(!showBranchCountColumn
+        ? [
+            {
+              accessorKey: "note",
+              header: "Ghi chú",
+              cell: ({ row }: { row: { original: IBranchProduct } }) => {
+                const note = row.original.note;
+                return (
+                  <span className="text-sm max-w-[200px] truncate block">
+                    {note || <span className="text-muted-foreground">—</span>}
+                  </span>
+                );
+              },
+            } as ColumnDef<IBranchProduct>,
+          ]
+        : []),
       {
         accessorKey: "updatedAt",
         header: "Cập nhật",
@@ -305,7 +360,9 @@ export default function Page() {
           if (row.original.isAggregated) return null;
           return (
             <RowActions 
-              onView={() => handleView(row.original)} 
+              onView={() => handleView(row.original)}
+              onEdit={() => handleEditNote(row.original)}
+              editLabel="Cập nhật ghi chú"
               disabled={isAnyRowSelected}
             />
           );
@@ -473,9 +530,90 @@ export default function Page() {
                 readOnly
               />
             </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right text-muted-foreground">Ghi chú</Label>
+              <Textarea
+                className="col-span-3"
+                value={selectedItem.note || "Chưa có ghi chú"}
+                readOnly
+                rows={3}
+              />
+            </div>
           </div>
         )}
       </DetailModal>
+
+      {/* Edit Note Modal */}
+      <Dialog open={isNoteModalOpen} onOpenChange={setIsNoteModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileEdit className="h-5 w-5" />
+              Cập nhật ghi chú
+            </DialogTitle>
+            <DialogDescription>
+              Thêm hoặc chỉnh sửa ghi chú cho sản phẩm trong kho
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedItem && (
+            <div className="grid gap-4 py-4">
+              <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                {selectedItem.productId?.image ? (
+                  <img
+                    src={selectedItem.productId.image}
+                    alt=""
+                    className="w-12 h-12 rounded object-cover"
+                  />
+                ) : (
+                  <div className="w-12 h-12 bg-background rounded flex items-center justify-center">
+                    <Package className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                )}
+                <div>
+                  <p className="font-medium">{selectedItem.productId?.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedItem.productId?.barcode || "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="note">Ghi chú</Label>
+                <Textarea
+                  id="note"
+                  placeholder="Nhập ghi chú về sản phẩm (vd: Sản phẩm bị hư hộp, cần kiểm tra...)"
+                  value={noteValue}
+                  onChange={(e) => setNoteValue(e.target.value)}
+                  rows={4}
+                  className="resize-none"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsNoteModalOpen(false)}
+              disabled={isSubmitting}
+            >
+              Hủy
+            </Button>
+            <Button onClick={handleSaveNote} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Đang lưu...
+                </>
+              ) : (
+                "Lưu ghi chú"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

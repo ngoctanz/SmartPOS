@@ -218,6 +218,22 @@ const remove = async (req, res, next) => {
   }
 };
 
+const updateNote = async (req, res, next) => {
+  try {
+    const { note, branchId } = req.body;
+    // Pass user for defense-in-depth security
+    // branchId được inject từ middleware cho staff, hoặc từ body cho admin
+    const data = await branchProductService.updateNote(req.params.id, note, req.user, branchId);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Note updated successfully",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const branchProductController = {
   getStats,
   getAll,
@@ -230,5 +246,6 @@ export const branchProductController = {
   checkAvailability,
   create,
   update,
-  remove
+  remove,
+  updateNote
 };

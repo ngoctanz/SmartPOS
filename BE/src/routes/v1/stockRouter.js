@@ -39,6 +39,9 @@ Router.post("/", authorize("staff"), branchProductController.create);
 // Update stock (Staff)
 Router.put("/:id", authorize("staff"), branchProductController.update);
 
+// Update note (Admin & Staff) - chỉ cập nhật ghi chú
+Router.patch("/:id/note", authorize("admin", "staff"), branchProductController.updateNote);
+
 // Delete stock (Admin)
 Router.delete("/:id", authorize("admin"), branchProductController.remove);
 

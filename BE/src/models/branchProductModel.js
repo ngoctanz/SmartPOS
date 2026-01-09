@@ -25,6 +25,10 @@ const branchProductSchema = new mongoose.Schema(
           default: 10,
           min: [0, "Min stock cannot be negative"],
         },
+        note: {
+          type: String,
+          default: null,
+        },
       },
     ],
   },
@@ -227,6 +231,7 @@ branchProductSchema.statics = {
         productId: "$product",
         stock: "$products.stock",
         minStock: "$products.minStock",
+        note: "$products.note",
         updatedAt: "$updatedAt",
       },
     });
@@ -279,6 +284,8 @@ branchProductSchema.statics = {
       productId: p.productId,
       stock: p.stock,
       minStock: p.minStock,
+      note: p.note || null,
+      updatedAt: doc.updatedAt,
     }));
 
     // Search filter
@@ -408,6 +415,22 @@ branchProductSchema.statics = {
     existingProduct.stock -= quantity;
     await doc.save();
     return doc;
+  },
+
+  // Update note for a product in a branch
+  async updateNote(id, note) {
+    const result = await this.findOneAndUpdate(
+      { "products._id": id },
+      { 
+        $set: { "products.$.note": note },
+        $currentDate: { updatedAt: true }
+      },
+      { new: true }
+    );
+    if (!result) {
+      throw new Error("Stock record not found");
+    }
+    return result;
   }
 };
 
