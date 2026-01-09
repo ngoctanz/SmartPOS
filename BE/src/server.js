@@ -53,6 +53,9 @@ const START_SERVER = () => {
   // Initialize WebSocket server
   socketService.initializeSocket(httpServer);
 
+  // Set timeout for long-running operations (e.g., large imports)
+  httpServer.timeout = 600000; // 10 minutes
+
   httpServer.listen(port, host, () => {
     console.log(`Example app listening on http://${host}:${port}`);
   });

@@ -24,6 +24,7 @@ const categorySchema = new mongoose.Schema(
 );
 
 categorySchema.index({ createdAt: -1 });
+categorySchema.index({ name: 1 }); // For faster category lookups during import
 
 // Instance method
 categorySchema.methods.toJSON = function () {

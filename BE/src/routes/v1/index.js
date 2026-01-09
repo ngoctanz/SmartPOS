@@ -10,6 +10,8 @@ import { importReceiptRouter } from "./importReceiptRouter.js";
 import { receiptRouter } from "./receiptRouter.js";
 import { dashboardRouter } from "./dashboardRouter.js";
 import { uploadRouter } from "./uploadRouter.js";
+import { importRouter } from "../../routers/importRouter.js";
+import { exportRouter } from "../../routers/exportRouter.js";
 
 const Router = express.Router();
 
@@ -39,6 +41,10 @@ Router.use("/dashboard", dashboardRouter);
 
 // Upload
 Router.use("/upload", uploadRouter);
+
+// Import & Export
+Router.use("/import", importRouter);
+Router.use("/export", exportRouter);
 
 export const APIs_V1 = {
   Router,

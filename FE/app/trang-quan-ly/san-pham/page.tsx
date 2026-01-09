@@ -11,6 +11,8 @@ import { RowActions } from "@/components/common/row-actions";
 import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
 import { DetailModal } from "@/components/common/detail-modal";
 import { ProductFormModal } from "@/components/forms/product-form-modal";
+import { ImportExcelModal } from "@/components/forms/import-excel-modal";
+import { ExportProductsButton } from "@/components/common/export-products-button";
 import { ProductStats } from "@/components/common/product-stats";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -21,6 +23,7 @@ import {
   Package,
   Barcode as BarcodeIcon,
   ChartBar,
+  FileUp,
 } from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import productService, {
@@ -77,6 +80,7 @@ export default function Page() {
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
+  const [isImportOpen, setIsImportOpen] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Fetch categories
@@ -223,7 +227,7 @@ export default function Page() {
                   (e.target as HTMLImageElement).style.display = "none";
                 }}
               />
-              {images.length > 1 && (
+              {images && images.length > 1 && (
                 <div className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[10px] px-1 rounded-full">
                   +{images.length - 1}
                 </div>
@@ -373,6 +377,20 @@ export default function Page() {
           >
             <ChartBar className="mr-2 h-4 w-4" />
             {showStats ? "Ẩn thống kê" : "Hiện thống kê"}
+          </Button>
+          <ExportProductsButton
+            filters={{
+              categoryId: filters.categoryId,
+              status: filters.status,
+              search: searchTerm,
+            }}
+          />
+          <Button
+            variant="outline"
+            onClick={() => setIsImportOpen(true)}
+          >
+            <FileUp className="mr-2 h-4 w-4" />
+            Import Excel
           </Button>
           <Button onClick={handleCreate}>
             <Plus className="mr-2 h-4 w-4" />
@@ -579,6 +597,16 @@ export default function Page() {
         slides={selectedItem?.images?.map((src) => ({ src })) || []}
         on={{
           view: ({ index }) => setLightboxIndex(index),
+        }}
+      />
+
+      {/* Import Excel Modal */}
+      <ImportExcelModal
+        open={isImportOpen}
+        onOpenChange={setIsImportOpen}
+        onSuccess={() => {
+          refetch();
+          eventBus.emit(Events.DATA_CHANGED);
         }}
       />
     </div>

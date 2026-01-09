@@ -120,7 +120,7 @@ export function ProductFormModal({
       currentSalePrice: 0,
       status: "active",
       desc: "",
-      image: "",
+      images: [],
     },
   });
 
@@ -181,15 +181,22 @@ export function ProductFormModal({
           .map((res) => res.data!.url);
         
         if (newImageUrls.length > 0) {
-          // Replace blob URLs with actual uploaded URLs
-          const existingUrls = imageUrls.filter((url) => !url.startsWith("blob:"));
-          imageUrls = [...existingUrls, ...newImageUrls];
-          toast.success(`Upload ${newImageUrls.length} ảnh thành công!`);
+          // Keep existing uploaded URLs (not blob URLs) and add new ones
+          const existingUploadedUrls = imageUrls.filter(
+            (url) => !url.startsWith("blob:") && url.trim() !== ""
+          );
+          imageUrls = [...existingUploadedUrls, ...newImageUrls];
+          toast.success(`Đã tải lên ${newImageUrls.length} ảnh mới!`);
         } else {
           throw new Error("Upload ảnh thất bại");
         }
         
         setIsUploadingImage(false);
+      } else {
+        // No new files, just keep existing uploaded URLs
+        imageUrls = imageUrls.filter(
+          (url) => !url.startsWith("blob:") && url.trim() !== ""
+        );
       }
 
       // Clean up empty optional fields
