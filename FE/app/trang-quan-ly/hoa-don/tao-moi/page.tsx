@@ -122,7 +122,7 @@ export default function CreateReceiptPage() {
                     quantity: p.quantity,
                     salePrice: p.salePrice,
                     unit: product?.unit || "",
-                    image: product?.image,
+                    image: product?.images?.[0],
                   };
                 } catch (error) {
                   // If product fetch fails, use basic info
@@ -198,7 +198,7 @@ export default function CreateReceiptPage() {
                 quantity: 1,
                 salePrice: product.currentSalePrice,
                 unit: product.unit,
-                image: product.image,
+                image: product.images?.[0],
               },
             ]);
             toast.success(`Đã thêm: ${product.name}`);
@@ -261,7 +261,7 @@ export default function CreateReceiptPage() {
             quantity: 1,
             salePrice: product.currentSalePrice,
             unit: product.unit,
-            image: product.image,
+            image: product.images?.[0],
           },
         ]);
         toast.success(`Đã thêm: ${product.name}`);

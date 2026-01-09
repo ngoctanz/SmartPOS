@@ -28,7 +28,7 @@ import {
   UpdateProductRequest,
 } from "@/service/product.service";
 import { Category } from "@/service/category.service";
-import { ImageUpload } from "@/components/common/image-upload";
+import { MultipleImageUpload } from "@/components/common/multiple-image-upload";
 import {
   Package,
   CircleDollarSign,
@@ -59,7 +59,7 @@ const productSchema = z.object({
   currentSalePrice: z.coerce.number().min(0, "Giá bán không được âm"),
   status: z.enum(["active", "inactive"]),
   desc: z.string().max(1000, "Mô tả tối đa 1000 ký tự").optional(),
-  image: z.string().optional(),
+  images: z.array(z.string()).optional(),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -107,7 +107,7 @@ export function ProductFormModal({
   isImportMode = false,
 }: ProductFormModalProps) {
   const isEditMode = !!product && !!product._id;
-  const [selectedImageFile, setSelectedImageFile] = React.useState<File | null>(null);
+  const [selectedImageFiles, setSelectedImageFiles] = React.useState<File[]>([]);
   const [isUploadingImage, setIsUploadingImage] = React.useState(false);
 
   const form = useForm<ProductFormData>({
@@ -127,7 +127,7 @@ export function ProductFormModal({
   // Reset form when modal opens or product changes
   React.useEffect(() => {
     if (open) {
-      setSelectedImageFile(null);
+      setSelectedImageFiles([]);
       if (product) {
         form.reset({
           name: product.name || "",
@@ -137,7 +137,7 @@ export function ProductFormModal({
           currentSalePrice: product.currentSalePrice || 0,
           status: product.status || "active",
           desc: product.desc || "",
-          image: product.image || "",
+          images: product.images || [],
         });
       } else {
         form.reset({
@@ -148,31 +148,43 @@ export function ProductFormModal({
           currentSalePrice: 0,
           status: "active",
           desc: "",
-          image: "",
+          images: [],
         });
       }
     } else {
-      // Clean up blob URL when modal closes
-      const imageValue = form.getValues("image");
-      if (imageValue && imageValue.startsWith("blob:")) {
-        URL.revokeObjectURL(imageValue);
-      }
+      // Clean up blob URLs when modal closes
+      const imageValues = form.getValues("images") || [];
+      imageValues.forEach((url) => {
+        if (url.startsWith("blob:")) {
+          URL.revokeObjectURL(url);
+        }
+      });
     }
   }, [open, product, form]);
 
   const onFormSubmit = async (values: ProductFormData) => {
     try {
-      let imageUrl = values.image;
+      let imageUrls = values.images || [];
 
-      // If there's a new image file selected, upload it first
-      if (selectedImageFile) {
+      // If there are new image files selected, upload them first
+      if (selectedImageFiles.length > 0) {
         setIsUploadingImage(true);
-        toast.info("Đang tải ảnh lên...");
+        toast.info(`Đang tải lên ${selectedImageFiles.length} ảnh...`);
         
-        const uploadResponse = await uploadService.uploadImage(selectedImageFile);
-        if (uploadResponse.data) {
-          imageUrl = uploadResponse.data.url;
-          toast.success("Upload ảnh thành công!");
+        const uploadPromises = selectedImageFiles.map((file) => 
+          uploadService.uploadImage(file)
+        );
+        
+        const uploadResponses = await Promise.all(uploadPromises);
+        const newImageUrls = uploadResponses
+          .filter((res) => res.data)
+          .map((res) => res.data!.url);
+        
+        if (newImageUrls.length > 0) {
+          // Replace blob URLs with actual uploaded URLs
+          const existingUrls = imageUrls.filter((url) => !url.startsWith("blob:"));
+          imageUrls = [...existingUrls, ...newImageUrls];
+          toast.success(`Upload ${newImageUrls.length} ảnh thành công!`);
         } else {
           throw new Error("Upload ảnh thất bại");
         }
@@ -185,15 +197,17 @@ export function ProductFormModal({
         ...values,
         barcode: values.barcode || undefined,
         desc: values.desc || undefined,
-        image: imageUrl || undefined,
+        images: imageUrls.length > 0 ? imageUrls : undefined,
       };
       
       await onSubmit(cleanData);
       
-      // Clean up blob URL after successful submission
-      if (values.image && values.image.startsWith("blob:")) {
-        URL.revokeObjectURL(values.image);
-      }
+      // Clean up blob URLs after successful submission
+      (values.images || []).forEach((url) => {
+        if (url.startsWith("blob:")) {
+          URL.revokeObjectURL(url);
+        }
+      });
     } catch (error) {
       setIsUploadingImage(false);
       toast.error("Có lỗi xảy ra khi xử lý ảnh!");
@@ -252,15 +266,14 @@ export function ProductFormModal({
                   <div className="space-y-2">
                     <Label className="text-xs font-semibold flex items-center gap-2">
                       <Layers className="w-3.5 h-3.5 text-primary" />
-                      Hình ảnh
+                      Hình ảnh sản phẩm
                     </Label>
-                    <div className="relative group rounded-xl border-2 border-dashed border-muted-foreground/20 bg-muted/30 p-1.5 transition-all hover:border-primary/50 hover:bg-muted/50">
-                      <ImageUpload
-                        value={form.watch("image")}
-                        onChange={(url) => form.setValue("image", url)}
-                        onFileSelect={setSelectedImageFile}
+                    <div className="relative group rounded-xl border-2 border-dashed border-muted-foreground/20 bg-muted/30 p-2 transition-all hover:border-primary/50 hover:bg-muted/50">
+                      <MultipleImageUpload
+                        value={form.watch("images") || []}
+                        onChange={(urls) => form.setValue("images", urls)}
+                        onFilesSelect={setSelectedImageFiles}
                         disabled={isSubmitting || isUploadingImage}
-                        className="w-full aspect-square rounded-lg overflow-hidden"
                       />
                     </div>
                     <div className="flex flex-col gap-1 text-[10px] text-muted-foreground bg-muted/50 p-2.5 rounded-lg border border-border/50">
@@ -269,8 +282,9 @@ export function ProductFormModal({
                         Gợi ý
                       </p>
                       <ul className="space-y-0.5 ml-1 opacity-80">
-                        <li>• Ảnh vuông (tỷ lệ 1:1)</li>
-                        <li>• Max 5MB (JPG, PNG)</li>
+                        <li>• Không giới hạn số lượng</li>
+                        <li>• Ảnh đầu tiên là ảnh chính</li>
+                        <li>• Max 5MB/ảnh (JPG, PNG)</li>
                       </ul>
                     </div>
                   </div>

@@ -7,7 +7,7 @@ const createSchema = Joi.object({
   desc: Joi.string().max(1000).trim().allow(""),
   barcode: Joi.string().trim().allow(""),
   unit: Joi.string().required().trim(),
-  image: Joi.string().trim().allow(""),
+  images: Joi.array().items(Joi.string().trim()).default([]),
   currentSalePrice: Joi.number().min(0).required(),
   status: Joi.string().valid("active", "inactive").default("active"),
 });
@@ -18,7 +18,7 @@ const updateSchema = Joi.object({
   desc: Joi.string().max(1000).trim().allow(""),
   barcode: Joi.string().trim().allow(""),
   unit: Joi.string().trim(),
-  image: Joi.string().trim().allow(""),
+  images: Joi.array().items(Joi.string().trim()),
   currentSalePrice: Joi.number().min(0),
   status: Joi.string().valid("active", "inactive"),
 }).min(1);

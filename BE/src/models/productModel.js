@@ -32,10 +32,9 @@ const productSchema = new mongoose.Schema(
       trim: true,
       default: "cái",
     },
-    image: {
-      type: Schema.Types.String,
-      trim: true,
-      default: "",
+    images: {
+      type: [Schema.Types.String],
+      default: [],
     },
     currentSalePrice: {
       type: Number,

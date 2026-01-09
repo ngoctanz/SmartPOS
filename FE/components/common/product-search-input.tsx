@@ -177,9 +177,9 @@ export function ProductSearchInput({
                     )}
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
-                      {product.image ? (
+                      {product.images && product.images.length > 0 ? (
                         <img
-                          src={product.image}
+                          src={product.images[0]}
                           alt={product.name}
                           className="h-full w-full rounded-md object-cover"
                         />

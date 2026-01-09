@@ -385,9 +385,9 @@ export function SmartProductInput({
               onClick={() => handleSelectProduct(product)}
               onMouseEnter={() => setSelectedIndex(index)}
             >
-              {product.image ? (
+              {product.images && product.images.length > 0 ? (
                 <img
-                  src={product.image}
+                  src={product.images[0]}
                   alt={product.name}
                   className="w-12 h-12 object-cover rounded"
                 />

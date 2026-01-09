@@ -124,7 +124,7 @@ export default function CreateImportReceiptPage() {
                   quantity: item.quantity,
                   importPrice: item.importPrice,
                   unit: product.unit,
-                  image: product.image,
+                  image: product.images?.[0],
                 });
               }
             } catch (error) {
@@ -171,7 +171,7 @@ export default function CreateImportReceiptPage() {
                 quantity: 1,
                 importPrice: 0,
                 unit: product.unit,
-                image: product.image,
+                image: product.images?.[0],
               },
             ]);
             toast.success(`Đã thêm: ${product.name}`);
@@ -217,7 +217,7 @@ export default function CreateImportReceiptPage() {
             quantity: 1,
             importPrice: 0,
             unit: newProduct.unit,
-            image: newProduct.image,
+            image: newProduct.images?.[0],
           },
         ]);
 
@@ -285,7 +285,7 @@ export default function CreateImportReceiptPage() {
             quantity: 1,
             importPrice: 0,
             unit: product.unit,
-            image: product.image,
+            image: product.images?.[0],
           },
         ]);
         toast.success(`Đã thêm: ${product.name}`);

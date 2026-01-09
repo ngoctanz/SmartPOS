@@ -10,7 +10,7 @@ export interface Product {
   currentSalePrice: number;
   status: "active" | "inactive";
   desc?: string;
-  image?: string;
+  images?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -23,7 +23,7 @@ export interface CreateProductRequest {
   currentSalePrice: number;
   status?: "active" | "inactive";
   desc?: string;
-  image?: string;
+  images?: string[];
 }
 
 export interface UpdateProductRequest {
@@ -34,7 +34,7 @@ export interface UpdateProductRequest {
   currentSalePrice?: number;
   status?: "active" | "inactive";
   desc?: string;
-  image?: string;
+  images?: string[];
 }
 
 export interface UpdatePriceRequest {

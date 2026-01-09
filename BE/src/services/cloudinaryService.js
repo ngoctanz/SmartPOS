@@ -43,8 +43,38 @@ const updateImage = async (file, oldPublicId) => {
   }
 };
 
+const uploadMultipleImages = async (files) => {
+  try {
+    if (!Array.isArray(files) || files.length === 0) {
+      return [];
+    }
+
+    const uploadPromises = files.map((file) => uploadImage(file));
+    const results = await Promise.all(uploadPromises);
+    return results;
+  } catch (error) {
+    throw new Error(`Cloudinary multiple upload failed: ${error.message}`);
+  }
+};
+
+const deleteMultipleImages = async (publicIds) => {
+  try {
+    if (!Array.isArray(publicIds) || publicIds.length === 0) {
+      return [];
+    }
+
+    const deletePromises = publicIds.map((publicId) => deleteImage(publicId));
+    const results = await Promise.allSettled(deletePromises);
+    return results;
+  } catch (error) {
+    throw new Error(`Cloudinary multiple delete failed: ${error.message}`);
+  }
+};
+
 export const cloudinaryService = {
   uploadImage,
   deleteImage,
   updateImage,
+  uploadMultipleImages,
+  deleteMultipleImages,
 };

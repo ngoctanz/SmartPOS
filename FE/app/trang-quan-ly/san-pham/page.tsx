@@ -36,6 +36,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import Lightbox from "yet-another-react-lightbox";
+import "yet-another-react-lightbox/styles.css";
 import { useFilteredTableData } from "@/hooks/useFilteredTableData";
 import { eventBus, Events } from "@/lib/data-events";
 
@@ -67,6 +69,10 @@ export default function Page() {
   const [selectedItem, setSelectedItem] = React.useState<Product | null>(null);
   const [selectedItems, setSelectedItems] = React.useState<Product[]>([]);
   const [showStats, setShowStats] = React.useState(true);
+  
+  // Lightbox state
+  const [lightboxOpen, setLightboxOpen] = React.useState(false);
+  const [lightboxIndex, setLightboxIndex] = React.useState(0);
 
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
@@ -194,11 +200,13 @@ export default function Page() {
         size: 40,
       },
       {
-        accessorKey: "image",
+        accessorKey: "images",
         header: "Hình ảnh",
         cell: ({ row }) => {
-          const img = row.getValue("image") as string;
-          if (!img) {
+          const images = row.getValue("images") as string[] | undefined;
+          const firstImage = images && images.length > 0 ? images[0] : null;
+          
+          if (!firstImage) {
             return (
               <div className="flex h-10 w-10 items-center justify-center rounded bg-muted">
                 <Package className="h-5 w-5 text-muted-foreground" />
@@ -206,14 +214,21 @@ export default function Page() {
             );
           }
           return (
-            <img
-              src={img}
-              alt="Product"
-              className="h-10 w-10 rounded object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-              }}
-            />
+            <div className="relative">
+              <img
+                src={firstImage}
+                alt="Product"
+                className="h-10 w-10 rounded object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
+                }}
+              />
+              {images.length > 1 && (
+                <div className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[10px] px-1 rounded-full">
+                  +{images.length - 1}
+                </div>
+              )}
+            </div>
           );
         },
         size: 60,
@@ -426,19 +441,46 @@ export default function Page() {
         }}
       >
         {selectedItem && (
-          <div className="grid gap-6 py-4 lg:grid-cols-[240px_1fr]">
-            {/* Left Column: Image & Barcode */}
+          <div className="grid gap-6 py-4 lg:grid-cols-[280px_1fr]">
+            {/* Left Column: Images & Barcode */}
             <div className="flex flex-col items-center gap-6">
-              <div className="relative h-64 w-full overflow-hidden rounded-lg border bg-muted">
-                {selectedItem.image ? (
-                  <img
-                    src={selectedItem.image}
-                    alt={selectedItem.name}
-                    className="h-full w-full object-cover"
-                  />
+              {/* Image Gallery */}
+              <div className="w-full space-y-2">
+                {selectedItem.images && selectedItem.images.length > 0 ? (
+                  <>
+                    {/* All Images Grid - Equal Size */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {selectedItem.images.map((img, index) => (
+                        <div
+                          key={index}
+                          onClick={() => {
+                            setLightboxIndex(index);
+                            setLightboxOpen(true);
+                          }}
+                          className="relative aspect-square overflow-hidden rounded-lg border bg-muted cursor-pointer hover:border-primary hover:shadow-lg transition-all group"
+                        >
+                          <img
+                            src={img}
+                            alt={`${selectedItem.name} ${index + 1}`}
+                            className="h-full w-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                          {index === 0 && (
+                            <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-medium">
+                              Chính
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                            <Package className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <Package className="h-16 w-16 text-muted-foreground/50" />
+                  <div className="relative h-64 w-full overflow-hidden rounded-lg border bg-muted">
+                    <div className="flex h-full w-full items-center justify-center">
+                      <Package className="h-16 w-16 text-muted-foreground/50" />
+                    </div>
                   </div>
                 )}
               </div>
@@ -528,6 +570,17 @@ export default function Page() {
           </div>
         )}
       </DetailModal>
+
+      {/* Image Lightbox */}
+      <Lightbox
+        open={lightboxOpen}
+        close={() => setLightboxOpen(false)}
+        index={lightboxIndex}
+        slides={selectedItem?.images?.map((src) => ({ src })) || []}
+        on={{
+          view: ({ index }) => setLightboxIndex(index),
+        }}
+      />
     </div>
   );
 }

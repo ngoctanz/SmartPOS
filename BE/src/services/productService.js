@@ -115,13 +115,24 @@ const update = async (id, data) => {
       await Category.findCategoryById(data.categoryId);
     }
 
-    // Check if image is being updated
-    if (data.image) {
+    // Check if images are being updated
+    if (data.images && Array.isArray(data.images)) {
       const oldProduct = await Product.findById(id);
-      if (oldProduct && oldProduct.image && oldProduct.image !== data.image) {
-        const publicId = getPublicIdFromUrl(oldProduct.image);
-        if (publicId) {
-          await cloudinaryService.deleteImage(publicId);
+      if (oldProduct && oldProduct.images && oldProduct.images.length > 0) {
+        // Find images that were removed (exist in old but not in new)
+        const removedImages = oldProduct.images.filter(
+          (oldImg) => !data.images.includes(oldImg)
+        );
+        
+        // Delete removed images from Cloudinary
+        if (removedImages.length > 0) {
+          const publicIds = removedImages
+            .map((url) => getPublicIdFromUrl(url))
+            .filter((id) => id !== null);
+          
+          if (publicIds.length > 0) {
+            await cloudinaryService.deleteMultipleImages(publicIds);
+          }
         }
       }
     }
@@ -146,10 +157,13 @@ const updateSalePrice = async (id, salePrice) => {
 const remove = async (id) => {
   try {
     const product = await Product.findById(id);
-    if (product && product.image) {
-      const publicId = getPublicIdFromUrl(product.image);
-      if (publicId) {
-        await cloudinaryService.deleteImage(publicId);
+    if (product && product.images && product.images.length > 0) {
+      const publicIds = product.images
+        .map((url) => getPublicIdFromUrl(url))
+        .filter((id) => id !== null);
+      
+      if (publicIds.length > 0) {
+        await cloudinaryService.deleteMultipleImages(publicIds);
       }
     }
     return await Product.deleteProduct(id);
@@ -167,15 +181,21 @@ const removeMany = async (ids) => {
     // Find all products to be deleted to get their images
     const products = await Product.find({ _id: { $in: ids } });
     
-    // Delete images from Cloudinary
-    const deleteImagePromises = products
-      .filter(p => p.image)
-      .map(p => {
-        const publicId = getPublicIdFromUrl(p.image);
-        return publicId ? cloudinaryService.deleteImage(publicId) : Promise.resolve();
-      });
+    // Collect all image URLs from all products
+    const allImageUrls = products
+      .filter(p => p.images && p.images.length > 0)
+      .flatMap(p => p.images);
+    
+    // Extract public IDs and delete from Cloudinary
+    if (allImageUrls.length > 0) {
+      const publicIds = allImageUrls
+        .map((url) => getPublicIdFromUrl(url))
+        .filter((id) => id !== null);
       
-    await Promise.allSettled(deleteImagePromises);
+      if (publicIds.length > 0) {
+        await cloudinaryService.deleteMultipleImages(publicIds);
+      }
+    }
 
     return await Product.deleteManyProducts(ids);
   } catch (error) {
