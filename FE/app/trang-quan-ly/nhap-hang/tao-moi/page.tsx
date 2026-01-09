@@ -112,6 +112,8 @@ export default function CreateImportReceiptPage() {
           
           // Load full product details for each item
           const loadedItems: ImportItem[] = [];
+          const deletedProducts: string[] = [];
+          
           for (const item of products) {
             try {
               const response = await productService.getById(item.productId);
@@ -126,14 +128,33 @@ export default function CreateImportReceiptPage() {
                   unit: product.unit,
                   image: product.images?.[0],
                 });
+              } else {
+                // Product not found (deleted)
+                deletedProducts.push(item.productId);
               }
             } catch (error) {
+              // Product not found (deleted)
+              deletedProducts.push(item.productId);
               console.error("Failed to load product:", item.productId, error);
             }
           }
           
           setImportItems(loadedItems);
-          toast.success(`Đã tải ${loadedItems.length} sản phẩm từ phiếu lỗi`);
+          
+          // Show appropriate message
+          if (loadedItems.length > 0 && deletedProducts.length === 0) {
+            toast.success(`Đã tải ${loadedItems.length} sản phẩm từ phiếu lỗi`);
+          } else if (loadedItems.length > 0 && deletedProducts.length > 0) {
+            toast.warning(
+              `Đã tải ${loadedItems.length} sản phẩm. ${deletedProducts.length} sản phẩm đã bị xóa khỏi hệ thống.`,
+              { duration: 5000 }
+            );
+          } else if (loadedItems.length === 0 && deletedProducts.length > 0) {
+            toast.error(
+              `Không thể tải sản phẩm. Tất cả ${deletedProducts.length} sản phẩm trong phiếu đã bị xóa khỏi hệ thống.`,
+              { duration: 5000 }
+            );
+          }
         }
       } catch (error) {
         console.error("Failed to load error receipt data:", error);

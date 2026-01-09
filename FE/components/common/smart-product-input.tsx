@@ -404,7 +404,7 @@ export function SmartProductInput({
               </div>
               <div className="text-right">
                 <span className="text-sm font-semibold text-primary">
-                  {formatCurrency(product.currentSalePrice)}
+                  {formatCurrency(product.salePrice ?? product.currentSalePrice)}
                 </span>
               </div>
             </div>

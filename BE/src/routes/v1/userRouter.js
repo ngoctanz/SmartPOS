@@ -7,10 +7,10 @@ import { registerLimiter } from "../../middlewares/rateLimitMiddleware.js";
 const Router = express.Router();
 
 Router.route("/")
-  .get(authMiddleware, authorize("admin"), userController.getAllUser)
+  .get(authMiddleware, authorize("admin", "manager"), userController.getAllUser)
   .post(
     authMiddleware,
-    authorize("admin"),
+    authorize("admin", "manager"),
     registerLimiter,
     userValidation.createdNew,
     userController.createdNew
@@ -19,26 +19,26 @@ Router.route("/")
 Router.get(
   "/stats",
   authMiddleware,
-  authorize("admin"),
+  authorize("admin", "manager"),
   userController.getStats
 );
 
 Router.get(
   "/search",
   authMiddleware,
-  authorize("admin"),
+  authorize("admin", "manager"),
   userController.searchUser
 );
 Router.get(
   "/:id",
   authMiddleware,
-  authorize("admin"),
+  authorize("admin", "manager"),
   userController.detailUser
 );
 Router.patch(
   "/update/:id",
   authMiddleware,
-  authorize("admin"),
+  authorize("admin", "manager"),
   userValidation.validateUpdateData,
   userController.updateUser
 );
@@ -47,7 +47,7 @@ Router.patch(
 Router.patch(
   "/toggle-status/:id",
   authMiddleware,
-  authorize("admin"),
+  authorize("admin", "manager"),
   userController.toggleUserStatus
 );
 
@@ -55,14 +55,14 @@ Router.patch(
 Router.post(
   "/bulk-toggle-status",
   authMiddleware,
-  authorize("admin"),
+  authorize("admin", "manager"),
   userController.bulkToggleStatus
 );
 
 Router.delete(
   "/:id",
   authMiddleware,
-  authorize("admin"),
+  authorize("admin", "manager"),
   userController.deleteUser
 );
 

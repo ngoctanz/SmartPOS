@@ -4,7 +4,7 @@ import ApiError from "../utils/apiError.js";
 
 const createdNew = async (req, res, next) => {
   try {
-    const createdUser = await userService.createdNew(req.body);
+    const createdUser = await userService.createdNew(req.body, req.user);
     res.status(StatusCodes.CREATED).json({
       success: true,
       message: "User created successfully!",
@@ -17,7 +17,7 @@ const createdNew = async (req, res, next) => {
 
 const detailUser = async (req, res, next) => {
   try {
-    const user = await userService.getUserById(req.params.id);
+    const user = await userService.getUserById(req.params.id, req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get user details successfully",
@@ -30,7 +30,7 @@ const detailUser = async (req, res, next) => {
 
 const searchUser = async (req, res, next) => {
   try {
-    const users = await userService.getUserByName(req.query.name);
+    const users = await userService.getUserByName(req.query.name, req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get user details successfully",
@@ -56,7 +56,7 @@ const getAllUser = async (req, res, next) => {
         page: parseInt(page) || 1,
         limit: parseInt(limit) || 20,
       };
-      const result = await userService.getAllUserPaginated(options);
+      const result = await userService.getAllUserPaginated(options, req.user);
       return res.status(StatusCodes.OK).json({
         success: true,
         message: "Get users successfully",
@@ -66,7 +66,7 @@ const getAllUser = async (req, res, next) => {
     }
     
     // Fallback: lấy tất cả (cho các API cũ)
-    const users = await userService.getAllUser();
+    const users = await userService.getAllUser(req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get users successfully",
@@ -80,7 +80,7 @@ const getAllUser = async (req, res, next) => {
 
 const getStats = async (req, res, next) => {
   try {
-    const stats = await userService.getStats();
+    const stats = await userService.getStats(req.user);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get user stats successfully",
@@ -90,6 +90,7 @@ const getStats = async (req, res, next) => {
     next(error);
   }
 };
+
 const updateUser = async (req, res, next) => {
   try {
     // Truyền currentUser để check quyền trong service
@@ -107,7 +108,7 @@ const updateUser = async (req, res, next) => {
 const deleteUser = async (req, res, next) => {
   try {
     // Không cho phép xóa user admin
-    const userToDelete = await userService.getUserById(req.params.id);
+    const userToDelete = await userService.getUserById(req.params.id, req.user);
     if (
       userToDelete &&
       userToDelete.role === "admin" &&
@@ -118,7 +119,7 @@ const deleteUser = async (req, res, next) => {
       );
     }
 
-    await userService.deleteUser(req.params.id);
+    await userService.deleteUser(req.params.id, req.user);
     return res.status(StatusCodes.OK).json({
       success: true,
       message: "Xóa người dùng thành công!",
@@ -131,7 +132,7 @@ const deleteUser = async (req, res, next) => {
 const toggleUserStatus = async (req, res, next) => {
   try {
     const userId = req.params.id;
-    const result = await userService.toggleUserStatus(userId);
+    const result = await userService.toggleUserStatus(userId, req.user);
 
     const statusText = result.status === "active" ? "mở khóa" : "khóa";
     res.status(StatusCodes.OK).json({
@@ -160,7 +161,7 @@ const bulkToggleStatus = async (req, res, next) => {
       );
     }
 
-    const result = await userService.bulkToggleStatus(ids, status);
+    const result = await userService.bulkToggleStatus(ids, status, req.user);
     const statusText = status === "active" ? "mở khóa" : "khóa";
 
     return res.status(StatusCodes.OK).json({

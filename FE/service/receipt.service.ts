@@ -328,6 +328,15 @@ const receiptService = {
       `/receipt/errors/stats${queryParams.toString() ? `?${queryParams.toString()}` : ""}`
     );
   },
+
+  /**
+   * Xóa hóa đơn lỗi (Admin/Manager only)
+   * DELETE /api/v1/receipt/errors/:id
+   */
+  deleteErrorReceipt: async (id: string): Promise<ApiResponse<void>> => {
+    const { apiDelete } = await import("./api.service");
+    return apiDelete<void>(`/receipt/errors/${id}`);
+  },
 };
 
 export default receiptService;

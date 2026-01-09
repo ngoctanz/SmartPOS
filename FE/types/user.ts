@@ -1,6 +1,6 @@
 import { BaseEntity } from "./common";
 
-export type UserRole = "admin" | "staff";
+export type UserRole = "admin" | "manager" | "staff";
 export type UserStatus = "active" | "inactive";
 
 export interface User extends BaseEntity {

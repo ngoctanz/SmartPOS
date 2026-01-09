@@ -8,47 +8,47 @@ const Router = express.Router();
 Router.use(authMiddleware);
 Router.use(injectUserBranch()); // Tự động inject branchId cho staff
 
-// Dashboard routes - Admin & Staff có thể xem (staff chỉ xem chi nhánh của mình)
+// Dashboard routes - Admin & Manager only (staff không có quyền xem dashboard)
 Router.get(
   "/summary",
-  authorize("admin", "staff"),
+  authorize("admin", "manager"),
   dashboardController.getSummary
 );
 
 Router.get(
   "/daily-stats",
-  authorize("admin", "staff"),
+  authorize("admin", "manager"),
   dashboardController.getDailyStats
 );
 
 Router.get(
   "/top-products",
-  authorize("admin", "staff"),
+  authorize("admin", "manager"),
   dashboardController.getTopProducts
 );
 
 Router.get(
   "/least-selling-products",
-  authorize("admin", "staff"),
+  authorize("admin", "manager"),
   dashboardController.getLeastSellingProducts
 );
 
 Router.get(
   "/sales-by-category",
-  authorize("admin", "staff"),
+  authorize("admin", "manager"),
   dashboardController.getSalesByCategory
 );
 
 Router.get(
   "/payment-stats",
-  authorize("admin", "staff"),
+  authorize("admin", "manager"),
   dashboardController.getPaymentStats
 );
 
 Router.get(
   "/low-stock/:branchId",
-  authorize("admin", "staff"),
-  checkBranchAccess, // Staff chỉ xem được chi nhánh của mình
+  authorize("admin", "manager"),
+  checkBranchAccess, // Manager chỉ xem được chi nhánh của mình
   dashboardController.getLowStockAlert
 );
 

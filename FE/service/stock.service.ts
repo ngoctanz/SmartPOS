@@ -7,7 +7,8 @@ export interface BranchProduct {
   productId: any; // Populated object or string
   stock: number;
   minStock: number;
-  avgImportPrice: number;
+  salePrice: number; // Giá bán theo chi nhánh
+  avgImportPrice?: number;
   note?: string | null; // Ghi chú cho sản phẩm
   branchCount?: number; // Only for aggregated view
   isAggregated?: boolean; // Flag for aggregated data
@@ -155,6 +156,19 @@ const stockService = {
   },
 
   /**
+   * Lấy thông tin sản phẩm theo chi nhánh (stock, salePrice, minStock)
+   * GET /api/v1/stock/branch/:branchId/product/:productId
+   */
+  getProductInfo: async (
+    branchId: string,
+    productId: string
+  ): Promise<ApiResponse<{ branchId: string; productId: string; stock: number; salePrice: number; minStock: number }>> => {
+    return apiGet<{ branchId: string; productId: string; stock: number; salePrice: number; minStock: number }>(
+      `/stock/branch/${branchId}/product/${productId}`
+    );
+  },
+
+  /**
    * Lấy danh sách sản phẩm sắp hết hàng
    * GET /api/v1/stock/branch/:branchId/low-stock
    */
@@ -162,6 +176,17 @@ const stockService = {
     branchId: string
   ): Promise<ApiResponse<BranchProduct[]>> => {
     return apiGet<BranchProduct[]>(`/stock/branch/${branchId}/low-stock`);
+  },
+
+  /**
+   * Tìm sản phẩm trong kho theo barcode
+   * GET /api/v1/stock/branch/:branchId/barcode/:barcode
+   */
+  getByBarcode: async (
+    branchId: string,
+    barcode: string
+  ): Promise<ApiResponse<BranchProduct>> => {
+    return apiGet<BranchProduct>(`/stock/branch/${branchId}/barcode/${barcode}`);
   },
 
   /**
@@ -203,6 +228,44 @@ const stockService = {
     branchId?: string
   ): Promise<ApiResponse<BranchProduct>> => {
     return apiPatch<BranchProduct>(`/stock/${id}/note`, { note, branchId });
+  },
+
+  /**
+   * Cập nhật giá bán cho sản phẩm theo chi nhánh
+   * PATCH /api/v1/stock/:id/sale-price
+   */
+  updateSalePrice: async (
+    id: string,
+    salePrice: number,
+    branchId?: string
+  ): Promise<ApiResponse<BranchProduct>> => {
+    return apiPatch<BranchProduct>(`/stock/${id}/sale-price`, { salePrice, branchId });
+  },
+
+  /**
+   * Cập nhật thông tin sản phẩm trong kho (giá bán, định mức tối thiểu, ghi chú)
+   * Gọi nhiều API để cập nhật
+   */
+  updateBranchProduct: async (
+    id: string,
+    data: { salePrice?: number; minStock?: number; note?: string },
+    branchId?: string
+  ): Promise<ApiResponse<BranchProduct>> => {
+    const promises: Promise<ApiResponse<BranchProduct>>[] = [];
+    
+    if (data.salePrice !== undefined) {
+      promises.push(apiPatch<BranchProduct>(`/stock/${id}/sale-price`, { salePrice: data.salePrice, branchId }));
+    }
+    if (data.note !== undefined) {
+      promises.push(apiPatch<BranchProduct>(`/stock/${id}/note`, { note: data.note, branchId }));
+    }
+    
+    if (promises.length === 0) {
+      return { success: true, message: "No changes" } as ApiResponse<BranchProduct>;
+    }
+    
+    const results = await Promise.all(promises);
+    return results[results.length - 1]; // Return last result
   },
 };
 

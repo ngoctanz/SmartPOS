@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useRouter } from "next/navigation"
 import { SectionCards } from "@/components/ui/section-cards"
 import { ChartDailyRevenue } from "@/components/ui/chart-daily-revenue"
 import { ChartTopProducts } from "@/components/ui/chart-top-products"
@@ -25,12 +26,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Loader2 } from "lucide-react"
 
 type PeriodType = "week" | "month" | "3month" | "6month" | "year"
 
 export default function DashboardPage() {
-  const { user } = useAuth()
+  const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const isAdmin = user?.role === "admin"
+  const isManager = user?.role === "manager"
+
+  // Redirect staff to another page (they don't have dashboard access)
+  React.useEffect(() => {
+    if (!authLoading && user && user.role === "staff") {
+      router.replace("/trang-quan-ly/hoa-don")
+    }
+  }, [authLoading, user, router])
 
   // Branch filter state (admin only)
   const [branches, setBranches] = React.useState<Branch[]>([])
@@ -44,6 +55,7 @@ export default function DashboardPage() {
     if (isAdmin) {
       return filterBranchId !== "all" ? filterBranchId : undefined
     }
+    // Manager always uses their own branch
     return user?.branchId 
   }, [isAdmin, filterBranchId, user?.branchId])
 
@@ -128,6 +140,18 @@ export default function DashboardPage() {
     })
     return () => unsubscribe()
   }, [fetchDashboardData])
+
+  // Show loading while checking auth or if staff (redirecting)
+  if (authLoading || (user && user.role === "staff")) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Đang tải...</p>
+        </div>
+      </div>
+    )
+  }
 
   // Get current branch name for display
   const currentBranchName = React.useMemo(() => {

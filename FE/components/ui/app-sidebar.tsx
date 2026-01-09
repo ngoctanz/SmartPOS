@@ -22,13 +22,25 @@ export function AppSidebar({ ...props }: ComponentProps<typeof Sidebar>) {
   const { user } = useAuth();
 
   const filteredNavMain = useMemo(() => {
-    if (user?.role !== "admin") {
+    // Admin: xem tất cả
+    if (user?.role === "admin") {
+      return navItems.navMain;
+    }
+    
+    // Manager: xem tất cả trừ quản lý chi nhánh
+    if (user?.role === "manager") {
       return navItems.navMain.filter(
-        (item) =>
-          item.title !== "Quản lý user" && item.title !== "Quản lý chi nhánh"
+        (item) => item.title !== "Quản lý chi nhánh"
       );
     }
-    return navItems.navMain;
+    
+    // Staff: không xem Dashboard, quản lý user và chi nhánh
+    return navItems.navMain.filter(
+      (item) =>
+        item.title !== "Dashboard" &&
+        item.title !== "Quản lý user" && 
+        item.title !== "Quản lý chi nhánh"
+    );
   }, [user]);
 
   return (

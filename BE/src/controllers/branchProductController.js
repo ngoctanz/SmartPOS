@@ -103,6 +103,21 @@ const getLowStock = async (req, res, next) => {
   }
 };
 
+const getByBarcode = async (req, res, next) => {
+  try {
+    const { branchId, barcode } = req.params;
+    // Pass user for defense-in-depth security
+    const result = await branchProductService.getByBarcode(branchId, barcode, req.user);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get stock by barcode successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const checkAvailability = async (req, res, next) => {
   try {
     const { branchId, productId } = req.params;
@@ -234,12 +249,29 @@ const updateNote = async (req, res, next) => {
   }
 };
 
+const updateSalePrice = async (req, res, next) => {
+  try {
+    const { salePrice, branchId } = req.body;
+    // Pass user for defense-in-depth security
+    // branchId được inject từ middleware cho staff, hoặc từ body cho admin
+    const data = await branchProductService.updateSalePrice(req.params.id, salePrice, req.user, branchId);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Sale price updated successfully",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const branchProductController = {
   getStats,
   getAll,
   getAggregatedByProduct,
   getByBranch,
   getByProduct,
+  getByBarcode,
   getStock,
   setMinStock,
   getLowStock,
@@ -247,5 +279,6 @@ export const branchProductController = {
   create,
   update,
   remove,
-  updateNote
+  updateNote,
+  updateSalePrice
 };

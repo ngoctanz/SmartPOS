@@ -64,10 +64,24 @@ const getStats = async (req, res, next) => {
   }
 };
 
+const getCategoryStats = async (req, res, next) => {
+  try {
+    const stats = await productService.getCategoryStats();
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get category stats successfully",
+      data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 
 const getById = async (req, res, next) => {
   try {
-    const product = await productService.getById(req.params.id);
+    const { branchId } = req.query;
+    const product = await productService.getById(req.params.id, branchId);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get product successfully",
@@ -80,7 +94,8 @@ const getById = async (req, res, next) => {
 
 const getByBarcode = async (req, res, next) => {
   try {
-    const product = await productService.getByBarcode(req.params.barcode);
+    const { branchId } = req.query;
+    const product = await productService.getByBarcode(req.params.barcode, branchId);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get product successfully",
@@ -93,7 +108,8 @@ const getByBarcode = async (req, res, next) => {
 
 const search = async (req, res, next) => {
   try {
-    const products = await productService.getByName(req.query.name);
+    const { name, branchId } = req.query;
+    const products = await productService.getByName(name, branchId);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Search products successfully",
@@ -177,6 +193,7 @@ export const productController = {
   create,
   getAll,
   getStats,
+  getCategoryStats,
   getById,
   getByBarcode,
   search,

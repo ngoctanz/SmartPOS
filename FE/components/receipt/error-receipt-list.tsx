@@ -5,11 +5,23 @@ import { CommonTable } from "@/components/common/common-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, User, Calendar, AlertTriangle } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RefreshCw, User, Calendar, AlertTriangle, Trash2 } from "lucide-react";
 import { Receipt } from "@/service/receipt.service";
+import receiptService from "@/service/receipt.service";
 import { format } from "date-fns";
 import { formatCurrency } from "@/utils/format.utils";
 import { useRouter } from "next/navigation";
+import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
+import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { MoreHorizontal, Eye } from "lucide-react";
 
 interface ErrorReceiptListProps {
   data: Receipt[];
@@ -23,6 +35,9 @@ interface ErrorReceiptListProps {
   onPageChange: (page: number) => void;
   onSearch: (search: string) => void;
   searchValue: string;
+  isAdmin?: boolean;
+  isManager?: boolean;
+  onRefresh?: () => void;
 }
 
 export function ErrorReceiptList({
@@ -32,8 +47,18 @@ export function ErrorReceiptList({
   onPageChange,
   onSearch,
   searchValue,
+  isAdmin = false,
+  isManager = false,
+  onRefresh,
 }: ErrorReceiptListProps) {
   const router = useRouter();
+  const canDelete = isAdmin || isManager;
+
+  const [selectedItem, setSelectedItem] = React.useState<Receipt | null>(null);
+  const [selectedItems, setSelectedItems] = React.useState<Receipt[]>([]);
+  const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const handleRecreate = (receipt: Receipt) => {
     router.push(`/trang-quan-ly/hoa-don/tao-moi?fromError=${receipt.code}`);
@@ -43,8 +68,84 @@ export function ErrorReceiptList({
     router.push(`/trang-quan-ly/hoa-don/${receipt.code}`);
   };
 
+  const handleDelete = (receipt: Receipt) => {
+    setSelectedItem(receipt);
+    setIsDeleteOpen(true);
+  };
+
+  const handleDeleteMany = (items: Receipt[]) => {
+    setSelectedItems(items);
+    setSelectedItem(null);
+    setIsBulkDeleteOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!selectedItem) return;
+    try {
+      setIsSubmitting(true);
+      await receiptService.deleteErrorReceipt(selectedItem._id);
+      toast.success("Đã xóa hóa đơn lỗi!");
+      setIsDeleteOpen(false);
+      setSelectedItem(null);
+      onRefresh?.();
+    } catch (error: unknown) {
+      console.error("Delete error:", error);
+      const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
+      toast.error(errMsg);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const confirmBulkDelete = async () => {
+    try {
+      setIsSubmitting(true);
+      const promises = selectedItems.map((item) =>
+        receiptService.deleteErrorReceipt(item._id)
+      );
+      await Promise.all(promises);
+      toast.success(`Đã xóa ${selectedItems.length} hóa đơn lỗi`);
+      setSelectedItems([]);
+      setIsBulkDeleteOpen(false);
+      onRefresh?.();
+    } catch (error) {
+      console.error("Bulk delete error:", error);
+      toast.error("Có lỗi xảy ra khi xóa phiếu hoặc bạn ko có quyền thực hiện");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const columns = React.useMemo<ColumnDef<Receipt>[]>(
     () => [
+      ...(canDelete
+        ? [
+            {
+              id: "select",
+              header: ({ table }: { table: any }) => (
+                <Checkbox
+                  checked={
+                    table.getIsAllPageRowsSelected() ||
+                    (table.getIsSomePageRowsSelected() && "indeterminate")
+                  }
+                  onCheckedChange={(value: boolean) =>
+                    table.toggleAllPageRowsSelected(!!value)
+                  }
+                  aria-label="Select all"
+                />
+              ),
+              cell: ({ row }: { row: any }) => (
+                <Checkbox
+                  checked={row.getIsSelected()}
+                  onCheckedChange={(value: boolean) => row.toggleSelected(!!value)}
+                  aria-label="Select row"
+                />
+              ),
+              enableSorting: false,
+              enableHiding: false,
+            } as ColumnDef<Receipt>,
+          ]
+        : []),
       {
         accessorKey: "code",
         header: "Mã hóa đơn",
@@ -131,28 +232,51 @@ export function ErrorReceiptList({
       {
         id: "actions",
         header: "Thao tác",
-        cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => handleViewDetail(row.original)}
-            >
-              Xem
-            </Button>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => handleRecreate(row.original)}
-            >
-              <RefreshCw className="h-3 w-3 mr-1" />
-              Tạo lại
-            </Button>
-          </div>
-        ),
+        cell: ({ row, table }) => {
+          const isAnyRowSelected =
+            table.getFilteredSelectedRowModel().rows.length > 0;
+
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  disabled={isAnyRowSelected}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">Menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleViewDetail(row.original)}>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Xem chi tiết
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleRecreate(row.original)}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Tạo lại
+                </DropdownMenuItem>
+                {canDelete && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => handleDelete(row.original)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Xóa
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
       },
     ],
-    []
+    [canDelete]
   );
 
   return (
@@ -184,8 +308,31 @@ export function ErrorReceiptList({
           onPageChange={onPageChange}
           onSearch={onSearch}
           searchValue={searchValue}
+          onBulkAction={canDelete ? handleDeleteMany : undefined}
+          bulkActionLabel="Xóa đã chọn"
+          bulkActionIcon="trash"
         />
       )}
+
+      {/* Delete Dialog */}
+      <ConfirmDeleteDialog
+        open={isDeleteOpen}
+        onOpenChange={setIsDeleteOpen}
+        onConfirm={confirmDelete}
+        isSubmitting={isSubmitting}
+        title="Xóa hóa đơn lỗi?"
+        description={`Bạn có chắc chắn muốn xóa hóa đơn ${selectedItem?.code}? Hành động này không thể hoàn tác.`}
+      />
+
+      {/* Bulk Delete Dialog */}
+      <ConfirmDeleteDialog
+        open={isBulkDeleteOpen}
+        onOpenChange={setIsBulkDeleteOpen}
+        onConfirm={confirmBulkDelete}
+        isSubmitting={isSubmitting}
+        title={`Xóa ${selectedItems.length} hóa đơn lỗi?`}
+        description="Bạn có chắc chắn muốn xóa các hóa đơn đã chọn? Hành động này không thể hoàn tác."
+      />
     </div>
   );
 }

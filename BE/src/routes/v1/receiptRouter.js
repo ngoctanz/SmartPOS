@@ -59,21 +59,32 @@ Router.get(
 // Create receipt (all authenticated staff can sell)
 Router.post("/", receiptValidation.createReceipt, receiptController.create);
 
-// Update receipt - Admin only
-Router.patch("/:id", authorize("admin"), receiptController.update);
+// Update receipt - Admin and Manager only
+Router.patch("/:id", authorize("admin", "manager"), receiptController.update);
 
-// Cancel receipt - Admin only
-Router.patch("/:id/cancel", authorize("admin"), receiptController.cancel);
+// Cancel receipt - Admin and Manager only
+Router.patch("/:id/cancel", authorize("admin", "manager"), receiptController.cancel);
 
-// Mark receipt as error - Admin and Staff
+// Mark receipt as error - Admin, Manager and Staff
 Router.patch(
   "/:id/mark-error",
-  authorize("admin", "staff"),
+  authorize("admin", "manager", "staff"),
   validateRecordBranchAccess(async (req) => {
     const receipt = await receiptService.getById(req.params.id);
     return receipt?.branchId;
   }),
   receiptController.markError
+);
+
+// Delete error receipt - Admin and Manager only
+Router.delete(
+  "/errors/:id",
+  authorize("admin", "manager"),
+  validateRecordBranchAccess(async (req) => {
+    const receipt = await receiptService.getById(req.params.id);
+    return receipt?.branchId;
+  }),
+  receiptController.deleteErrorReceipt
 );
 
 export const receiptRouter = Router;

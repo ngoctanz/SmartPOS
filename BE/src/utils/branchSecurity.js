@@ -4,6 +4,33 @@
  */
 import ApiError from "./apiError.js";
 
+/**
+ * Check if user has admin-like privileges (admin or manager for their branch)
+ */
+export const hasAdminPrivilege = (user, branchId = null) => {
+  if (!user) return false;
+  
+  // Admin has full privilege
+  if (user.role === "admin") return true;
+  
+  // Manager has admin privilege only for their own branch
+  if (user.role === "manager" && user.branchId) {
+    // If no specific branchId requested, manager has privilege for their branch
+    if (!branchId) return true;
+    // If specific branchId, check if it matches manager's branch
+    return user.branchId.toString() === branchId.toString();
+  }
+  
+  return false;
+};
+
+/**
+ * Check if user is bound to a branch (manager or staff)
+ */
+export const isBranchBound = (user) => {
+  return user && (user.role === "manager" || user.role === "staff");
+};
+
 export const validateBranchAccess = (user, branchId, action = "access") => {
   if (!user) {
     throw new ApiError(401, "Authentication required");
@@ -14,12 +41,12 @@ export const validateBranchAccess = (user, branchId, action = "access") => {
     return true;
   }
 
-  // Staff must have a branch
+  // Manager and Staff must have a branch
   if (!user.branchId) {
     throw new ApiError(403, "User does not belong to any branch");
   }
 
-  // Staff can only access their own branch
+  // Manager and Staff can only access their own branch
   if (branchId && user.branchId.toString() !== branchId.toString()) {
     throw new ApiError(
       403,
@@ -34,7 +61,7 @@ export const validateBranchAccess = (user, branchId, action = "access") => {
  * Build secure filter that automatically includes branchId for non-admin users
  * @param {Object} user - User object from req.user
  * @param {Object} baseFilter - Base filter object
- * @returns {Object} Filter with branchId constraint for staff
+ * @returns {Object} Filter with branchId constraint for manager/staff
  */
 export const buildSecureFilter = (user, baseFilter = {}) => {
   if (!user) {
@@ -46,7 +73,7 @@ export const buildSecureFilter = (user, baseFilter = {}) => {
     return baseFilter;
   }
 
-  // Staff: ALWAYS filter by their branchId
+  // Manager and Staff: ALWAYS filter by their branchId
   if (!user.branchId) {
     throw new ApiError(403, "User does not belong to any branch");
   }
@@ -78,7 +105,7 @@ export const validateRecordAccess = (user, record, recordType = "record") => {
     return true;
   }
 
-  // Staff must have a branch
+  // Manager and Staff must have a branch
   if (!user.branchId) {
     throw new ApiError(403, "User does not belong to any branch");
   }

@@ -7,6 +7,7 @@ import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
 import productService, { Product } from "@/service/product.service";
+import stockService, { BranchProduct } from "@/service/stock.service";
 import receiptService, {
   CreateReceiptRequest,
   Receipt,
@@ -107,43 +108,43 @@ export default function CreateReceiptPage() {
             }
 
             // Fetch full product details to get barcode and unit
-            const items: CartItem[] = await Promise.all(
+            const items: CartItem[] = [];
+            const deletedProducts: string[] = [];
+            
+            await Promise.all(
               errorReceipt.listProduct.map(async (p) => {
                 try {
                   const productResponse = await productService.getById(
                     p.productId
                   );
-                  const product = productResponse.data;
-
-                  return {
-                    productId: p.productId,
-                    productName: p.productName,
-                    barcode: product?.barcode || "",
-                    quantity: p.quantity,
-                    salePrice: p.salePrice,
-                    unit: product?.unit || "",
-                    image: product?.images?.[0],
-                  };
+                  if (productResponse.success && productResponse.data) {
+                    const product = productResponse.data;
+                    items.push({
+                      productId: p.productId,
+                      productName: p.productName,
+                      barcode: product?.barcode || "",
+                      quantity: p.quantity,
+                      salePrice: p.salePrice,
+                      unit: product?.unit || "",
+                      image: product?.images?.[0],
+                    });
+                  } else {
+                    // Product deleted
+                    deletedProducts.push(p.productName);
+                  }
                 } catch (error) {
-                  // If product fetch fails, use basic info
+                  // Product deleted
+                  deletedProducts.push(p.productName);
                   console.error(
                     `Failed to fetch product ${p.productId}:`,
                     error
                   );
-                  return {
-                    productId: p.productId,
-                    productName: p.productName,
-                    barcode: "",
-                    quantity: p.quantity,
-                    salePrice: p.salePrice,
-                    unit: "",
-                    image: undefined,
-                  };
                 }
               })
             );
 
             setCartItems(items);
+            
             // Only set payment method if it's cash or transfer (not card)
             if (
               errorReceipt.paymentMethod === "cash" ||
@@ -151,14 +152,27 @@ export default function CreateReceiptPage() {
             ) {
               setPaymentMethod(errorReceipt.paymentMethod);
             }
-
-            toast.success(
-              `Đã tải ${items.length} sản phẩm từ hóa đơn lỗi ${errorCode}`,
-              {
-                description: "Vui lòng kiểm tra và chỉnh sửa nếu cần",
-                duration: 5000,
-              }
-            );
+            
+            // Show appropriate message
+            if (items.length > 0 && deletedProducts.length === 0) {
+              toast.success(
+                `Đã tải ${items.length} sản phẩm từ hóa đơn lỗi ${errorCode}`,
+                {
+                  description: "Vui lòng kiểm tra và chỉnh sửa nếu cần",
+                  duration: 5000,
+                }
+              );
+            } else if (items.length > 0 && deletedProducts.length > 0) {
+              toast.warning(
+                `Đã tải ${items.length} sản phẩm. ${deletedProducts.length} sản phẩm đã bị xóa: ${deletedProducts.join(", ")}`,
+                { duration: 7000 }
+              );
+            } else if (items.length === 0 && deletedProducts.length > 0) {
+              toast.error(
+                `Không thể tải sản phẩm. Tất cả ${deletedProducts.length} sản phẩm trong hóa đơn đã bị xóa khỏi hệ thống.`,
+                { duration: 5000 }
+              );
+            }
           }
         } catch (error) {
           console.error("Failed to load error receipt:", error);
@@ -170,7 +184,7 @@ export default function CreateReceiptPage() {
     loadFromError();
   }, []);
 
-  // Handle barcode scanned
+  // Handle barcode scanned - search from stock (BranchProduct)
   const handleBarcodeScanned = React.useCallback(
     async (barcode: string) => {
       const existingItem = cartItems.find((item) => item.barcode === barcode);
@@ -186,9 +200,19 @@ export default function CreateReceiptPage() {
         toast.success(`+1 ${existingItem.productName}`);
       } else {
         try {
-          const response = await productService.getByBarcode(barcode);
+          // Search from stock (BranchProduct) instead of Product
+          // Staff: middleware inject branchId, Admin: use selectedBranch
+          const branchId = isAdmin ? selectedBranch : user?.branchId;
+          if (!branchId) {
+            toast.error("Vui lòng chọn chi nhánh");
+            return;
+          }
+          
+          const response = await stockService.getByBarcode(branchId, barcode);
           if (response.success && response.data) {
-            const product = response.data;
+            const stockItem = response.data;
+            const product = stockItem.productId;
+            
             setCartItems((prev) => [
               ...prev,
               {
@@ -196,43 +220,73 @@ export default function CreateReceiptPage() {
                 productName: product.name,
                 barcode: product.barcode || barcode,
                 quantity: 1,
-                salePrice: product.currentSalePrice,
+                salePrice: stockItem.salePrice || 0,
                 unit: product.unit,
                 image: product.images?.[0],
               },
             ]);
             toast.success(`Đã thêm: ${product.name}`);
           } else {
-            toast.error("Không tìm thấy sản phẩm");
+            toast.error("Sản phẩm không có trong kho chi nhánh này");
           }
         } catch (error) {
-          toast.error((error as Error).message || "Không tìm thấy sản phẩm");
+          toast.error((error as Error).message || "Sản phẩm không có trong kho chi nhánh này");
         }
       }
     },
-    [cartItems]
+    [cartItems, selectedBranch, isAdmin, user?.branchId]
   );
 
-  // Handle search
-  const handleSearch = React.useCallback(async (term: string) => {
-    const response = await productService.search({ name: term });
-    return response.success && response.data ? response.data : [];
-  }, []);
+  // Handle search - search from stock (BranchProduct)
+  const handleSearch = React.useCallback(async (term: string): Promise<Product[]> => {
+    const branchId = isAdmin ? selectedBranch : user?.branchId;
+    if (!branchId) return [];
+    
+    const response = await stockService.getByBranch(branchId, { search: term, limit: 10 });
+    if (response.success && response.data) {
+      // Map BranchProduct to Product format for SmartProductInput
+      return response.data.map((item: BranchProduct) => ({
+        _id: item.productId._id,
+        name: item.productId.name,
+        barcode: item.productId.barcode,
+        unit: item.productId.unit,
+        images: item.productId.images || (item.productId.image ? [item.productId.image] : []),
+        currentSalePrice: item.salePrice,
+        salePrice: item.salePrice,
+        stock: item.stock,
+      })) as Product[];
+    }
+    return [];
+  }, [selectedBranch, isAdmin, user?.branchId]);
 
-  // Get product by barcode for SmartProductInput
+  // Get product by barcode for SmartProductInput - search from stock
   const getProductByBarcode = React.useCallback(
     async (barcode: string): Promise<Product | null> => {
       try {
-        const response = await productService.getByBarcode(barcode);
+        const branchId = isAdmin ? selectedBranch : user?.branchId;
+        if (!branchId) return null;
+        
+        const response = await stockService.getByBarcode(branchId, barcode);
         if (response.success && response.data) {
-          return response.data;
+          const stockItem = response.data;
+          const product = stockItem.productId;
+          return {
+            _id: product._id,
+            name: product.name,
+            barcode: product.barcode,
+            unit: product.unit,
+            images: product.images || (product.image ? [product.image] : []),
+            currentSalePrice: stockItem.salePrice,
+            salePrice: stockItem.salePrice,
+            stock: stockItem.stock,
+          } as Product;
         }
         return null;
       } catch {
         return null;
       }
     },
-    []
+    [selectedBranch, isAdmin, user?.branchId]
   );
 
   // Handle product select from search
@@ -252,6 +306,9 @@ export default function CreateReceiptPage() {
         );
         toast.success(`+1 ${product.name}`);
       } else {
+        // Ưu tiên salePrice (giá theo chi nhánh), fallback về currentSalePrice
+        const price = product.salePrice ?? product.currentSalePrice;
+        
         setCartItems((prev) => [
           ...prev,
           {
@@ -259,7 +316,7 @@ export default function CreateReceiptPage() {
             productName: product.name,
             barcode: product.barcode || "",
             quantity: 1,
-            salePrice: product.currentSalePrice,
+            salePrice: price,
             unit: product.unit,
             image: product.images?.[0],
           },
@@ -339,10 +396,12 @@ export default function CreateReceiptPage() {
           toast.success(
             "Tạo hóa đơn thành công! Vui lòng quét mã QR để thanh toán."
           );
+          setCartItems([]);
         } else {
           toast.success("Tạo hóa đơn thành công!");
+          setCartItems([]);
+          router.push(ROUTES.INVOICES);
         }
-        setCartItems([]);
       } else {
         toast.error(response.message || "Tạo hóa đơn thất bại");
       }

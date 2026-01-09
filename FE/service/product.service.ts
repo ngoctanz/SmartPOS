@@ -8,6 +8,8 @@ export interface Product {
   categoryId: string | { _id: string; name: string };
   unit: string;
   currentSalePrice: number;
+  salePrice?: number; // Giá bán theo chi nhánh (nếu có branchId)
+  stock?: number; // Tồn kho theo chi nhánh (nếu có branchId)
   status: "active" | "inactive";
   desc?: string;
   images?: string[];
@@ -44,6 +46,7 @@ export interface UpdatePriceRequest {
 export interface SearchProductParams {
   name?: string; // Search by name or barcode
   categoryId?: string;
+  branchId?: string; // Optional: để lấy giá theo chi nhánh
 }
 
 export interface Pagination {
@@ -77,6 +80,18 @@ const productService = {
   },
 
   /**
+   * Lấy thống kê theo danh mục
+   * GET /api/v1/product/stats/category
+   */
+  getCategoryStats: async (): Promise<ApiResponse<Array<{
+    categoryId: string;
+    categoryName: string;
+    count: number;
+  }>>> => {
+    return apiGet("/product/stats/category");
+  },
+
+  /**
    * Lấy tất cả sản phẩm (có phân trang)
    * GET /api/v1/product
    */
@@ -98,8 +113,8 @@ const productService = {
 
   /**
    * Tìm kiếm sản phẩm theo tên hoặc barcode
-   * GET /api/v1/product/search?name=xxx
-   * BE sẽ tìm kiếm theo cả name và barcode
+   * GET /api/v1/product/search?name=xxx&branchId=xxx
+   * BE sẽ tìm kiếm theo cả name và barcode, map giá theo branchId nếu có
    */
   search: async (
     params: SearchProductParams
@@ -107,16 +122,18 @@ const productService = {
     const queryParams = new URLSearchParams();
     if (params.name) queryParams.append("name", params.name);
     if (params.categoryId) queryParams.append("categoryId", params.categoryId);
+    if (params.branchId) queryParams.append("branchId", params.branchId);
 
     return apiGet<Product[]>(`/product/search?${queryParams.toString()}`);
   },
 
   /**
    * Lấy sản phẩm theo barcode
-   * GET /api/v1/product/barcode/:barcode
+   * GET /api/v1/product/barcode/:barcode?branchId=xxx
    */
-  getByBarcode: async (barcode: string): Promise<ApiResponse<Product>> => {
-    return apiGet<Product>(`/product/barcode/${barcode}`);
+  getByBarcode: async (barcode: string, branchId?: string): Promise<ApiResponse<Product>> => {
+    const query = branchId ? `?branchId=${branchId}` : "";
+    return apiGet<Product>(`/product/barcode/${barcode}${query}`);
   },
 
   /**

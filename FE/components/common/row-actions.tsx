@@ -21,6 +21,13 @@ import {
   X,
 } from "lucide-react";
 
+interface CustomAction {
+  label: string;
+  icon?: React.ReactNode;
+  onClick: () => void;
+  variant?: "default" | "destructive";
+}
+
 interface RowActionsProps {
   onView?: () => void;
   onEdit?: () => void;
@@ -30,6 +37,7 @@ interface RowActionsProps {
   actionIcon?: "trash" | "lock" | "unlock" | "check" | "cancel";
   editLabel?: string;
   disabled?: boolean;
+  customActions?: CustomAction[];
 }
 
 // Icon mapping outside component to avoid creating during render
@@ -50,6 +58,7 @@ export function RowActions({
   actionIcon = "trash",
   editLabel = "Chỉnh sửa",
   disabled = false,
+  customActions = [],
 }: RowActionsProps) {
   const ActionIcon = ACTION_ICONS[actionIcon];
   const isDestructive = actionIcon === "trash" || actionIcon === "cancel";
@@ -76,6 +85,20 @@ export function RowActions({
             {editLabel}
           </DropdownMenuItem>
         )}
+        {customActions.map((action, index) => (
+          <DropdownMenuItem
+            key={index}
+            onClick={action.onClick}
+            className={
+              action.variant === "destructive"
+                ? "text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/50"
+                : ""
+            }
+          >
+            {action.icon && <span className="mr-2">{action.icon}</span>}
+            {action.label}
+          </DropdownMenuItem>
+        ))}
         {onAction && (
           <>
             <DropdownMenuSeparator />

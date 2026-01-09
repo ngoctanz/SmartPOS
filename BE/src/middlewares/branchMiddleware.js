@@ -20,7 +20,7 @@ export const checkBranchAccess = (req, res, next) => {
       return next();
     }
 
-    // Staff must have a branch
+    // Manager and Staff must have a branch
     if (!userBranchId) {
       return next(new ApiError(403, "User does not belong to any branch"));
     }
@@ -59,7 +59,7 @@ export const injectUserBranch = (options = {}) => {
         return next();
       }
 
-      // Staff: Kiểm tra user có branchId không
+      // Manager and Staff: Kiểm tra user có branchId không
       if (!userBranchId) {
         return next(
           new ApiError(403, "User does not belong to any branch")
@@ -110,7 +110,7 @@ export const validateRecordBranchAccess = (getRecordBranchId) => {
         return next();
       }
 
-      // Staff must have a branch
+      // Manager and Staff must have a branch
       if (!userBranchId) {
         return next(new ApiError(403, "User does not belong to any branch"));
       }

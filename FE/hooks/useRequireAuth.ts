@@ -30,7 +30,7 @@ export function useRequireAuth(redirectTo = ROUTES.AUTH.LOGIN) {
  * Redirects to dashboard if user doesn't have the required role
  */
 export function useRequireRole(
-  allowedRoles: Array<"admin" | "staff">,
+  allowedRoles: Array<"admin" | "manager" | "staff">,
   redirectTo = ROUTES.DASHBOARD.HOME
 ) {
   const router = useRouter();

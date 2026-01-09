@@ -24,7 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Package, AlertTriangle, LayoutGrid, Boxes, FileEdit } from "lucide-react";
+import { Loader2, Package, AlertTriangle, LayoutGrid, Boxes, FileEdit, DollarSign } from "lucide-react";
+import { formatCurrency } from "@/utils/format.utils";
 import { StatsCard } from "@/components/common/stats-card";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,7 +68,9 @@ export default function Page() {
   const [selectedItems, setSelectedItems] = React.useState<IBranchProduct[]>([]);
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
+  const [isEditPriceModalOpen, setIsEditPriceModalOpen] = React.useState(false);
   const [isNoteModalOpen, setIsNoteModalOpen] = React.useState(false);
+  const [salePriceValue, setSalePriceValue] = React.useState(0);
   const [noteValue, setNoteValue] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
@@ -197,10 +200,37 @@ export default function Page() {
     setSearchTerm(search);
   };
 
+  const handleEditPrice = (item: IBranchProduct) => {
+    setSelectedItem(item);
+    setSalePriceValue(item.salePrice || 0);
+    setIsEditPriceModalOpen(true);
+  };
+
   const handleEditNote = (item: IBranchProduct) => {
     setSelectedItem(item);
     setNoteValue(item.note || "");
     setIsNoteModalOpen(true);
+  };
+
+  const handleSavePrice = async () => {
+    if (!selectedItem) return;
+    
+    try {
+      setIsSubmitting(true);
+      const branchId = isAdmin ? (filterBranchId !== "all" ? filterBranchId : selectedItem.branchId?._id) : undefined;
+      
+      await stockService.updateSalePrice(selectedItem._id, salePriceValue, branchId);
+      
+      toast.success("Đã cập nhật giá bán");
+      setIsEditPriceModalOpen(false);
+      setSelectedItem(null);
+      fetchData();
+    } catch (error) {
+      console.error("Update price error:", error);
+      toast.error("Không thể cập nhật giá bán");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleSaveNote = async () => {
@@ -208,9 +238,10 @@ export default function Page() {
     
     try {
       setIsSubmitting(true);
-      // Admin cần truyền branchId từ filter, staff thì middleware tự inject
       const branchId = isAdmin ? (filterBranchId !== "all" ? filterBranchId : selectedItem.branchId?._id) : undefined;
+      
       await stockService.updateNote(selectedItem._id, noteValue, branchId);
+      
       toast.success("Đã cập nhật ghi chú");
       setIsNoteModalOpen(false);
       setSelectedItem(null);
@@ -304,14 +335,21 @@ export default function Page() {
         cell: ({ row }) => {
           const stock = row.getValue("stock") as number;
           const minStock = row.original.minStock;
-          const isLow = stock <= minStock;
+          const isOutOfStock = stock <= 0;
+          const isLow = !isOutOfStock && stock <= minStock;
           return (
             <div className="flex items-center gap-2">
-              <span className={isLow ? "text-destructive font-medium" : ""}>
+              <span className={isOutOfStock || isLow ? "text-destructive font-medium" : ""}>
                 {stock}
               </span>
-              {isLow && (
+              {isOutOfStock && (
                 <Badge variant="destructive" className="text-xs gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Hết hàng
+                </Badge>
+              )}
+              {isLow && (
+                <Badge variant="secondary" className="text-xs gap-1 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
                   <AlertTriangle className="h-3 w-3" />
                   Sắp hết
                 </Badge>
@@ -324,6 +362,23 @@ export default function Page() {
         accessorKey: "minStock",
         header: "Định mức tối thiểu",
       },
+      // Chỉ hiển thị cột giá bán khi không phải aggregated view
+      ...(!showBranchCountColumn
+        ? [
+            {
+              accessorKey: "salePrice",
+              header: "Giá bán",
+              cell: ({ row }: { row: { original: IBranchProduct } }) => {
+                const salePrice = row.original.salePrice;
+                return (
+                  <span className="font-medium text-primary">
+                    {formatCurrency(salePrice || 0)}
+                  </span>
+                );
+              },
+            } as ColumnDef<IBranchProduct>,
+          ]
+        : []),
       // Chỉ hiển thị cột ghi chú khi không phải aggregated view
       ...(!showBranchCountColumn
         ? [
@@ -361,8 +416,15 @@ export default function Page() {
           return (
             <RowActions 
               onView={() => handleView(row.original)}
-              onEdit={() => handleEditNote(row.original)}
-              editLabel="Cập nhật ghi chú"
+              onEdit={() => handleEditPrice(row.original)}
+              editLabel="Chỉnh giá bán"
+              customActions={[
+                {
+                  label: "Cập nhật ghi chú",
+                  icon: <FileEdit className="h-4 w-4" />,
+                  onClick: () => handleEditNote(row.original),
+                }
+              ]}
               disabled={isAnyRowSelected}
             />
           );
@@ -511,8 +573,14 @@ export default function Page() {
               <Label className="text-right text-muted-foreground">Tồn kho</Label>
               <div className="col-span-3 flex items-center gap-2">
                 <Input value={selectedItem.stock} readOnly className="w-24" />
-                {selectedItem.stock <= selectedItem.minStock && (
+                {selectedItem.stock <= 0 && (
                   <Badge variant="destructive" className="gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Hết hàng
+                  </Badge>
+                )}
+                {selectedItem.stock > 0 && selectedItem.stock <= selectedItem.minStock && (
+                  <Badge variant="secondary" className="gap-1 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
                     <AlertTriangle className="h-3 w-3" />
                     Sắp hết
                   </Badge>
@@ -532,6 +600,15 @@ export default function Page() {
             </div>
 
             <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right text-muted-foreground">Giá bán</Label>
+              <Input
+                className="col-span-3"
+                value={formatCurrency(selectedItem.salePrice || 0)}
+                readOnly
+              />
+            </div>
+
+            <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right text-muted-foreground">Ghi chú</Label>
               <Textarea
                 className="col-span-3"
@@ -543,6 +620,77 @@ export default function Page() {
           </div>
         )}
       </DetailModal>
+
+      {/* Edit Price Modal */}
+      <Dialog open={isEditPriceModalOpen} onOpenChange={setIsEditPriceModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              Chỉnh sửa giá bán
+            </DialogTitle>
+            <DialogDescription>
+              Cập nhật giá bán cho sản phẩm tại chi nhánh này
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedItem && (
+            <div className="grid gap-4 py-4">
+              <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                {selectedItem.productId?.image ? (
+                  <img
+                    src={selectedItem.productId.image}
+                    alt=""
+                    className="w-12 h-12 rounded object-cover"
+                  />
+                ) : (
+                  <div className="w-12 h-12 bg-background rounded flex items-center justify-center">
+                    <Package className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                )}
+                <div>
+                  <p className="font-medium">{selectedItem.productId?.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedItem.productId?.barcode || "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="salePrice">Giá bán (VNĐ)</Label>
+                <Input
+                  id="salePrice"
+                  type="number"
+                  min={0}
+                  placeholder="Nhập giá bán"
+                  value={salePriceValue}
+                  onChange={(e) => setSalePriceValue(Number(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsEditPriceModalOpen(false)}
+              disabled={isSubmitting}
+            >
+              Hủy
+            </Button>
+            <Button onClick={handleSavePrice} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Đang lưu...
+                </>
+              ) : (
+                "Lưu giá bán"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Note Modal */}
       <Dialog open={isNoteModalOpen} onOpenChange={setIsNoteModalOpen}>

@@ -79,6 +79,30 @@ const getLowStock = async (branchId, user = null) => {
   }
 };
 
+const getByBarcode = async (branchId, barcode, user = null) => {
+  try {
+    if (!branchId || branchId.trim() === "") {
+      throw new ApiError(400, "Branch ID is required!");
+    }
+    if (!barcode || barcode.trim() === "") {
+      throw new ApiError(400, "Barcode is required!");
+    }
+    
+    // Defense-in-depth: Validate branch access
+    if (user) {
+      validateBranchAccess(user, branchId, "search stock for");
+    }
+    
+    const result = await BranchProduct.findByBarcode(branchId, barcode);
+    if (!result) {
+      throw new ApiError(404, "Sản phẩm không có trong kho chi nhánh này");
+    }
+    return result;
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 const checkStockAvailability = async (branchId, productId, quantity) => {
   try {
     const stock = await BranchProduct.getStock(branchId, productId);
@@ -212,6 +236,39 @@ const updateNote = async (id, note, user = null, branchId = null) => {
   }
 };
 
+const updateSalePrice = async (id, salePrice, user = null, branchId = null) => {
+  try {
+    if (salePrice < 0) {
+      throw new ApiError(400, "Sale price cannot be negative");
+    }
+    
+    // First, find the document to check branch access
+    const branchProduct = await BranchProduct.findOne({ "products._id": id });
+    if (!branchProduct) throw new Error("Stock record not found");
+    
+    // Defense-in-depth: Validate branch access
+    if (user) {
+      // Admin: phải truyền branchId và branchId phải khớp với record
+      if (user.role === "admin") {
+        if (!branchId) {
+          throw new ApiError(400, "branchId is required for admin");
+        }
+        // Validate branchId khớp với record
+        if (branchId.toString() !== branchProduct.branchId.toString()) {
+          throw new ApiError(400, "branchId does not match the stock record's branch");
+        }
+      } else {
+        // Staff: validate branch access bằng branchId của user
+        validateBranchAccess(user, branchProduct.branchId, "update sale price for");
+      }
+    }
+    
+    return await BranchProduct.updateSalePrice(id, salePrice);
+  } catch (error) {
+    throw new Error(error.message || error);
+  }
+};
+
 export const branchProductService = {
   getStats,
   getAll,
@@ -221,9 +278,11 @@ export const branchProductService = {
   getStock,
   setMinStock,
   getLowStock,
+  getByBarcode,
   checkStockAvailability,
   create,
   update,
   deleteStock,
-  updateNote
+  updateNote,
+  updateSalePrice
 };
