@@ -8,7 +8,7 @@ export function RoleGuard({
   fallback = null,
 }: {
   children: React.ReactNode;
-  allowedRoles: Array<"admin" | "staff">;
+  allowedRoles: Array<"admin" | "manager" | "staff">;
   fallback?: React.ReactNode;
 }) {
   const { user } = useAuth();

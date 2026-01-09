@@ -53,25 +53,25 @@ Router.get(
 );
 
 
-// Admin and Staff can create import receipts
+// Admin, Manager and Staff can create import receipts
 Router.post(
   "/",
-  authorize("admin", "staff"),
+  authorize("admin", "manager", "staff"),
   injectUserBranch({ requireBranchForWrite: true }),
   receiptValidation.createImportReceipt,
   importReceiptController.create
 );
 
-// Confirm/Cancel - Admin and Staff
+// Confirm/Cancel - Admin and Manager only (staff cannot confirm/cancel)
 Router.patch(
   "/:id/confirm",
-  authorize("admin", "staff"),
+  authorize("admin", "manager"),
   importReceiptController.confirm
 );
 
 Router.patch(
   "/:id/cancel",
-  authorize("admin", "staff"),
+  authorize("admin", "manager"),
   importReceiptController.cancel
 );
 
@@ -81,10 +81,10 @@ Router.patch(
   importReceiptController.markAsError
 );
 
-// Delete error receipt - chỉ admin
+// Delete error receipt - Admin and Manager
 Router.delete(
   "/errors/:id",
-  authorize("admin"),
+  authorize("admin", "manager"),
   importReceiptController.deleteErrorReceipt
 );
 

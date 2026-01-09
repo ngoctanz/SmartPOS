@@ -34,16 +34,10 @@ const create = async (data, user) => {
     // Validate stock và prepare list
     for (const item of data.listProduct) {
       const product = await Product.findProductById(item.productId);
-      const stock = await BranchProduct.getStock(data.branchId, item.productId);
+      const productInfo = await BranchProduct.getProductInfo(data.branchId, item.productId);
 
-      if (stock < item.quantity) {
-        throw new ApiError(
-          400,
-          `Không đủ hàng cho "${product.name}". Tồn kho: ${stock}, Yêu cầu: ${item.quantity}`
-        );
-      }
-
-      const salePrice = item.salePrice || product.currentSalePrice;
+      // Get sale price: priority is item.salePrice > branchProduct.salePrice > product.currentSalePrice
+      const salePrice = item.salePrice ?? productInfo.salePrice ?? product.currentSalePrice ?? 0;
       const subtotal = salePrice * item.quantity;
 
       listProduct.push({
@@ -649,8 +643,8 @@ const getErrorReceipts = async (options, user) => {
     }
 
     // Branch filter with access control
-    if (user.role === "staff") {
-      // Staff can only see their branch
+    if (user.role === "staff" || user.role === "manager") {
+      // Staff and Manager can only see their branch
       query.branchId = user.branchId;
     } else if (branchId) {
       // Admin can filter by branch
@@ -696,8 +690,8 @@ const getErrorStats = async (branchId, user) => {
   try {
     const query = { isError: true };
 
-    // Access control
-    if (user.role === "staff") {
+    // Access control - manager and staff can only see their branch
+    if (user.role === "staff" || user.role === "manager") {
       query.branchId = user.branchId;
     } else if (branchId) {
       query.branchId = branchId;
@@ -770,6 +764,39 @@ const getErrorStats = async (branchId, user) => {
   }
 };
 
+/**
+ * Delete error receipt - Admin and Manager only
+ */
+const deleteErrorReceipt = async (id, user) => {
+  try {
+    const receipt = await Receipt.findById(id);
+    
+    if (!receipt) {
+      throw new ApiError(404, "Không tìm thấy hóa đơn");
+    }
+
+    if (!receipt.isError) {
+      throw new ApiError(400, "Chỉ có thể xóa hóa đơn đã được đánh dấu lỗi");
+    }
+
+    // Extract branchId
+    const branchId = receipt.branchId._id || receipt.branchId;
+
+    // Manager can only delete error receipts in their branch
+    if (user.role === "manager") {
+      if (!user.branchId || user.branchId.toString() !== branchId.toString()) {
+        throw new ApiError(403, "Bạn không có quyền xóa hóa đơn lỗi của chi nhánh khác");
+      }
+    }
+
+    await Receipt.findByIdAndDelete(id);
+    return { success: true };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new Error(error.message || error);
+  }
+};
+
 export const receiptService = {
   getStats,
   create,
@@ -790,4 +817,5 @@ export const receiptService = {
   markAsError,
   getErrorReceipts,
   getErrorStats,
+  deleteErrorReceipt,
 };

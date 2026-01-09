@@ -1,9 +1,15 @@
 import { Branch } from "../models/branchModel.js";
+import { BranchProduct } from "../models/branchProductModel.js";
 import ApiError from "../utils/apiError.js"; 
 
 const create = async (data) => {
   try {
-    return await Branch.createBranch(data);
+    const branch = await Branch.createBranch(data);
+    
+    // Initialize BranchProduct with all existing products (stock = 0)
+    await BranchProduct.initBranchWithAllProducts(branch._id);
+    
+    return branch;
   } catch (error) {
     throw new Error(error.message || error);
   }

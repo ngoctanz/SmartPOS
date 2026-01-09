@@ -1,5 +1,6 @@
 import { Product } from "../models/productModel.js";
 import { Category } from "../models/categoryModel.js";
+import { BranchProduct } from "../models/branchProductModel.js";
 import { cloudinaryService } from "./cloudinaryService.js";
 import ApiError from "../utils/apiError.js";
 
@@ -30,7 +31,12 @@ const create = async (data) => {
   try {
     // Validate category exists
     await Category.findCategoryById(data.categoryId);
-    return await Product.createProduct(data);
+    const product = await Product.createProduct(data);
+    
+    // Auto add product to all branches with stock = 0 and salePrice from product
+    await BranchProduct.addProductToAllBranches(product._id, product.currentSalePrice || 0);
+    
+    return product;
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -60,18 +66,30 @@ const getStats = async () => {
   }
 };
 
-const getById = async (id) => {
+const getById = async (id, branchId = null) => {
   try {
     if (!id || id.trim() === "") {
       throw new ApiError(400, "Product ID is required!");
     }
-    return await Product.findProductById(id);
+    const product = await Product.findProductById(id);
+    
+    // Map salePrice from branchProduct if branchId provided
+    if (branchId && product) {
+      const branchProductInfo = await BranchProduct.getProductInfo(branchId, product._id);
+      return {
+        ...product.toObject ? product.toObject() : product,
+        salePrice: branchProductInfo.salePrice || product.currentSalePrice,
+        stock: branchProductInfo.stock || 0,
+      };
+    }
+    
+    return product;
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
-const getByBarcode = async (barcode) => {
+const getByBarcode = async (barcode, branchId = null) => {
   try {
     if (!barcode || barcode.trim() === "") {
       throw new ApiError(400, "Barcode is required!");
@@ -80,18 +98,46 @@ const getByBarcode = async (barcode) => {
     if (!product) {
       throw new ApiError(404, "Product not found with this barcode");
     }
+    
+    // Map salePrice from branchProduct if branchId provided
+    if (branchId) {
+      const branchProductInfo = await BranchProduct.getProductInfo(branchId, product._id);
+      return {
+        ...product.toObject ? product.toObject() : product,
+        salePrice: branchProductInfo.salePrice || product.currentSalePrice,
+        stock: branchProductInfo.stock || 0,
+      };
+    }
+    
     return product;
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
-const getByName = async (name) => {
+const getByName = async (name, branchId = null) => {
   try {
     if (!name || name.trim() === "") {
       throw new ApiError(400, "Search name is required!");
     }
-    return await Product.findProductsByName(name);
+    const products = await Product.findProductsByName(name);
+    
+    // Map salePrice from branchProduct if branchId provided
+    if (branchId && products.length > 0) {
+      const productsWithPrice = await Promise.all(
+        products.map(async (product) => {
+          const branchProductInfo = await BranchProduct.getProductInfo(branchId, product._id);
+          return {
+            ...product.toObject ? product.toObject() : product,
+            salePrice: branchProductInfo.salePrice || product.currentSalePrice,
+            stock: branchProductInfo.stock || 0,
+          };
+        })
+      );
+      return productsWithPrice;
+    }
+    
+    return products;
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -166,6 +212,7 @@ const remove = async (id) => {
         await cloudinaryService.deleteMultipleImages(publicIds);
       }
     }
+    
     return await Product.deleteProduct(id);
   } catch (error) {
     throw new Error(error.message || error);

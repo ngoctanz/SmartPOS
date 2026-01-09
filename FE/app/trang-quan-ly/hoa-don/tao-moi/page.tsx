@@ -107,43 +107,43 @@ export default function CreateReceiptPage() {
             }
 
             // Fetch full product details to get barcode and unit
-            const items: CartItem[] = await Promise.all(
+            const items: CartItem[] = [];
+            const deletedProducts: string[] = [];
+            
+            await Promise.all(
               errorReceipt.listProduct.map(async (p) => {
                 try {
                   const productResponse = await productService.getById(
                     p.productId
                   );
-                  const product = productResponse.data;
-
-                  return {
-                    productId: p.productId,
-                    productName: p.productName,
-                    barcode: product?.barcode || "",
-                    quantity: p.quantity,
-                    salePrice: p.salePrice,
-                    unit: product?.unit || "",
-                    image: product?.images?.[0],
-                  };
+                  if (productResponse.success && productResponse.data) {
+                    const product = productResponse.data;
+                    items.push({
+                      productId: p.productId,
+                      productName: p.productName,
+                      barcode: product?.barcode || "",
+                      quantity: p.quantity,
+                      salePrice: p.salePrice,
+                      unit: product?.unit || "",
+                      image: product?.images?.[0],
+                    });
+                  } else {
+                    // Product deleted
+                    deletedProducts.push(p.productName);
+                  }
                 } catch (error) {
-                  // If product fetch fails, use basic info
+                  // Product deleted
+                  deletedProducts.push(p.productName);
                   console.error(
                     `Failed to fetch product ${p.productId}:`,
                     error
                   );
-                  return {
-                    productId: p.productId,
-                    productName: p.productName,
-                    barcode: "",
-                    quantity: p.quantity,
-                    salePrice: p.salePrice,
-                    unit: "",
-                    image: undefined,
-                  };
                 }
               })
             );
 
             setCartItems(items);
+            
             // Only set payment method if it's cash or transfer (not card)
             if (
               errorReceipt.paymentMethod === "cash" ||
@@ -151,14 +151,27 @@ export default function CreateReceiptPage() {
             ) {
               setPaymentMethod(errorReceipt.paymentMethod);
             }
-
-            toast.success(
-              `Đã tải ${items.length} sản phẩm từ hóa đơn lỗi ${errorCode}`,
-              {
-                description: "Vui lòng kiểm tra và chỉnh sửa nếu cần",
-                duration: 5000,
-              }
-            );
+            
+            // Show appropriate message
+            if (items.length > 0 && deletedProducts.length === 0) {
+              toast.success(
+                `Đã tải ${items.length} sản phẩm từ hóa đơn lỗi ${errorCode}`,
+                {
+                  description: "Vui lòng kiểm tra và chỉnh sửa nếu cần",
+                  duration: 5000,
+                }
+              );
+            } else if (items.length > 0 && deletedProducts.length > 0) {
+              toast.warning(
+                `Đã tải ${items.length} sản phẩm. ${deletedProducts.length} sản phẩm đã bị xóa: ${deletedProducts.join(", ")}`,
+                { duration: 7000 }
+              );
+            } else if (items.length === 0 && deletedProducts.length > 0) {
+              toast.error(
+                `Không thể tải sản phẩm. Tất cả ${deletedProducts.length} sản phẩm trong hóa đơn đã bị xóa khỏi hệ thống.`,
+                { duration: 5000 }
+              );
+            }
           }
         } catch (error) {
           console.error("Failed to load error receipt:", error);
@@ -186,9 +199,14 @@ export default function CreateReceiptPage() {
         toast.success(`+1 ${existingItem.productName}`);
       } else {
         try {
-          const response = await productService.getByBarcode(barcode);
+          // Admin truyền branchId từ dropdown, staff middleware tự inject
+          const branchId = isAdmin ? selectedBranch : undefined;
+          const response = await productService.getByBarcode(barcode, branchId);
           if (response.success && response.data) {
             const product = response.data;
+            // Ưu tiên salePrice (giá theo chi nhánh), fallback về currentSalePrice
+            const price = product.salePrice ?? product.currentSalePrice;
+            
             setCartItems((prev) => [
               ...prev,
               {
@@ -196,7 +214,7 @@ export default function CreateReceiptPage() {
                 productName: product.name,
                 barcode: product.barcode || barcode,
                 quantity: 1,
-                salePrice: product.currentSalePrice,
+                salePrice: price,
                 unit: product.unit,
                 image: product.images?.[0],
               },
@@ -210,20 +228,22 @@ export default function CreateReceiptPage() {
         }
       }
     },
-    [cartItems]
+    [cartItems, selectedBranch, isAdmin]
   );
 
-  // Handle search
+  // Handle search - Admin truyền branchId, staff middleware tự inject
   const handleSearch = React.useCallback(async (term: string) => {
-    const response = await productService.search({ name: term });
+    const branchId = isAdmin ? selectedBranch : undefined;
+    const response = await productService.search({ name: term, branchId });
     return response.success && response.data ? response.data : [];
-  }, []);
+  }, [selectedBranch, isAdmin]);
 
   // Get product by barcode for SmartProductInput
   const getProductByBarcode = React.useCallback(
     async (barcode: string): Promise<Product | null> => {
       try {
-        const response = await productService.getByBarcode(barcode);
+        const branchId = isAdmin ? selectedBranch : undefined;
+        const response = await productService.getByBarcode(barcode, branchId);
         if (response.success && response.data) {
           return response.data;
         }
@@ -232,7 +252,7 @@ export default function CreateReceiptPage() {
         return null;
       }
     },
-    []
+    [selectedBranch, isAdmin]
   );
 
   // Handle product select from search
@@ -252,6 +272,9 @@ export default function CreateReceiptPage() {
         );
         toast.success(`+1 ${product.name}`);
       } else {
+        // Ưu tiên salePrice (giá theo chi nhánh), fallback về currentSalePrice
+        const price = product.salePrice ?? product.currentSalePrice;
+        
         setCartItems((prev) => [
           ...prev,
           {
@@ -259,7 +282,7 @@ export default function CreateReceiptPage() {
             productName: product.name,
             barcode: product.barcode || "",
             quantity: 1,
-            salePrice: product.currentSalePrice,
+            salePrice: price,
             unit: product.unit,
             image: product.images?.[0],
           },
@@ -339,10 +362,12 @@ export default function CreateReceiptPage() {
           toast.success(
             "Tạo hóa đơn thành công! Vui lòng quét mã QR để thanh toán."
           );
+          setCartItems([]);
         } else {
           toast.success("Tạo hóa đơn thành công!");
+          setCartItems([]);
+          router.push(ROUTES.INVOICES);
         }
-        setCartItems([]);
       } else {
         toast.error(response.message || "Tạo hóa đơn thất bại");
       }

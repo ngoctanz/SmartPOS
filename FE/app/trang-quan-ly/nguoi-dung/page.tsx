@@ -37,6 +37,7 @@ import {
 import { StatsCard } from "@/components/common/stats-card";
 import { useFilteredTableData } from "@/hooks/useFilteredTableData";
 import { useStats } from "@/hooks/useStats";
+import { useAuth } from "@/hooks/useAuth";
 
 interface BranchOption {
   _id: string;
@@ -52,6 +53,7 @@ const isAdminAccount = (user: User) => {
 const getRoleLabel = (role: string) => {
   const labels: Record<string, string> = {
     admin: "Quản trị viên",
+    manager: "Quản lý",
     staff: "Nhân viên",
   };
   return labels[role] || role;
@@ -63,6 +65,9 @@ const getStatusLabel = (status: string) => {
 };
 
 export default function Page() {
+  // Get current user
+  const { user: currentUser } = useAuth();
+  
   // Use custom hooks
   const {
     data,
@@ -312,7 +317,7 @@ export default function Page() {
         header: "Vai trò",
         cell: ({ row }) => {
           const role = row.getValue("role") as string;
-          const variant = role === "admin" ? "destructive" : "secondary";
+          const variant = role === "admin" ? "destructive" : role === "manager" ? "default" : "secondary";
           return <Badge variant={variant}>{getRoleLabel(role)}</Badge>;
         },
       },
@@ -383,6 +388,7 @@ export default function Page() {
         <SelectContent>
           <SelectItem value="ALL">Tất cả vai trò</SelectItem>
           <SelectItem value="admin">Quản trị viên</SelectItem>
+          <SelectItem value="manager">Quản lý</SelectItem>
           <SelectItem value="staff">Nhân viên</SelectItem>
         </SelectContent>
       </Select>
@@ -471,6 +477,7 @@ export default function Page() {
         branches={branches}
         onSubmit={handleFormSubmit}
         isSubmitting={isSubmitting}
+        currentUserRole={currentUser?.role}
       />
 
       {/* Confirm Bulk Lock Dialog */}

@@ -47,7 +47,7 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: Schema.Types.String,
-      enum: ["admin", "staff"],
+      enum: ["admin", "manager", "staff"],
       default: "staff",
     },
     branchId: {

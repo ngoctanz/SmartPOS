@@ -41,7 +41,7 @@ const createUserSchema = z.object({
       "Mật khẩu phải chứa ít nhất 1 chữ cái và 1 số"
     ),
   name: z.string().max(100, "Họ tên tối đa 100 ký tự").optional(),
-  role: z.enum(["admin", "staff"]),
+  role: z.enum(["admin", "manager", "staff"]),
   branchId: z.string().optional(),
   status: z.enum(["active", "inactive"]),
 });
@@ -59,7 +59,7 @@ const updateUserSchema = z.object({
     )
     .optional()
     .or(z.literal("")), // Allow empty string
-  role: z.enum(["admin", "staff"]),
+  role: z.enum(["admin", "manager", "staff"]),
   branchId: z.string().nullable().optional(),
   status: z.enum(["active", "inactive"]),
 });
@@ -79,10 +79,12 @@ interface UserFormModalProps {
   branches: Branch[];
   onSubmit: (data: CreateUserFormData | UpdateUserFormData) => Promise<void>;
   isSubmitting?: boolean;
+  currentUserRole?: UserRole; // Role của user đang đăng nhập
 }
 
 const ROLE_OPTIONS: { value: UserRole; label: string }[] = [
   { value: "admin", label: "Quản trị viên" },
+  { value: "manager", label: "Quản lý chi nhánh" },
   { value: "staff", label: "Nhân viên" },
 ];
 
@@ -98,9 +100,18 @@ export function UserFormModal({
   branches,
   onSubmit,
   isSubmitting = false,
+  currentUserRole = "admin",
 }: UserFormModalProps) {
   const isEditMode = !!user;
   const [showPassword, setShowPassword] = React.useState(false);
+
+  // Manager chỉ có thể tạo/sửa staff
+  const availableRoles = React.useMemo(() => {
+    if (currentUserRole === "manager") {
+      return ROLE_OPTIONS.filter(r => r.value === "staff");
+    }
+    return ROLE_OPTIONS;
+  }, [currentUserRole]);
 
   const schema = isEditMode ? updateUserSchema : createUserSchema;
 
@@ -284,7 +295,7 @@ export function UserFormModal({
                   <SelectValue placeholder="Chọn vai trò" />
                 </SelectTrigger>
                 <SelectContent>
-                  {ROLE_OPTIONS.map((option) => (
+                  {availableRoles.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
@@ -318,28 +329,30 @@ export function UserFormModal({
             </div>
           </div>
 
-          {/* Branch */}
-          <div className="space-y-2">
-            <Label>Chi nhánh</Label>
-            <Select
-              value={form.watch("branchId") || "none"}
-              onValueChange={(value) =>
-                form.setValue("branchId", value === "none" ? "" : value)
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Chọn chi nhánh" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Không có</SelectItem>
-                {branches.map((branch) => (
-                  <SelectItem key={branch._id} value={branch._id}>
-                    {branch.branchName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Branch - Ẩn với manager vì BE tự inject */}
+          {currentUserRole !== "manager" && (
+            <div className="space-y-2">
+              <Label>Chi nhánh</Label>
+              <Select
+                value={form.watch("branchId") || "none"}
+                onValueChange={(value) =>
+                  form.setValue("branchId", value === "none" ? "" : value)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Chọn chi nhánh" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Không có</SelectItem>
+                  {branches.map((branch) => (
+                    <SelectItem key={branch._id} value={branch._id}>
+                      {branch.branchName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <DialogFooter>
             <Button

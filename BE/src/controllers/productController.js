@@ -67,7 +67,8 @@ const getStats = async (req, res, next) => {
 
 const getById = async (req, res, next) => {
   try {
-    const product = await productService.getById(req.params.id);
+    const { branchId } = req.query;
+    const product = await productService.getById(req.params.id, branchId);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get product successfully",
@@ -80,7 +81,8 @@ const getById = async (req, res, next) => {
 
 const getByBarcode = async (req, res, next) => {
   try {
-    const product = await productService.getByBarcode(req.params.barcode);
+    const { branchId } = req.query;
+    const product = await productService.getByBarcode(req.params.barcode, branchId);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get product successfully",
@@ -93,7 +95,8 @@ const getByBarcode = async (req, res, next) => {
 
 const search = async (req, res, next) => {
   try {
-    const products = await productService.getByName(req.query.name);
+    const { name, branchId } = req.query;
+    const products = await productService.getByName(name, branchId);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Search products successfully",

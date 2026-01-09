@@ -234,6 +234,22 @@ const updateNote = async (req, res, next) => {
   }
 };
 
+const updateSalePrice = async (req, res, next) => {
+  try {
+    const { salePrice, branchId } = req.body;
+    // Pass user for defense-in-depth security
+    // branchId được inject từ middleware cho staff, hoặc từ body cho admin
+    const data = await branchProductService.updateSalePrice(req.params.id, salePrice, req.user, branchId);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Sale price updated successfully",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const branchProductController = {
   getStats,
   getAll,
@@ -247,5 +263,6 @@ export const branchProductController = {
   create,
   update,
   remove,
-  updateNote
+  updateNote,
+  updateSalePrice
 };

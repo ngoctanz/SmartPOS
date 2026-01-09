@@ -67,6 +67,7 @@ export default function Page() {
   const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const isManager = user?.role === "manager";
 
   // Use custom hooks - Backend will auto-inject branchId for staff via middleware
   const { 
@@ -489,6 +490,7 @@ export default function Page() {
         <TabsContent value="error" className="flex-1 flex flex-col mt-4">
           <ErrorReceiptsTab
             isAdmin={isAdmin}
+            isManager={isManager}
             branches={branches}
             userBranchId={user?.branchId}
           />

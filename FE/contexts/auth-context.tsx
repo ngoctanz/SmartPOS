@@ -20,7 +20,7 @@ export interface User {
   _id: string;
   userName: string;
   name?: string;
-  role: "admin" | "staff";
+  role: "admin" | "manager" | "staff";
   branchId?: string;
   isActive: boolean;
 }

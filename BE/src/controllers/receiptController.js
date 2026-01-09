@@ -341,6 +341,25 @@ const getErrorStats = async (req, res, next) => {
   }
 };
 
+/**
+ * Delete error receipt - Admin and Manager only
+ */
+const deleteErrorReceipt = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+
+    await receiptService.deleteErrorReceipt(id, user);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Đã xóa hóa đơn lỗi thành công",
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const receiptController = {
   getStats,
   create,
@@ -359,4 +378,5 @@ export const receiptController = {
   markError,
   getErrors,
   getErrorStats,
+  deleteErrorReceipt,
 };

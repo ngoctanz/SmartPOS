@@ -15,68 +15,77 @@ const branchProductSchema = new mongoose.Schema(
           ref: "Product",
           required: true,
         },
-        stock: {
-          type: Number,
-          default: 0,
-          min: [0, "Stock cannot be negative"],
-        },
-        minStock: {
-          type: Number,
-          default: 10,
-          min: [0, "Min stock cannot be negative"],
-        },
-        note: {
-          type: String,
-          default: null,
-        },
+        stock: { type: Number, default: 0 },
+        minStock: { type: Number, default: 5, min: [0, "Min stock cannot be negative"] },
+        salePrice: { type: Number, default: 0, min: [0, "Sale price cannot be negative"] },
+        note: { type: String, default: null },
       },
     ],
   },
-  {
-    timestamps: true,
-    versionKey: false,
-  }
+  { timestamps: true, versionKey: false }
 );
 
 branchProductSchema.index({ "products.productId": 1 });
 
-// Static methods
+// ============ HELPER FUNCTIONS ============
+
+// Get product's salePrice from Product model, throw if not found
+async function getProductSalePrice(productId) {
+  const { Product } = await import("./productModel.js");
+  const product = await Product.findById(productId).select("currentSalePrice");
+  if (!product) {
+    throw new Error("Product not found - cannot adjust stock for deleted product");
+  }
+  return product.currentSalePrice || 0;
+}
+
+// Find or create BranchProduct document
+async function findOrCreateBranchDoc(model, branchId, session = null) {
+  let doc = session 
+    ? await model.findOne({ branchId }).session(session)
+    : await model.findOne({ branchId });
+  
+  if (!doc) {
+    doc = new model({ branchId, products: [] });
+  }
+  return doc;
+}
+
+// ============ STATIC METHODS ============
+
 branchProductSchema.statics = {
+  // ============ STATS ============
   async getStats(branchId) {
     const pipeline = [
       { $unwind: "$products" },
       {
         $group: {
-            _id: null,
-            totalItems: { $sum: 1 },
-            totalQuantity: { $sum: "$products.stock" },
-            lowStockCount: {
-                $sum: {
-                    $cond: [{ $lte: ["$products.stock", "$products.minStock"] }, 1, 0]
-                }
-            }
+          _id: null,
+          totalItems: { $sum: 1 },
+          totalQuantity: { $sum: "$products.stock" },
+          lowStockCount: {
+            $sum: { $cond: [{ $lte: ["$products.stock", "$products.minStock"] }, 1, 0] }
+          }
         }
-    }
+      }
     ];
 
     if (branchId) {
-        pipeline.unshift({ $match: { branchId: new mongoose.Types.ObjectId(branchId) } });
+      pipeline.unshift({ $match: { branchId: new mongoose.Types.ObjectId(String(branchId)) } });
     }
 
     const result = await this.aggregate(pipeline);
     return result[0] || { totalItems: 0, totalQuantity: 0, lowStockCount: 0 };
   },
 
-  /**
-   * Get aggregated stock by product (sum across all branches)
-   * Used when admin selects "All branches"
-   */
+  // ============ QUERIES ============
+  
+  // Get aggregated stock by product (admin - all branches view)
   async findAggregatedByProduct(options = {}) {
     const { search, page = 1, limit = 20, lowStockOnly = false } = options;
 
     const pipeline = [
       { $unwind: "$products" },
-      // Group by productId to sum stock across all branches
       {
         $group: {
           _id: "$products.productId",
@@ -86,7 +95,6 @@ branchProductSchema.statics = {
           latestUpdate: { $max: "$updatedAt" },
         },
       },
-      // Lookup product details
       {
         $lookup: {
           from: "products",
@@ -98,8 +106,7 @@ branchProductSchema.statics = {
       { $unwind: "$product" },
     ];
 
-    // Search by product name or barcode
-    if (search && search.trim()) {
+    if (search?.trim()) {
       pipeline.push({
         $match: {
           $or: [
@@ -110,21 +117,14 @@ branchProductSchema.statics = {
       });
     }
 
-    // Filter low stock only (total stock <= average minStock)
     if (lowStockOnly) {
       pipeline.push({
         $match: {
-          $expr: { 
-            $lte: [
-              "$totalStock", 
-              { $divide: ["$totalMinStock", "$branchCount"] }
-            ] 
-          }
+          $expr: { $lte: ["$totalStock", { $divide: ["$totalMinStock", "$branchCount"] }] }
         }
       });
     }
 
-    // Project fields
     pipeline.push({
       $project: {
         _id: "$_id",
@@ -137,73 +137,37 @@ branchProductSchema.statics = {
       },
     });
 
-    // Sort by latest update
     pipeline.push({ $sort: { updatedAt: -1 } });
 
-    // Count total before pagination
-    const countPipeline = [...pipeline, { $count: "total" }];
-    const countResult = await this.aggregate(countPipeline);
+    const countResult = await this.aggregate([...pipeline, { $count: "total" }]);
     const total = countResult[0]?.total || 0;
 
-    // Pagination
-    const skip = (page - 1) * limit;
-    pipeline.push({ $skip: skip });
-    pipeline.push({ $limit: limit });
-
+    pipeline.push({ $skip: (page - 1) * limit }, { $limit: limit });
     const data = await this.aggregate(pipeline);
 
     return {
       data,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   },
 
+  // Get all stock with branch filter
   async findAll(options = {}) {
-    const { 
-      branchId, 
-      search, 
-      page = 1, 
-      limit = 20,
-      lowStockOnly = false 
-    } = options;
+    const { branchId, search, page = 1, limit = 20, lowStockOnly = false } = options;
 
     const pipeline = [
       { $unwind: "$products" },
-      {
-        $lookup: {
-          from: "branches",
-          localField: "branchId",
-          foreignField: "_id",
-          as: "branch",
-        },
-      },
-      {
-        $lookup: {
-          from: "products",
-          localField: "products.productId",
-          foreignField: "_id",
-          as: "product",
-        },
-      },
-      // Preserve documents even if branch/product not found (e.g., deleted product)
+      { $lookup: { from: "branches", localField: "branchId", foreignField: "_id", as: "branch" } },
+      { $lookup: { from: "products", localField: "products.productId", foreignField: "_id", as: "product" } },
       { $unwind: { path: "$branch", preserveNullAndEmptyArrays: true } },
       { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
     ];
 
-    // Filter by branchId if provided
     if (branchId) {
-      pipeline.unshift({ 
-        $match: { branchId: new mongoose.Types.ObjectId(branchId) } 
-      });
+      pipeline.unshift({ $match: { branchId: new mongoose.Types.ObjectId(String(branchId)) } });
     }
 
-    // Search by product name or barcode
-    if (search && search.trim()) {
+    if (search?.trim()) {
       pipeline.push({
         $match: {
           $or: [
@@ -214,16 +178,10 @@ branchProductSchema.statics = {
       });
     }
 
-    // Filter low stock only
     if (lowStockOnly) {
-      pipeline.push({
-        $match: {
-          $expr: { $lte: ["$products.stock", "$products.minStock"] }
-        }
-      });
+      pipeline.push({ $match: { $expr: { $lte: ["$products.stock", "$products.minStock"] } } });
     }
 
-    // Project fields
     pipeline.push({
       $project: {
         _id: "$products._id",
@@ -231,206 +189,229 @@ branchProductSchema.statics = {
         productId: "$product",
         stock: "$products.stock",
         minStock: "$products.minStock",
+        salePrice: "$products.salePrice",
         note: "$products.note",
         updatedAt: "$updatedAt",
       },
     });
 
-    // Sort
     pipeline.push({ $sort: { updatedAt: -1 } });
 
-    // Count total before pagination
-    const countPipeline = [...pipeline, { $count: "total" }];
-    const countResult = await this.aggregate(countPipeline);
+    const countResult = await this.aggregate([...pipeline, { $count: "total" }]);
     const total = countResult[0]?.total || 0;
 
-    // Pagination
-    const skip = (page - 1) * limit;
-    pipeline.push({ $skip: skip });
-    pipeline.push({ $limit: limit });
-
+    pipeline.push({ $skip: (page - 1) * limit }, { $limit: limit });
     const data = await this.aggregate(pipeline);
 
     return {
       data,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   },
 
+  // Get stock by specific branch (optimized with populate)
   async findByBranch(branchId, options = {}) {
     const { search, page = 1, limit = 20, lowStockOnly = false } = options;
 
     const doc = await this.findOne({ branchId })
       .populate("branchId", "branchName")
-      .populate("products.productId", "name barcode unit currentSalePrice image")
+      .populate("products.productId", "name barcode unit image")
       .lean();
-    
+
     if (!doc) {
-      return {
-        data: [],
-        pagination: { page, limit, total: 0, totalPages: 0 },
-      };
+      return { data: [], pagination: { page, limit, total: 0, totalPages: 0 } };
     }
-    
-    // Flatten and filter
+
     let items = doc.products.map(p => ({
       _id: p._id,
       branchId: doc.branchId,
       productId: p.productId,
       stock: p.stock,
       minStock: p.minStock,
+      salePrice: p.salePrice || 0,
       note: p.note || null,
       updatedAt: doc.updatedAt,
     }));
 
-    // Search filter
-    if (search && search.trim()) {
+    if (search?.trim()) {
       const searchLower = search.toLowerCase();
-      items = items.filter(item => 
+      items = items.filter(item =>
         item.productId?.name?.toLowerCase().includes(searchLower) ||
         item.productId?.barcode?.toLowerCase().includes(searchLower)
       );
     }
 
-    // Low stock filter
     if (lowStockOnly) {
       items = items.filter(item => item.stock <= item.minStock);
     }
 
     const total = items.length;
-    const skip = (page - 1) * limit;
-    const paginatedItems = items.slice(skip, skip + limit);
+    const paginatedItems = items.slice((page - 1) * limit, page * limit);
 
     return {
       data: paginatedItems,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   },
 
-  async bulkUpdateStock(branchId, items) {
-    // Items: [{ productId, stock, minStock }]
-    // This is complex. Easiest way is to fetch, update JS array, save.
-    // Or use bulkWrite.
-    let doc = await this.findOne({ branchId });
-    if (!doc) {
-        doc = new this({ branchId, products: [] });
-    }
-
-    items.forEach(item => {
-        const existing = doc.products.find(p => p.productId.toString() === item.productId);
-        if (existing) {
-            if (item.stock !== undefined) existing.stock = item.stock;
-            if (item.minStock !== undefined) existing.minStock = item.minStock;
-        } else {
-            doc.products.push({
-                productId: item.productId,
-                stock: item.stock || 0,
-                minStock: item.minStock || 10
-            });
-        }
-    });
-
-    await doc.save();
-    return doc;
-  },
-
-  // Retain for backward compat/specific usage if needed
+  // ============ SINGLE ITEM GETTERS ============
+  
   async getStock(branchId, productId) {
     const doc = await this.findOne({ branchId, "products.productId": productId }, { "products.$": 1 });
-    return doc && doc.products[0] ? doc.products[0].stock : 0;
-  },
-  
-  // Helper to remove a single product from branch (Delete action)
-  async removeProduct(branchId, productId) {
-     return this.findOneAndUpdate(
-         { branchId },
-         { $pull: { products: { productId } } },
-         { new: true }
-     );
+    return doc?.products[0]?.stock ?? 0;
   },
 
-  // Increase stock for a product in a branch (used when confirming import receipt)
+  async getSalePrice(branchId, productId) {
+    const doc = await this.findOne({ branchId, "products.productId": productId }, { "products.$": 1 });
+    return doc?.products[0]?.salePrice ?? 0;
+  },
+
+  async getProductInfo(branchId, productId) {
+    const doc = await this.findOne({ branchId, "products.productId": productId }, { "products.$": 1 });
+    return doc?.products[0] 
+      ? { stock: doc.products[0].stock, salePrice: doc.products[0].salePrice, minStock: doc.products[0].minStock }
+      : { stock: 0, salePrice: 0, minStock: 10 };
+  },
+
+  // ============ STOCK OPERATIONS ============
+
+  // Increase stock (import receipt confirm, receipt error mark)
   async increaseStock(branchId, productId, quantity, session = null) {
-    const options = session ? { session } : {};
-    let doc = await this.findOne({ branchId }).session(session);
+    const doc = await findOrCreateBranchDoc(this, branchId, session);
+    let product = doc.products.find(p => p.productId.toString() === productId.toString());
     
-    if (!doc) {
-      // Create new branch product document if not exists
-      doc = new this({ 
-        branchId, 
-        products: [{ productId, stock: quantity, minStock: 10 }] 
-      });
-      await doc.save(options);
-      return doc;
-    }
-
-    const existingProduct = doc.products.find(
-      p => p.productId.toString() === productId.toString()
-    );
-
-    if (existingProduct) {
-      existingProduct.stock += quantity;
+    if (product) {
+      product.stock += quantity;
     } else {
-      doc.products.push({
-        productId,
-        stock: quantity,
-        minStock: 10
-      });
+      const salePrice = await getProductSalePrice(productId);
+      doc.products.push({ productId, stock: quantity, minStock: 10, salePrice });
     }
-
-    await doc.save(options);
+    
+    await doc.save(session ? { session } : {});
     return doc;
   },
 
-  // Decrease stock for a product in a branch (used when confirming sale receipt)
+  // Decrease stock (receipt confirm, import receipt error mark) - allows negative
   async decreaseStock(branchId, productId, quantity) {
-    const doc = await this.findOne({ branchId });
+    const doc = await findOrCreateBranchDoc(this, branchId);
+    let product = doc.products.find(p => p.productId.toString() === productId.toString());
     
-    if (!doc) {
-      throw new Error("Branch product not found");
+    if (product) {
+      product.stock -= quantity;
+    } else {
+      const salePrice = await getProductSalePrice(productId);
+      doc.products.push({ productId, stock: -quantity, minStock: 10, salePrice });
     }
-
-    const existingProduct = doc.products.find(
-      p => p.productId.toString() === productId.toString()
-    );
-
-    if (!existingProduct) {
-      throw new Error("Product not found in branch");
-    }
-
-    if (existingProduct.stock < quantity) {
-      throw new Error("Insufficient stock");
-    }
-
-    existingProduct.stock -= quantity;
+    
     await doc.save();
     return doc;
   },
 
-  // Update note for a product in a branch
+  // ============ UPDATE OPERATIONS ============
+
   async updateNote(id, note) {
     const result = await this.findOneAndUpdate(
       { "products._id": id },
-      { 
-        $set: { "products.$.note": note },
-        $currentDate: { updatedAt: true }
-      },
+      { $set: { "products.$.note": note }, $currentDate: { updatedAt: true } },
       { new: true }
     );
-    if (!result) {
-      throw new Error("Stock record not found");
-    }
+    if (!result) throw new Error("Stock record not found");
     return result;
+  },
+
+  async updateSalePrice(id, salePrice) {
+    const result = await this.findOneAndUpdate(
+      { "products._id": id },
+      { $set: { "products.$.salePrice": salePrice }, $currentDate: { updatedAt: true } },
+      { new: true }
+    );
+    if (!result) throw new Error("Stock record not found");
+    return result;
+  },
+
+  async bulkUpdateStock(branchId, items) {
+    let doc = await this.findOne({ branchId });
+    if (!doc) doc = new this({ branchId, products: [] });
+
+    for (const item of items) {
+      const existing = doc.products.find(p => p.productId.toString() === item.productId);
+      if (existing) {
+        if (item.stock !== undefined) existing.stock = item.stock;
+        if (item.minStock !== undefined) existing.minStock = item.minStock;
+      } else {
+        doc.products.push({
+          productId: item.productId,
+          stock: item.stock || 0,
+          minStock: item.minStock || 10
+        });
+      }
+    }
+
+    await doc.save();
+    return doc;
+  },
+
+  // ============ PRODUCT/BRANCH SYNC ============
+
+  // Add new product to all branches (called when creating product)
+  async addProductToAllBranches(productId, salePrice = 0) {
+    const { Branch } = await import("./branchModel.js");
+    const allBranches = await Branch.find({}, "_id");
+    
+    if (allBranches.length === 0) return;
+
+    // Ensure all BranchProduct documents exist
+    await this.bulkWrite(
+      allBranches.map(branch => ({
+        updateOne: {
+          filter: { branchId: branch._id },
+          update: { $setOnInsert: { branchId: branch._id, products: [] } },
+          upsert: true
+        }
+      }))
+    );
+
+    // Add product to all branches (only if not exists)
+    await this.updateMany(
+      { "products.productId": { $ne: productId } },
+      { $push: { products: { productId, stock: 0, minStock: 10, salePrice } } }
+    );
+  },
+
+  // Initialize new branch with all products (called when creating branch)
+  async initBranchWithAllProducts(branchId) {
+    const existing = await this.findOne({ branchId });
+    if (existing) return existing;
+
+    const { Product } = await import("./productModel.js");
+    const allProducts = await Product.find({}, "_id currentSalePrice");
+
+    const branchProduct = new this({
+      branchId,
+      products: allProducts.map(p => ({
+        productId: p._id,
+        stock: 0,
+        minStock: 10,
+        salePrice: p.currentSalePrice || 0
+      }))
+    });
+
+    await branchProduct.save();
+    return branchProduct;
+  },
+
+  // Remove product from specific branch
+  async removeProduct(branchId, productId) {
+    return this.findOneAndUpdate(
+      { branchId },
+      { $pull: { products: { productId } } },
+      { new: true }
+    );
+  },
+
+  // Remove product from all branches (if needed for cleanup)
+  async removeProductFromAllBranches(productId) {
+    await this.updateMany({}, { $pull: { products: { productId } } });
   }
 };
 

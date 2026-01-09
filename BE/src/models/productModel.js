@@ -57,7 +57,7 @@ const productSchema = new mongoose.Schema(
 productSchema.index({ categoryId: 1 });
 productSchema.index({ createdAt: -1 });
 productSchema.index({ status: 1 });
-productSchema.index({ barcode: 1 }); // For faster barcode lookups during import
+// barcode index already created by unique: true in schema
 
 // Static methods
 productSchema.statics = {

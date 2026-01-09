@@ -37,13 +37,14 @@ const create = async (data, user) => {
 
     for (const item of data.listProduct) {
       const product = await Product.findProductById(item.productId);
-      const subtotal = item.quantity * item.importPrice;
+      const quantity = item.quantity || 0;
+      const subtotal = quantity * item.importPrice;
 
       listProduct.push({
         productId: product._id,
         barcode: product.barcode || "",
         productName: product.name,
-        quantity: item.quantity,
+        quantity,
         importPrice: item.importPrice,
         subtotal,
       });
@@ -153,38 +154,10 @@ const markAsError = async (id, errorNote, user) => {
 
     const branchId = receipt.branchId._id || receipt.branchId;
 
-    // Nếu phiếu đã completed, check stock trước khi hoàn lại
+    // Nếu phiếu đã completed, hoàn lại kho (cho phép âm kho)
     if (receipt.status === "completed") {
-      // Check tất cả sản phẩm có đủ stock để hoàn lại không
-      const insufficientProducts = [];
-      
       for (const item of receipt.listProduct) {
-        const currentStock = await BranchProduct.getStock(branchId, item.productId);
-        if (currentStock < item.quantity) {
-          // Lấy thông tin sản phẩm để hiển thị tên
-          insufficientProducts.push({
-            name: item.productName,
-            required: item.quantity,
-            current: currentStock,
-            shortage: item.quantity - currentStock
-          });
-        }
-      }
-
-      // Nếu có sản phẩm không đủ stock, throw error với thông tin chi tiết
-      if (insufficientProducts.length > 0) {
-        const errorDetails = insufficientProducts.map(p => 
-          `${p.name}: cần ${p.required}, còn ${p.current} (thiếu ${p.shortage})`
-        ).join('; ');
-        
-        throw new ApiError(
-          400, 
-          `Không thể đánh dấu lỗi vì một số sản phẩm đã được bán và không đủ tồn kho để hoàn lại: ${errorDetails}`
-        );
-      }
-
-      // Nếu đủ stock, tiến hành hoàn lại
-      for (const item of receipt.listProduct) {
+        // decreaseStock cho phép âm kho
         await BranchProduct.decreaseStock(
           branchId,
           item.productId,
@@ -220,7 +193,7 @@ const getAllErrorReceiptsPaginated = async (options = {}, user = null) => {
   }
 };
 
-// Xóa phiếu lỗi (chỉ admin)
+// Xóa phiếu lỗi (admin và manager)
 const deleteErrorReceipt = async (id, user = null) => {
   try {
     const receipt = await ImportReceipt.findImportReceiptById(id);
@@ -232,10 +205,19 @@ const deleteErrorReceipt = async (id, user = null) => {
     // Defense-in-depth: Validate access if user provided
     if (user) {
       validateRecordAccess(user, receipt, "import receipt");
+      
+      // Manager can only delete error receipts in their branch
+      if (user.role === "manager") {
+        const branchId = receipt.branchId?._id || receipt.branchId;
+        if (!user.branchId || user.branchId.toString() !== branchId.toString()) {
+          throw new ApiError(403, "Bạn không có quyền xóa phiếu nhập lỗi của chi nhánh khác");
+        }
+      }
     }
     
     return await ImportReceipt.deleteErrorReceipt(id);
   } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new Error(error.message || error);
   }
 };

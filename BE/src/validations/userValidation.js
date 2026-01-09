@@ -17,7 +17,7 @@ const correctCondition = Joi.object({
     .trim()
     .strict(),
   name: Joi.string().max(100).trim().allow(""),
-  role: Joi.string().valid("admin", "staff"),
+  role: Joi.string().valid("admin", "manager", "staff"),
   branchId: Joi.string().allow(null, ""),
   status: Joi.string().valid("active", "inactive"),
 });
@@ -45,7 +45,7 @@ const updateUserSchema = Joi.object({
       "Password must contain at least one letter and one number, no spaces."
     )
     .allow("", null), // Allow empty or null (optional update)
-  role: Joi.string().valid("admin", "staff"),
+  role: Joi.string().valid("admin", "manager", "staff"),
   branchId: Joi.string().allow(null, ""),
   status: Joi.string().valid("active", "inactive"),
 })

@@ -34,6 +34,7 @@ import { useStats } from "@/hooks/useStats";
 
 interface ErrorReceiptsTabProps {
   isAdmin: boolean;
+  isManager?: boolean;
   branches: Branch[];
   userBranchId?: string;
 }
@@ -62,8 +63,11 @@ const getErrorMarkedByName = (errorMarkedBy: ImportReceipt["errorMarkedBy"]): st
   return String(errorMarkedBy);
 };
 
-export function ErrorReceiptsTab({ isAdmin, branches, userBranchId }: ErrorReceiptsTabProps) {
+export function ErrorReceiptsTab({ isAdmin, isManager = false, branches, userBranchId }: ErrorReceiptsTabProps) {
   const router = useRouter();
+  
+  // Admin hoặc Manager đều có quyền xóa
+  const canDelete = isAdmin || isManager;
 
   const { 
     data, 
@@ -250,7 +254,7 @@ export function ErrorReceiptsTab({ isAdmin, branches, userBranchId }: ErrorRecei
               onAction={() => handleRecreate(item)}
               actionLabel="Tạo lại"
               actionIcon="check" // Dùng check thay vì refresh
-              onDelete={isAdmin ? () => handleDelete(item) : undefined} // Chỉ admin mới có nút xóa
+              onDelete={canDelete ? () => handleDelete(item) : undefined}
               disabled={isAnyRowSelected}
             />
           );
@@ -311,7 +315,7 @@ export function ErrorReceiptsTab({ isAdmin, branches, userBranchId }: ErrorRecei
           data={data}
           filterCol="code"
           filterPlaceholder="Tìm mã phiếu lỗi..."
-          onBulkAction={isAdmin ? handleDeleteMany : undefined} // Chỉ admin mới có bulk delete
+          onBulkAction={canDelete ? handleDeleteMany : undefined}
           bulkActionLabel="Xóa đã chọn"
           bulkActionIcon="trash"
           toolbarActions={toolbarActions}
@@ -360,7 +364,7 @@ export function ErrorReceiptsTab({ isAdmin, branches, userBranchId }: ErrorRecei
               <RefreshCw className="mr-2 h-4 w-4" />
               Tạo lại phiếu
             </Button>
-            {isAdmin && (
+            {canDelete && (
               <Button
                 variant="destructive"
                 onClick={() => {

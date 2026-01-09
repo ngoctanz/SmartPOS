@@ -71,6 +71,7 @@ export default function Page() {
   const router = useRouter();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const isManager = user?.role === "manager";
   const printRef = React.useRef<HTMLDivElement>(null);
 
   // Use custom hooks
@@ -567,6 +568,9 @@ export default function Page() {
             }
             onSearch={setErrorSearch}
             searchValue={errorSearch}
+            isAdmin={isAdmin}
+            isManager={isManager}
+            onRefresh={fetchErrorReceipts}
           />
         </TabsContent>
       </Tabs>

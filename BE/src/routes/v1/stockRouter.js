@@ -11,7 +11,7 @@ Router.use(injectUserBranch());
 // Get stock info - cần check branch access cho routes có :branchId
 Router.get("/branch/:branchId", checkBranchAccess, branchProductController.getByBranch);
 // Get stock info
-Router.get("/stats", authorize("admin", "staff"), branchProductController.getStats);
+Router.get("/stats", authorize("admin", "manager", "staff"), branchProductController.getStats);
 // Get aggregated stock by product (admin only - for "All branches" view)
 Router.get("/aggregated", authorize("admin"), branchProductController.getAggregatedByProduct);
 Router.get("/product/:productId", branchProductController.getByProduct);
@@ -31,16 +31,19 @@ Router.patch(
 );
 
 // Get all stock
-Router.get("/", authorize("admin", "staff"), branchProductController.getAll);
+Router.get("/", authorize("admin", "manager", "staff"), branchProductController.getAll);
 
-// Create stock report (Staff)
-Router.post("/", authorize("staff"), branchProductController.create);
+// Create stock report (Staff & Manager)
+Router.post("/", authorize("manager", "staff"), branchProductController.create);
 
-// Update stock (Staff)
-Router.put("/:id", authorize("staff"), branchProductController.update);
+// Update stock (Staff & Manager)
+Router.put("/:id", authorize("manager", "staff"), branchProductController.update);
 
-// Update note (Admin & Staff) - chỉ cập nhật ghi chú
-Router.patch("/:id/note", authorize("admin", "staff"), branchProductController.updateNote);
+// Update note (Admin, Manager & Staff) - chỉ cập nhật ghi chú
+Router.patch("/:id/note", authorize("admin", "manager", "staff"), branchProductController.updateNote);
+
+// Update sale price (Admin, Manager & Staff) - cập nhật giá bán theo chi nhánh
+Router.patch("/:id/sale-price", authorize("admin", "manager", "staff"), branchProductController.updateSalePrice);
 
 // Delete stock (Admin)
 Router.delete("/:id", authorize("admin"), branchProductController.remove);
