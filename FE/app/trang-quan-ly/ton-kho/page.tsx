@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Package, AlertTriangle, LayoutGrid, Boxes, FileEdit, DollarSign } from "lucide-react";
+import { Loader2, Package, AlertTriangle, LayoutGrid, Boxes, FileEdit } from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import { StatsCard } from "@/components/common/stats-card";
 import { Button } from "@/components/ui/button";
@@ -71,6 +71,7 @@ export default function Page() {
   const [isEditPriceModalOpen, setIsEditPriceModalOpen] = React.useState(false);
   const [isNoteModalOpen, setIsNoteModalOpen] = React.useState(false);
   const [salePriceValue, setSalePriceValue] = React.useState(0);
+  const [minStockValue, setMinStockValue] = React.useState(0);
   const [noteValue, setNoteValue] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
@@ -203,6 +204,7 @@ export default function Page() {
   const handleEditPrice = (item: IBranchProduct) => {
     setSelectedItem(item);
     setSalePriceValue(item.salePrice || 0);
+    setMinStockValue(item.minStock || 0);
     setIsEditPriceModalOpen(true);
   };
 
@@ -219,15 +221,27 @@ export default function Page() {
       setIsSubmitting(true);
       const branchId = isAdmin ? (filterBranchId !== "all" ? filterBranchId : selectedItem.branchId?._id) : undefined;
       
-      await stockService.updateSalePrice(selectedItem._id, salePriceValue, branchId);
+      // Update both salePrice and minStock
+      const promises: Promise<any>[] = [];
       
-      toast.success("Đã cập nhật giá bán");
+      if (salePriceValue !== selectedItem.salePrice) {
+        promises.push(stockService.updateSalePrice(selectedItem._id, salePriceValue, branchId));
+      }
+      if (minStockValue !== selectedItem.minStock) {
+        promises.push(stockService.updateMinStock(selectedItem._id, minStockValue, branchId));
+      }
+      
+      if (promises.length > 0) {
+        await Promise.all(promises);
+        toast.success("Đã cập nhật thông tin");
+      }
+      
       setIsEditPriceModalOpen(false);
       setSelectedItem(null);
       fetchData();
     } catch (error) {
-      console.error("Update price error:", error);
-      toast.error("Không thể cập nhật giá bán");
+      console.error("Update error:", error);
+      toast.error("Không thể cập nhật thông tin");
     } finally {
       setIsSubmitting(false);
     }
@@ -289,11 +303,12 @@ export default function Page() {
         header: "Sản phẩm",
         cell: ({ row }) => {
           const product = row.original.productId;
+          const imageUrl = product?.images?.[0] || product?.image;
           return (
             <div className="flex items-center gap-3">
-              {product?.image ? (
+              {imageUrl ? (
                 <img
-                  src={product.image}
+                  src={imageUrl}
                   alt=""
                   className="w-10 h-10 rounded object-cover"
                 />
@@ -334,6 +349,34 @@ export default function Page() {
         header: showBranchCountColumn ? "Tổng tồn kho" : "Tồn kho",
         cell: ({ row }) => {
           const stock = row.getValue("stock") as number;
+          
+          // Logic tách bạch: Aggregated view vs Single branch view
+          if (showBranchCountColumn) {
+            // AGGREGATED VIEW (Tất cả chi nhánh): dùng giá trị cứng
+            const isOutOfStock = stock <= 0;
+            const isLow = !isOutOfStock && stock <= 5;
+            return (
+              <div className="flex items-center gap-2">
+                <span className={isOutOfStock || isLow ? "text-destructive font-medium" : ""}>
+                  {stock}
+                </span>
+                {isOutOfStock && (
+                  <Badge variant="destructive" className="text-xs gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Hết hàng
+                  </Badge>
+                )}
+                {isLow && (
+                  <Badge variant="secondary" className="text-xs gap-1 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                    <AlertTriangle className="h-3 w-3" />
+                    Sắp hết
+                  </Badge>
+                )}
+              </div>
+            );
+          }
+          
+          // SINGLE BRANCH VIEW: dùng minStock của từng sản phẩm
           const minStock = row.original.minStock;
           const isOutOfStock = stock <= 0;
           const isLow = !isOutOfStock && stock <= minStock;
@@ -358,10 +401,15 @@ export default function Page() {
           );
         },
       },
-      {
-        accessorKey: "minStock",
-        header: "Định mức tối thiểu",
-      },
+      // Chỉ hiển thị cột định mức tối thiểu khi không phải aggregated view
+      ...(!showBranchCountColumn
+        ? [
+            {
+              accessorKey: "minStock",
+              header: "Định mức tối thiểu",
+            } as ColumnDef<IBranchProduct>,
+          ]
+        : []),
       // Chỉ hiển thị cột giá bán khi không phải aggregated view
       ...(!showBranchCountColumn
         ? [
@@ -417,7 +465,7 @@ export default function Page() {
             <RowActions 
               onView={() => handleView(row.original)}
               onEdit={() => handleEditPrice(row.original)}
-              editLabel="Chỉnh giá bán"
+              editLabel="Chỉnh sửa"
               customActions={[
                 {
                   label: "Cập nhật ghi chú",
@@ -536,110 +584,94 @@ export default function Page() {
         title="Chi tiết tồn kho"
       >
         {selectedItem && (
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right text-muted-foreground">Sản phẩm</Label>
-              <div className="col-span-3 flex items-center gap-3">
-                {selectedItem.productId?.image ? (
-                  <img
-                    src={selectedItem.productId.image}
-                    alt=""
-                    className="w-12 h-12 rounded object-cover"
-                  />
-                ) : (
-                  <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
-                    <Package className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                )}
-                <div>
-                  <p className="font-medium">{selectedItem.productId?.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {selectedItem.productId?.barcode || "—"}
-                  </p>
+          <div className="space-y-6">
+            {/* Product Info Header */}
+            <div className="flex items-center gap-4 pb-4 border-b">
+              {(selectedItem.productId?.images?.[0] || selectedItem.productId?.image) ? (
+                <img
+                  src={selectedItem.productId?.images?.[0] || selectedItem.productId?.image}
+                  alt=""
+                  className="w-16 h-16 rounded-lg object-cover"
+                />
+              ) : (
+                <div className="w-16 h-16 bg-muted rounded-lg flex items-center justify-center">
+                  <Package className="h-6 w-6 text-muted-foreground" />
                 </div>
+              )}
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold">{selectedItem.productId?.name}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {selectedItem.productId?.barcode || "Không có mã vạch"}
+                </p>
+              </div>
+              {selectedItem.stock <= 0 ? (
+                <Badge variant="destructive" className="gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Hết hàng
+                </Badge>
+              ) : selectedItem.stock <= selectedItem.minStock ? (
+                <Badge variant="secondary" className="gap-1 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                  <AlertTriangle className="h-3 w-3" />
+                  Sắp hết
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="gap-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  Còn hàng
+                </Badge>
+              )}
+            </div>
+
+            {/* Info Grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Chi nhánh</p>
+                <p className="font-medium">{selectedItem.branchId?.branchName || "—"}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Giá bán</p>
+                <p className="font-medium text-primary">{formatCurrency(selectedItem.salePrice || 0)}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Tồn kho hiện tại</p>
+                <p className="text-2xl font-bold">{selectedItem.stock}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Định mức tối thiểu</p>
+                <p className="font-medium">{selectedItem.minStock}</p>
               </div>
             </div>
 
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right text-muted-foreground">Chi nhánh</Label>
-              <Input
-                className="col-span-3"
-                value={selectedItem.branchId?.branchName || "—"}
-                readOnly
-              />
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right text-muted-foreground">Tồn kho</Label>
-              <div className="col-span-3 flex items-center gap-2">
-                <Input value={selectedItem.stock} readOnly className="w-24" />
-                {selectedItem.stock <= 0 && (
-                  <Badge variant="destructive" className="gap-1">
-                    <AlertTriangle className="h-3 w-3" />
-                    Hết hàng
-                  </Badge>
-                )}
-                {selectedItem.stock > 0 && selectedItem.stock <= selectedItem.minStock && (
-                  <Badge variant="secondary" className="gap-1 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
-                    <AlertTriangle className="h-3 w-3" />
-                    Sắp hết
-                  </Badge>
-                )}
+            {/* Note */}
+            {selectedItem.note && (
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <p className="text-sm text-muted-foreground mb-1">Ghi chú</p>
+                <p>{selectedItem.note}</p>
               </div>
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right text-muted-foreground">
-                Định mức tối thiểu
-              </Label>
-              <Input
-                className="col-span-3 w-24"
-                value={selectedItem.minStock}
-                readOnly
-              />
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right text-muted-foreground">Giá bán</Label>
-              <Input
-                className="col-span-3"
-                value={formatCurrency(selectedItem.salePrice || 0)}
-                readOnly
-              />
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right text-muted-foreground">Ghi chú</Label>
-              <Textarea
-                className="col-span-3"
-                value={selectedItem.note || "Chưa có ghi chú"}
-                readOnly
-                rows={3}
-              />
-            </div>
+            )}
           </div>
         )}
       </DetailModal>
 
-      {/* Edit Price Modal */}
+      {/* Edit Modal */}
       <Dialog open={isEditPriceModalOpen} onOpenChange={setIsEditPriceModalOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Chỉnh sửa giá bán
+              <FileEdit className="h-5 w-5" />
+              Chỉnh sửa thông tin
             </DialogTitle>
             <DialogDescription>
-              Cập nhật giá bán cho sản phẩm tại chi nhánh này
+              Cập nhật giá bán và định mức tối thiểu cho sản phẩm
             </DialogDescription>
           </DialogHeader>
           
           {selectedItem && (
             <div className="grid gap-4 py-4">
+              {/* Product Info */}
               <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                {selectedItem.productId?.image ? (
+                {(selectedItem.productId?.images?.[0] || selectedItem.productId?.image) ? (
                   <img
-                    src={selectedItem.productId.image}
+                    src={selectedItem.productId?.images?.[0] || selectedItem.productId?.image}
                     alt=""
                     className="w-12 h-12 rounded object-cover"
                   />
@@ -656,16 +688,50 @@ export default function Page() {
                 </div>
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="salePrice">Giá bán (VNĐ)</Label>
-                <Input
-                  id="salePrice"
-                  type="number"
-                  min={0}
-                  placeholder="Nhập giá bán"
-                  value={salePriceValue}
-                  onChange={(e) => setSalePriceValue(Number(e.target.value) || 0)}
-                />
+              {/* Readonly fields */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label className="text-muted-foreground">Chi nhánh</Label>
+                  <Input
+                    value={selectedItem.branchId?.branchName || "—"}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label className="text-muted-foreground">Tồn kho hiện tại</Label>
+                  <Input
+                    value={selectedItem.stock}
+                    disabled
+                    className="bg-muted"
+                  />
+                </div>
+              </div>
+
+              {/* Editable fields */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="salePrice">Giá bán (VNĐ)</Label>
+                  <Input
+                    id="salePrice"
+                    type="number"
+                    min={0}
+                    placeholder="Nhập giá bán"
+                    value={salePriceValue}
+                    onChange={(e) => setSalePriceValue(Number(e.target.value) || 0)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="minStock">Định mức tối thiểu</Label>
+                  <Input
+                    id="minStock"
+                    type="number"
+                    min={0}
+                    placeholder="Nhập định mức tối thiểu"
+                    value={minStockValue}
+                    onChange={(e) => setMinStockValue(Number(e.target.value) || 0)}
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -685,7 +751,7 @@ export default function Page() {
                   Đang lưu...
                 </>
               ) : (
-                "Lưu giá bán"
+                "Lưu thay đổi"
               )}
             </Button>
           </DialogFooter>
@@ -708,9 +774,9 @@ export default function Page() {
           {selectedItem && (
             <div className="grid gap-4 py-4">
               <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-                {selectedItem.productId?.image ? (
+                {(selectedItem.productId?.images?.[0] || selectedItem.productId?.image) ? (
                   <img
-                    src={selectedItem.productId.image}
+                    src={selectedItem.productId?.images?.[0] || selectedItem.productId?.image}
                     alt=""
                     className="w-12 h-12 rounded object-cover"
                   />

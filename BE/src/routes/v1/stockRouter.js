@@ -46,6 +46,9 @@ Router.patch("/:id/note", authorize("admin", "manager", "staff"), branchProductC
 // Update sale price (Admin, Manager & Staff) - cập nhật giá bán theo chi nhánh
 Router.patch("/:id/sale-price", authorize("admin", "manager", "staff"), branchProductController.updateSalePrice);
 
+// Update min stock (Admin, Manager & Staff) - cập nhật định mức tối thiểu
+Router.patch("/:id/min-stock", authorize("admin", "manager", "staff"), branchProductController.updateMinStock);
+
 // Delete stock (Admin)
 Router.delete("/:id", authorize("admin"), branchProductController.remove);
 

@@ -265,6 +265,22 @@ const updateSalePrice = async (req, res, next) => {
   }
 };
 
+const updateMinStock = async (req, res, next) => {
+  try {
+    const { minStock, branchId } = req.body;
+    // Pass user for defense-in-depth security
+    // branchId được inject từ middleware cho staff, hoặc từ body cho admin
+    const data = await branchProductService.updateMinStock(req.params.id, minStock, req.user, branchId);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Min stock updated successfully",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const branchProductController = {
   getStats,
   getAll,
@@ -280,5 +296,6 @@ export const branchProductController = {
   update,
   remove,
   updateNote,
-  updateSalePrice
+  updateSalePrice,
+  updateMinStock
 };
