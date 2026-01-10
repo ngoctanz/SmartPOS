@@ -665,57 +665,49 @@ export default function Page() {
         }
       >
         {selectedItem && (
-          <div className="grid gap-4 py-4">
-            {/* Basic Info */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">Mã phiếu</Label>
-                <Input value={selectedItem.code} readOnly />
+          <div className="space-y-6">
+            {/* Header Info */}
+            <div className="flex items-center justify-between pb-4 border-b">
+              <div>
+                <p className="text-sm text-muted-foreground">Mã phiếu</p>
+                <p className="text-xl font-semibold">{selectedItem.code}</p>
               </div>
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">Trạng thái</Label>
-                <div className="pt-2">{getStatusBadge(selectedItem.status)}</div>
-              </div>
+              <div>{getStatusBadge(selectedItem.status)}</div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">Chi nhánh</Label>
-                <Input value={getBranchName(selectedItem.branchId)} readOnly />
+            {/* Info Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Chi nhánh</p>
+                <p className="font-medium">{getBranchName(selectedItem.branchId)}</p>
               </div>
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">Nhà cung cấp</Label>
-                <Input value={selectedItem.supplierName || "---"} readOnly />
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Nhà cung cấp</p>
+                <p className="font-medium">{selectedItem.supplierName || "---"}</p>
               </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">Người tạo</Label>
-                <Input value={getCreatedByName(selectedItem.createdBy)} readOnly />
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Người tạo</p>
+                <p className="font-medium">{getCreatedByName(selectedItem.createdBy)}</p>
               </div>
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">Ngày tạo</Label>
-                <Input
-                  value={format(new Date(selectedItem.createdAt), "dd/MM/yyyy HH:mm")}
-                  readOnly
-                />
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Ngày tạo</p>
+                <p className="font-medium">{format(new Date(selectedItem.createdAt), "dd/MM/yyyy HH:mm")}</p>
               </div>
             </div>
 
             {selectedItem.note && (
-              <div className="space-y-2">
-                <Label className="text-muted-foreground">Ghi chú</Label>
-                <Textarea value={selectedItem.note} readOnly rows={2} />
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <p className="text-sm text-muted-foreground mb-1">Ghi chú</p>
+                <p>{selectedItem.note}</p>
               </div>
             )}
 
             {/* Products Table */}
-            <div className="mt-4">
-              <h4 className="mb-2 font-medium">
+            <div>
+              <h4 className="mb-3 font-medium">
                 Danh sách sản phẩm ({selectedItem.listProduct.length})
               </h4>
-              <div className="border rounded-md overflow-hidden">
+              <div className="border rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-muted">
                     <tr>
@@ -742,7 +734,7 @@ export default function Page() {
                               />
                             </div>
                           ) : (
-                            "---"
+                            <span className="text-muted-foreground">---</span>
                           )}
                         </td>
                         <td className="p-3 py-4 align-middle">{p.productName}</td>
@@ -756,12 +748,12 @@ export default function Page() {
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot className="bg-muted/50 font-medium">
+                  <tfoot className="bg-muted/50">
                     <tr>
-                      <td colSpan={4} className="p-3 text-right">
+                      <td colSpan={4} className="p-3 text-right font-medium">
                         Tổng cộng:
                       </td>
-                      <td className="p-3 text-right text-lg">
+                      <td className="p-3 text-right text-lg font-bold text-primary">
                         {formatCurrency(selectedItem.totalAmount)}
                       </td>
                     </tr>

@@ -243,6 +243,18 @@ const stockService = {
   },
 
   /**
+   * Cập nhật định mức tối thiểu cho sản phẩm theo chi nhánh
+   * PATCH /api/v1/stock/:id/min-stock
+   */
+  updateMinStock: async (
+    id: string,
+    minStock: number,
+    branchId?: string
+  ): Promise<ApiResponse<BranchProduct>> => {
+    return apiPatch<BranchProduct>(`/stock/${id}/min-stock`, { minStock, branchId });
+  },
+
+  /**
    * Cập nhật thông tin sản phẩm trong kho (giá bán, định mức tối thiểu, ghi chú)
    * Gọi nhiều API để cập nhật
    */

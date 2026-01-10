@@ -371,6 +371,16 @@ branchProductSchema.statics = {
     return result;
   },
 
+  async updateMinStock(id, minStock) {
+    const result = await this.findOneAndUpdate(
+      { "products._id": id },
+      { $set: { "products.$.minStock": minStock }, $currentDate: { updatedAt: true } },
+      { new: true }
+    );
+    if (!result) throw new Error("Stock record not found");
+    return result;
+  },
+
   async bulkUpdateStock(branchId, items) {
     let doc = await this.findOne({ branchId });
     if (!doc) doc = new this({ branchId, products: [] });
