@@ -1,5 +1,4 @@
 import { Branch } from "../models/branchModel.js";
-import { BranchProduct } from "../models/branchProductModel.js";
 import ApiError from "../utils/apiError.js"; 
 
 const create = async (data) => {

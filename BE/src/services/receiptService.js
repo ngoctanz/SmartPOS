@@ -35,16 +35,7 @@ const create = async (data, user) => {
     for (const item of data.listProduct) {
       const product = await Product.findProductById(item.productId);
       
-      // Check product đã có trong BranchProduct chưa (đã có phiếu nhập)
-      const branchProductDoc = await BranchProduct.findOne({ 
-        branchId: data.branchId, 
-        "products.productId": item.productId 
-      });
-      
-      if (!branchProductDoc) {
-        throw new ApiError(400, `Sản phẩm "${product.name}" chưa được nhập kho tại chi nhánh này`);
-      }
-      
+      // Lấy thông tin giá từ BranchProduct nếu có, không thì dùng giá từ Product
       const productInfo = await BranchProduct.getProductInfo(data.branchId, item.productId);
 
       // Get sale price: priority is item.salePrice > branchProduct.salePrice > product.currentSalePrice
