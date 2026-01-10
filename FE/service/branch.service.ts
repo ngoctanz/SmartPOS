@@ -10,23 +10,32 @@ export interface Branch {
   deletedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  // PayOS credentials
+  PAYOS_CLIENT_ID?: string;
+  PAYOS_API_KEY?: string;
+  PAYOS_CHECKSUM_KEY?: string;
 }
 
 export interface CreateBranchRequest {
   branchName: string;
   address: string;
   contactInfo: string;
+  PAYOS_CLIENT_ID?: string;
+  PAYOS_API_KEY?: string;
+  PAYOS_CHECKSUM_KEY?: string;
 }
 
 export interface BranchStats {
   total: number;
 }
 
-
 export interface UpdateBranchRequest {
   branchName?: string;
   address?: string;
   contactInfo?: string;
+  PAYOS_CLIENT_ID?: string;
+  PAYOS_API_KEY?: string;
+  PAYOS_CHECKSUM_KEY?: string;
 }
 
 export interface SearchBranchParams {
@@ -52,13 +61,15 @@ const branchService = {
    * Lấy tất cả chi nhánh (có phân trang)
    * GET /api/v1/branch
    */
-  getAll: async (params?: PaginationParams): Promise<ApiResponse<Branch[]> & { pagination?: Pagination }> => {
+  getAll: async (
+    params?: PaginationParams
+  ): Promise<ApiResponse<Branch[]> & { pagination?: Pagination }> => {
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append("page", String(params.page));
     if (params?.limit) queryParams.append("limit", String(params.limit));
     if (params?.search) queryParams.append("search", params.search);
     if (params?.includeDeleted) queryParams.append("includeDeleted", "true");
-    
+
     const query = queryParams.toString();
     return apiGet<Branch[]>(`/branch${query ? `?${query}` : ""}`);
   },
@@ -139,16 +150,20 @@ const branchService = {
    * Kiểm tra chi nhánh có thể xóa vĩnh viễn không
    * GET /api/v1/branch/:id/can-delete
    */
-  checkCanDelete: async (id: string): Promise<ApiResponse<{
-    canDelete: boolean;
-    hasData: boolean;
-    details: {
-      receipts: boolean;
-      importReceipts: boolean;
-      stock: boolean;
-      users: boolean;
-    };
-  }>> => {
+  checkCanDelete: async (
+    id: string
+  ): Promise<
+    ApiResponse<{
+      canDelete: boolean;
+      hasData: boolean;
+      details: {
+        receipts: boolean;
+        importReceipts: boolean;
+        stock: boolean;
+        users: boolean;
+      };
+    }>
+  > => {
     return apiGet(`/branch/${id}/can-delete`);
   },
 

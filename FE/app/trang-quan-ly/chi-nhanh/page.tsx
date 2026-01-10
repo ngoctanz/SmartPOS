@@ -512,6 +512,7 @@ export default function Page() {
             : "Chi tiết chi nhánh"
         }
         onEdit={!isEdit ? () => setIsEdit(true) : undefined}
+        maxWidth="xl"
         footer={
           isEdit ? (
             <div className="flex justify-end gap-2">
@@ -529,56 +530,80 @@ export default function Page() {
           ) : undefined
         }
       >
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label className="text-right">Tên chi nhánh</Label>
-            <Input
-              value={formData.branchName}
-              onChange={(e) =>
-                setFormData({ ...formData, branchName: e.target.value })
-              }
-              className="col-span-3"
-              readOnly={!isEdit}
-              disabled={!isEdit}
-              placeholder="Nhập tên chi nhánh"
-            />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label className="text-right">Địa chỉ</Label>
-            <Input
-              value={formData.address}
-              onChange={(e) =>
-                setFormData({ ...formData, address: e.target.value })
-              }
-              className="col-span-3"
-              readOnly={!isEdit}
-              disabled={!isEdit}
-              placeholder="Nhập địa chỉ"
-            />
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label className="text-right">Liên hệ</Label>
-            <Input
-              value={formData.contactInfo}
-              onChange={(e) =>
-                setFormData({ ...formData, contactInfo: e.target.value })
-              }
-              className="col-span-3"
-              readOnly={!isEdit}
-              disabled={!isEdit}
-              placeholder="Email, Số điện thoại,..."
-            />
+        <div className="space-y-6">
+          {/* Thông tin cơ bản */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-foreground">
+              Thông tin chi nhánh
+            </h3>
+            <div className="grid gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="branchName">
+                  Tên chi nhánh <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="branchName"
+                  value={formData.branchName}
+                  onChange={(e) =>
+                    setFormData({ ...formData, branchName: e.target.value })
+                  }
+                  readOnly={!isEdit}
+                  disabled={!isEdit}
+                  placeholder="VD: Chi nhánh Quận 1"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="address">
+                  Địa chỉ <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="address"
+                  value={formData.address}
+                  onChange={(e) =>
+                    setFormData({ ...formData, address: e.target.value })
+                  }
+                  readOnly={!isEdit}
+                  disabled={!isEdit}
+                  placeholder="VD: 123 Nguyễn Huệ, Quận 1, TP.HCM"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contactInfo">Thông tin liên hệ</Label>
+                <Input
+                  id="contactInfo"
+                  value={formData.contactInfo}
+                  onChange={(e) =>
+                    setFormData({ ...formData, contactInfo: e.target.value })
+                  }
+                  readOnly={!isEdit}
+                  disabled={!isEdit}
+                  placeholder="VD: 0901234567, email@example.com"
+                />
+              </div>
+            </div>
           </div>
 
           {/* PayOS Credentials Section */}
-          <div className="col-span-4 border-t pt-4 mt-2">
-            <Label className="text-sm font-semibold mb-3 block">
-              Cấu hình thanh toán PayOS (tùy chọn)
-            </Label>
-            <div className="grid gap-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right text-sm">Client ID</Label>
+          <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-foreground">
+                Cấu hình thanh toán PayOS
+              </h3>
+              <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                Tùy chọn
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Để sử dụng thanh toán chuyển khoản qua PayOS cho chi nhánh này,
+              vui lòng điền các thông tin bên dưới.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-1">
+              <div className="space-y-2">
+                <Label htmlFor="payos_client_id" className="text-sm">
+                  Client ID
+                </Label>
                 <Input
+                  id="payos_client_id"
                   value={formData.PAYOS_CLIENT_ID}
                   onChange={(e) =>
                     setFormData({
@@ -586,30 +611,34 @@ export default function Page() {
                       PAYOS_CLIENT_ID: e.target.value,
                     })
                   }
-                  className="col-span-3"
                   readOnly={!isEdit}
                   disabled={!isEdit}
-                  placeholder="Nhập PayOS Client ID"
+                  placeholder="Nhập Client ID từ PayOS"
                   type={isEdit ? "text" : "password"}
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right text-sm">API Key</Label>
+              <div className="space-y-2">
+                <Label htmlFor="payos_api_key" className="text-sm">
+                  API Key
+                </Label>
                 <Input
+                  id="payos_api_key"
                   value={formData.PAYOS_API_KEY}
                   onChange={(e) =>
                     setFormData({ ...formData, PAYOS_API_KEY: e.target.value })
                   }
-                  className="col-span-3"
                   readOnly={!isEdit}
                   disabled={!isEdit}
-                  placeholder="Nhập PayOS API Key"
+                  placeholder="Nhập API Key từ PayOS"
                   type={isEdit ? "text" : "password"}
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right text-sm">Checksum Key</Label>
+              <div className="space-y-2">
+                <Label htmlFor="payos_checksum_key" className="text-sm">
+                  Checksum Key
+                </Label>
                 <Input
+                  id="payos_checksum_key"
                   value={formData.PAYOS_CHECKSUM_KEY}
                   onChange={(e) =>
                     setFormData({
@@ -617,31 +646,27 @@ export default function Page() {
                       PAYOS_CHECKSUM_KEY: e.target.value,
                     })
                   }
-                  className="col-span-3"
                   readOnly={!isEdit}
                   disabled={!isEdit}
-                  placeholder="Nhập PayOS Checksum Key"
+                  placeholder="Nhập Checksum Key từ PayOS"
                   type={isEdit ? "text" : "password"}
                 />
               </div>
-              {isEdit && (
-                <div className="col-span-4">
-                  <p className="text-xs text-muted-foreground">
-                    * Để sử dụng thanh toán chuyển khoản qua PayOS, vui lòng cấu
-                    hình thông tin trên. Bạn có thể lấy thông tin này từ{" "}
-                    <a
-                      href="https://my.payos.vn"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary underline"
-                    >
-                      PayOS Dashboard
-                    </a>
-                    .
-                  </p>
-                </div>
-              )}
             </div>
+            {isEdit && (
+              <p className="text-xs text-muted-foreground pt-2 border-t">
+                💡 Lấy thông tin này từ{" "}
+                <a
+                  href="https://my.payos.vn"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline hover:no-underline"
+                >
+                  PayOS Dashboard
+                </a>{" "}
+                → Channels → Chọn kênh thanh toán → Xem API Keys
+              </p>
+            )}
           </div>
         </div>
       </DetailModal>
