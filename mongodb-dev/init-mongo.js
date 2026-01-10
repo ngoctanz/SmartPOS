@@ -7,7 +7,7 @@ db = db.getSiblingDB("SmartPOS");
 // Create admin user with full permissions
 db.createUser({
   user: "admin",
-  pwd: "admin@123",
+  pwd: "admin123",
   roles: [
     {
       role: "dbOwner",
@@ -18,4 +18,4 @@ db.createUser({
 
 print("✅ SmartPOS database initialized successfully!");
 print("👤 User: admin");
-print("🔑 Password: admin@123");
+print("🔑 Password: admin123");
