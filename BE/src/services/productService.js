@@ -1,5 +1,6 @@
 import { Product } from "../models/productModel.js";
 import { Category } from "../models/categoryModel.js";
+import { BranchProduct } from "../models/branchProductModel.js";
 import { cloudinaryService } from "./cloudinaryService.js";
 import ApiError from "../utils/apiError.js";
 

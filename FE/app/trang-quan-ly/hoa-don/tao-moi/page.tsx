@@ -219,7 +219,15 @@ export default function CreateReceiptPage() {
                 image: product.images?.[0],
               },
             ]);
-            toast.success(`Đã thêm: ${product.name}`);
+            
+            // Thông báo nếu sản phẩm không có trong kho
+            if (!product.stock || product.stock <= 0) {
+              toast.warning(`Đã thêm: ${product.name}`, {
+                description: "⚠️ Sản phẩm này chưa có trong kho chi nhánh",
+              });
+            } else {
+              toast.success(`Đã thêm: ${product.name}`);
+            }
           } else {
             toast.error("Không tìm thấy sản phẩm");
           }
@@ -287,7 +295,15 @@ export default function CreateReceiptPage() {
             image: product.images?.[0],
           },
         ]);
-        toast.success(`Đã thêm: ${product.name}`);
+        
+        // Thông báo nếu sản phẩm không có trong kho (stock = 0 hoặc undefined)
+        if (!product.stock || product.stock <= 0) {
+          toast.warning(`Đã thêm: ${product.name}`, {
+            description: "⚠️ Sản phẩm này chưa có trong kho chi nhánh",
+          });
+        } else {
+          toast.success(`Đã thêm: ${product.name}`);
+        }
       }
     },
     [cartItems]
