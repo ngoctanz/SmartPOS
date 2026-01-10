@@ -27,7 +27,10 @@ const login = async (req, res, next) => {
 };
 const refreshToken = async (req, res, next) => {
   try {
-     throw new ApiError(StatusCodes.NOT_IMPLEMENTED, "Refresh token feature is disabled");
+    throw new ApiError(
+      StatusCodes.NOT_IMPLEMENTED,
+      "Refresh token feature is disabled"
+    );
   } catch (error) {
     next(error);
   }
@@ -37,11 +40,12 @@ const logout = async (req, res, next) => {
     const userId = req.user.userId;
     await authService.logout(userId);
 
-    // Clear access token cookie
+    const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https";
+
     res.clearCookie("access_token", {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+      secure: isSecure,
+      sameSite: isSecure ? "none" : "lax",
       path: "/",
     });
 

@@ -1,26 +1,57 @@
 import { PayOS } from "@payos/node";
 
-// Lazy initialize PayOS client to avoid blocking route registration
-let payos = null;
+// Cache PayOS clients per branch to avoid creating new instances
+const payosClients = new Map();
 
-const getPayOSClient = () => {
-  if (!payos) {
+/**
+ * Get PayOS client for a specific branch
+ * If branchCredentials not provided, fallback to env variables (backward compatibility)
+ */
+const getPayOSClient = (branchCredentials = null) => {
+  // If branch credentials provided, use branch-specific client
+  if (
+    branchCredentials?.PAYOS_CLIENT_ID &&
+    branchCredentials?.PAYOS_API_KEY &&
+    branchCredentials?.PAYOS_CHECKSUM_KEY
+  ) {
+    const cacheKey = branchCredentials.PAYOS_CLIENT_ID;
+
+    if (!payosClients.has(cacheKey)) {
+      payosClients.set(
+        cacheKey,
+        new PayOS({
+          clientId: branchCredentials.PAYOS_CLIENT_ID,
+          apiKey: branchCredentials.PAYOS_API_KEY,
+          checksumKey: branchCredentials.PAYOS_CHECKSUM_KEY,
+        })
+      );
+    }
+
+    return payosClients.get(cacheKey);
+  }
+
+  // Fallback to global env variables (for backward compatibility)
+  if (!payosClients.has("default")) {
     if (
       !process.env.PAYOS_CLIENT_ID ||
       !process.env.PAYOS_API_KEY ||
       !process.env.PAYOS_CHECKSUM_KEY
     ) {
       throw new Error(
-        "PayOS credentials not configured. Please set PAYOS_CLIENT_ID, PAYOS_API_KEY, and PAYOS_CHECKSUM_KEY environment variables."
+        "PayOS credentials not configured. Please set PAYOS_CLIENT_ID, PAYOS_API_KEY, and PAYOS_CHECKSUM_KEY environment variables or provide branch credentials."
       );
     }
-    payos = new PayOS({
-      clientId: process.env.PAYOS_CLIENT_ID,
-      apiKey: process.env.PAYOS_API_KEY,
-      checksumKey: process.env.PAYOS_CHECKSUM_KEY,
-    });
+    payosClients.set(
+      "default",
+      new PayOS({
+        clientId: process.env.PAYOS_CLIENT_ID,
+        apiKey: process.env.PAYOS_API_KEY,
+        checksumKey: process.env.PAYOS_CHECKSUM_KEY,
+      })
+    );
   }
-  return payos;
+
+  return payosClients.get("default");
 };
 
 /**
@@ -40,14 +71,19 @@ export const payosService = {
 
   /**
    * Create PayOS payment link using v2 API
+   * @param {Object} params - Payment parameters
+   * @param {Object} branchCredentials - Branch-specific PayOS credentials (optional)
    */
-  async createPaymentLink(params) {
+  async createPaymentLink(params, branchCredentials = null) {
     const { orderCode, amount, description, returnUrl, cancelUrl, expiredAt } =
       params;
 
     try {
+      // Use branch-specific client or fallback to default
+      const client = getPayOSClient(branchCredentials);
+
       // Use paymentRequests.create() in v2
-      const paymentLink = await getPayOSClient().paymentRequests.create({
+      const paymentLink = await client.paymentRequests.create({
         orderCode,
         amount,
         description,
@@ -99,10 +135,16 @@ export const payosService = {
 
   /**
    * Cancel PayOS payment link
+   * @param {Object} branchCredentials - Branch-specific PayOS credentials (optional)
    */
-  async cancelPaymentLink(orderCode, reason = "User cancelled") {
+  async cancelPaymentLink(
+    orderCode,
+    reason = "User cancelled",
+    branchCredentials = null
+  ) {
     try {
-      await getPayOSClient().paymentRequests.cancel(orderCode, reason);
+      const client = getPayOSClient(branchCredentials);
+      await client.paymentRequests.cancel(orderCode, reason);
       return { success: true };
     } catch (error) {
       console.error("PayOS cancelPaymentLink error:", error);
@@ -112,10 +154,12 @@ export const payosService = {
 
   /**
    * Get PayOS payment info
+   * @param {Object} branchCredentials - Branch-specific PayOS credentials (optional)
    */
-  async getPaymentInfo(orderCode) {
+  async getPaymentInfo(orderCode, branchCredentials = null) {
     try {
-      return await getPayOSClient().paymentRequests.get(orderCode);
+      const client = getPayOSClient(branchCredentials);
+      return await client.paymentRequests.get(orderCode);
     } catch (error) {
       console.error("PayOS getPaymentInfo error:", error);
       throw error;
@@ -124,10 +168,12 @@ export const payosService = {
 
   /**
    * Verify PayOS webhook using v2 SDK
+   * @param {Object} branchCredentials - Branch-specific PayOS credentials (optional)
    */
-  async verifyWebhook(webhookData) {
+  async verifyWebhook(webhookData, branchCredentials = null) {
     try {
-      return await getPayOSClient().webhooks.verify(webhookData);
+      const client = getPayOSClient(branchCredentials);
+      return await client.webhooks.verify(webhookData);
     } catch (error) {
       console.error("Verify webhook error:", error);
       return null;
@@ -136,10 +182,12 @@ export const payosService = {
 
   /**
    * Confirm webhook URL with PayOS
+   * @param {Object} branchCredentials - Branch-specific PayOS credentials (optional)
    */
-  async confirmWebhookUrl(webhookUrl) {
+  async confirmWebhookUrl(webhookUrl, branchCredentials = null) {
     try {
-      return await getPayOSClient().webhooks.confirm(webhookUrl);
+      const client = getPayOSClient(branchCredentials);
+      return await client.webhooks.confirm(webhookUrl);
     } catch (error) {
       console.error("Confirm webhook URL error:", error);
       throw error;
@@ -178,10 +226,11 @@ export const payosService = {
 
   /**
    * @deprecated Use verifyWebhook() method instead for v2 SDK
+   * @param {Object} branchCredentials - Branch-specific PayOS credentials (optional)
    */
-  async verifyPaymentWebhookData(webhookData) {
+  async verifyPaymentWebhookData(webhookData, branchCredentials = null) {
     try {
-      return await getPayOSClient().webhooks.verify(webhookData);
+      return await this.verifyWebhook(webhookData, branchCredentials);
     } catch (error) {
       console.error("Verify webhook data error:", error);
       return null;

@@ -22,6 +22,19 @@ const branchSchema = new mongoose.Schema(
       maxlength: [200, "Contact info max 200 characters"],
       default: "",
     },
+    //
+    PAYOS_CLIENT_ID: {
+      type: Schema.Types.String,
+      trim: true,
+    },
+    PAYOS_API_KEY: {
+      type: Schema.Types.String,
+      trim: true,
+    },
+    PAYOS_CHECKSUM_KEY: {
+      type: Schema.Types.String,
+      trim: true,
+    },
     // Soft delete fields
     isDeleted: {
       type: Schema.Types.Boolean,
@@ -63,14 +76,16 @@ branchSchema.statics = {
 
   async findAllBranches(filter = {}, includeDeleted = false) {
     const baseFilter = includeDeleted ? {} : { isDeleted: { $ne: true } };
-    return this.find({ ...baseFilter, ...filter }).sort({ createdAt: -1 }).lean();
+    return this.find({ ...baseFilter, ...filter })
+      .sort({ createdAt: -1 })
+      .lean();
   },
 
   async findAllBranchesPaginated(options = {}) {
     const { search, page = 1, limit = 20, includeDeleted = false } = options;
-    
+
     const query = includeDeleted ? {} : { isDeleted: { $ne: true } };
-    
+
     // Search by name or address
     if (search && search.trim()) {
       query.$or = [
@@ -81,7 +96,7 @@ branchSchema.statics = {
 
     const total = await this.countDocuments(query);
     const skip = (page - 1) * limit;
-    
+
     const data = await this.find(query)
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -100,8 +115,8 @@ branchSchema.statics = {
   },
 
   async findBranchById(id, includeDeleted = false) {
-    const filter = includeDeleted 
-      ? { _id: id } 
+    const filter = includeDeleted
+      ? { _id: id }
       : { _id: id, isDeleted: { $ne: true } };
     const branch = await this.findOne(filter).lean();
     if (!branch) throw new Error("Branch not found");

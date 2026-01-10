@@ -25,8 +25,8 @@ const create = async (data, user) => {
     // Defense-in-depth: Double check branch access
     validateBranchAccess(user, data.branchId, "create receipt for");
 
-    // Validate branch exists
-    await Branch.findBranchById(data.branchId);
+    // Validate branch exists and get branch data with PayOS credentials
+    const branch = await Branch.findBranchById(data.branchId);
 
     const listProduct = [];
     let totalAmount = 0;
@@ -34,12 +34,19 @@ const create = async (data, user) => {
     // Validate stock và prepare list
     for (const item of data.listProduct) {
       const product = await Product.findProductById(item.productId);
-      
+
       // Lấy thông tin giá từ BranchProduct nếu có, không thì dùng giá từ Product
-      const productInfo = await BranchProduct.getProductInfo(data.branchId, item.productId);
+      const productInfo = await BranchProduct.getProductInfo(
+        data.branchId,
+        item.productId
+      );
 
       // Get sale price: priority is item.salePrice > branchProduct.salePrice > product.currentSalePrice
-      const salePrice = item.salePrice ?? productInfo.salePrice ?? product.currentSalePrice ?? 0;
+      const salePrice =
+        item.salePrice ??
+        productInfo.salePrice ??
+        product.currentSalePrice ??
+        0;
       const subtotal = salePrice * item.quantity;
 
       listProduct.push({
@@ -69,18 +76,40 @@ const create = async (data, user) => {
     // If transfer payment, create PayOS payment link
     if (isTransfer) {
       try {
+        // Get branch PayOS credentials
+        const branchCredentials = {
+          PAYOS_CLIENT_ID: branch.PAYOS_CLIENT_ID,
+          PAYOS_API_KEY: branch.PAYOS_API_KEY,
+          PAYOS_CHECKSUM_KEY: branch.PAYOS_CHECKSUM_KEY,
+        };
+
+        // Validate branch has PayOS configured
+        if (
+          !branchCredentials.PAYOS_CLIENT_ID ||
+          !branchCredentials.PAYOS_API_KEY ||
+          !branchCredentials.PAYOS_CHECKSUM_KEY
+        ) {
+          throw new ApiError(
+            400,
+            "Chi nhánh chưa cấu hình PayOS. Vui lòng liên hệ quản trị viên để cấu hình thanh toán online."
+          );
+        }
+
         const orderCode = payosService.generateOrderCode();
         const baseUrl = process.env.CLIENT_URL || "http://localhost:3000";
         const paymentDescription = `HD${orderCode}`.slice(0, 25); // Max 25 chars
 
-        const paymentResult = await payosService.createPaymentLink({
-          orderCode,
-          amount: Math.round(totalAmount),
-          description: paymentDescription,
-          returnUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
-          cancelUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
-          expiredAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
-        });
+        const paymentResult = await payosService.createPaymentLink(
+          {
+            orderCode,
+            amount: Math.round(totalAmount),
+            description: paymentDescription,
+            returnUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
+            cancelUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
+            expiredAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+          },
+          branchCredentials
+        ); // Pass branch credentials
 
         if (paymentResult.success) {
           receiptData.paymentInfo = {
@@ -287,25 +316,39 @@ const handlePaymentWebhook = async (webhookData) => {
     // Log raw webhook for debugging
     console.log("[Webhook] Received:", JSON.stringify(webhookData, null, 2));
 
-    // Verify webhook data
-    const verifiedData = payosService.verifyPaymentWebhookData(webhookData);
-    if (!verifiedData) {
-      console.log("[Webhook] Invalid signature, skipping...");
-      // Return success to prevent PayOS from retrying
-      return { success: true, message: "Invalid signature" };
-    }
-
-    const orderCode = verifiedData.orderCode || webhookData.data?.orderCode;
+    const orderCode = webhookData.data?.orderCode;
     if (!orderCode) {
       console.log("[Webhook] No orderCode found");
       return { success: true, message: "No orderCode" };
     }
 
+    // Find receipt first to get branch info
     const receipt = await Receipt.findReceiptByOrderCode(orderCode);
 
     if (!receipt) {
       console.log(`[Webhook] Receipt not found for orderCode: ${orderCode}`);
       return { success: true }; // Return success to prevent PayOS from retrying
+    }
+
+    // Get branch PayOS credentials for verification
+    const branchId = receipt.branchId._id || receipt.branchId;
+    const branch = await Branch.findBranchById(branchId);
+
+    const branchCredentials = {
+      PAYOS_CLIENT_ID: branch.PAYOS_CLIENT_ID,
+      PAYOS_API_KEY: branch.PAYOS_API_KEY,
+      PAYOS_CHECKSUM_KEY: branch.PAYOS_CHECKSUM_KEY,
+    };
+
+    // Verify webhook data using branch credentials
+    const verifiedData = await payosService.verifyPaymentWebhookData(
+      webhookData,
+      branchCredentials
+    );
+    if (!verifiedData) {
+      console.log("[Webhook] Invalid signature, skipping...");
+      // Return success to prevent PayOS from retrying
+      return { success: true, message: "Invalid signature" };
     }
 
     // Already processed
@@ -341,7 +384,9 @@ const handlePaymentWebhook = async (webhookData) => {
         );
       }
 
-      console.log(`[Webhook] ✓ Payment confirmed for receipt: ${receipt.code}`);
+      console.log(
+        `[Webhook] ✓ Payment confirmed for receipt: ${receipt.code} (Branch: ${branch.branchName})`
+      );
 
       // Broadcast payment success via WebSocket
       socketService.broadcastPaymentSuccess(branchId.toString(), {
@@ -386,12 +431,27 @@ const handlePaymentWebhook = async (webhookData) => {
  */
 const checkPaymentStatus = async (orderCode) => {
   try {
-    const paymentInfo = await payosService.getPaymentInfo(orderCode);
     const receipt = await Receipt.findReceiptByOrderCode(orderCode);
 
     if (!receipt) {
       throw new ApiError(404, "Receipt not found");
     }
+
+    // Get branch PayOS credentials
+    const branchId = receipt.branchId._id || receipt.branchId;
+    const branch = await Branch.findBranchById(branchId);
+
+    const branchCredentials = {
+      PAYOS_CLIENT_ID: branch.PAYOS_CLIENT_ID,
+      PAYOS_API_KEY: branch.PAYOS_API_KEY,
+      PAYOS_CHECKSUM_KEY: branch.PAYOS_CHECKSUM_KEY,
+    };
+
+    // Get payment info using branch credentials
+    const paymentInfo = await payosService.getPaymentInfo(
+      orderCode,
+      branchCredentials
+    );
 
     // Update local status based on PayOS status
     if (
@@ -401,7 +461,6 @@ const checkPaymentStatus = async (orderCode) => {
       await Receipt.updatePaymentStatus(orderCode, "paid", "completed");
 
       // Decrease stock
-      const branchId = receipt.branchId._id || receipt.branchId;
       for (const item of receipt.listProduct) {
         await BranchProduct.decreaseStock(
           branchId,
@@ -546,10 +605,7 @@ const markAsError = async (receiptId, userId, user, errorReason = null) => {
 
     // Validate status (allow marking error for both pending and completed)
     if (receipt.status === "cancelled") {
-      throw new ApiError(
-        400,
-        "Không thể đánh dấu lỗi cho hóa đơn đã hủy"
-      );
+      throw new ApiError(400, "Không thể đánh dấu lỗi cho hóa đơn đã hủy");
     }
 
     // Validate not already marked as error
@@ -634,7 +690,14 @@ const markAsError = async (receiptId, userId, user, errorReason = null) => {
  */
 const getErrorReceipts = async (options, user) => {
   try {
-    const { page = 1, limit = 20, search, branchId, sortBy = "markedErrorAt", sortOrder = "desc" } = options;
+    const {
+      page = 1,
+      limit = 20,
+      search,
+      branchId,
+      sortBy = "markedErrorAt",
+      sortOrder = "desc",
+    } = options;
 
     // Build query
     const query = { isError: true };
@@ -772,7 +835,7 @@ const getErrorStats = async (branchId, user) => {
 const deleteErrorReceipt = async (id, user) => {
   try {
     const receipt = await Receipt.findById(id);
-    
+
     if (!receipt) {
       throw new ApiError(404, "Không tìm thấy hóa đơn");
     }
@@ -787,7 +850,10 @@ const deleteErrorReceipt = async (id, user) => {
     // Manager can only delete error receipts in their branch
     if (user.role === "manager") {
       if (!user.branchId || user.branchId.toString() !== branchId.toString()) {
-        throw new ApiError(403, "Bạn không có quyền xóa hóa đơn lỗi của chi nhánh khác");
+        throw new ApiError(
+          403,
+          "Bạn không có quyền xóa hóa đơn lỗi của chi nhánh khác"
+        );
       }
     }
 
