@@ -46,7 +46,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  PrintBill,
   MultiplePrintBill,
   printStyles,
   ErrorReceiptList,
@@ -61,11 +60,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DateRangeFilter, DateRangeValue } from "@/components/common/date-range-filter";
+import {
+  DateRangeFilter,
+  DateRangeValue,
+} from "@/components/common/date-range-filter";
 import { useAuth } from "@/hooks/useAuth";
 import { useFilteredTableData } from "@/hooks/useFilteredTableData";
 import { useStats } from "@/hooks/useStats";
 import { useSocket } from "@/hooks/useSocket";
+import { printReceipt as printReceiptDirect } from "@/utils/print-direct";
 
 interface DateFilters {
   branchId?: string;
@@ -80,7 +83,6 @@ export default function Page() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const isManager = user?.role === "manager";
-  const printRef = React.useRef<HTMLDivElement>(null);
 
   // Use custom hooks
   const {
@@ -92,26 +94,39 @@ export default function Page() {
     handlePageChange,
     handleSearch,
     updateFilter,
+    refetch,
   } = useFilteredTableData<Receipt, DateFilters>({
     fetchFn: receiptService.getAll,
-    initialFilters: { branchId: undefined, status: undefined, period: undefined, startDate: undefined, endDate: undefined },
+    initialFilters: {
+      branchId: undefined,
+      status: undefined,
+      period: undefined,
+      startDate: undefined,
+      endDate: undefined,
+    },
   });
 
   const { stats } = useStats<ReceiptStats>({
     fetchFn: () =>
       receiptService.getStats(
-        isAdmin ? filters.branchId : user?.branchId, 
-        filters.period, 
-        filters.startDate, 
+        isAdmin ? filters.branchId : user?.branchId,
+        filters.period,
+        filters.startDate,
         filters.endDate
       ),
-    dependencies: [filters.branchId, filters.period, filters.startDate, filters.endDate, isAdmin, user?.branchId],
+    dependencies: [
+      filters.branchId,
+      filters.period,
+      filters.startDate,
+      filters.endDate,
+      isAdmin,
+      user?.branchId,
+    ],
   });
 
   const [branches, setBranches] = React.useState<Branch[]>([]);
   const [selectedItem, setSelectedItem] = React.useState<Receipt | null>(null);
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
-  const [showPrintDialog, setShowPrintDialog] = React.useState(false);
   const [showMultiplePrintDialog, setShowMultiplePrintDialog] =
     React.useState(false);
   const [selectedReceipts, setSelectedReceipts] = React.useState<Receipt[]>([]);
@@ -119,7 +134,8 @@ export default function Page() {
 
   // Mark error state
   const [showMarkErrorDialog, setShowMarkErrorDialog] = React.useState(false);
-  const [markErrorReceipt, setMarkErrorReceipt] = React.useState<Receipt | null>(null);
+  const [markErrorReceipt, setMarkErrorReceipt] =
+    React.useState<Receipt | null>(null);
   const [isMarkingError, setIsMarkingError] = React.useState(false);
 
   // Error receipts state
@@ -147,7 +163,7 @@ export default function Page() {
         }
       );
       // Refresh data to show updated status
-      handleSearch(searchTerm);
+      refetch();
     },
     enabled: true,
   });
@@ -188,7 +204,13 @@ export default function Page() {
     } finally {
       setErrorLoading(false);
     }
-  }, [errorPagination.page, errorPagination.limit, errorSearch, filters.branchId, isAdmin]);
+  }, [
+    errorPagination.page,
+    errorPagination.limit,
+    errorSearch,
+    filters.branchId,
+    isAdmin,
+  ]);
 
   // Fetch error count on mount
   React.useEffect(() => {
@@ -226,8 +248,8 @@ export default function Page() {
   };
 
   const handlePrint = (item: Receipt) => {
-    setSelectedItem(item);
-    setShowPrintDialog(true);
+    // Print directly using browser print dialog
+    printReceiptDirect(item);
   };
 
   const handleViewDetail = (item: Receipt) => {
@@ -245,15 +267,18 @@ export default function Page() {
 
     setIsMarkingError(true);
     try {
-      const response = await receiptService.markAsError(markErrorReceipt._id, errorReason);
+      const response = await receiptService.markAsError(
+        markErrorReceipt._id,
+        errorReason
+      );
 
       if (response.success) {
         setShowMarkErrorDialog(false);
         setMarkErrorReceipt(null);
         toast.success("Đã đánh dấu hóa đơn lỗi và hoàn hàng về kho!");
-        
+
         // Refresh both normal receipts and error receipts
-        handleSearch(searchTerm);
+        refetch();
         fetchErrorReceipts();
       } else {
         toast.error(response.message || "Không thể đánh dấu hóa đơn lỗi");
@@ -263,21 +288,6 @@ export default function Page() {
     } finally {
       setIsMarkingError(false);
     }
-  };
-
-  const executePrint = () => {
-    // Add print styles
-    const styleSheet = document.createElement("style");
-    styleSheet.innerHTML = printStyles;
-    document.head.appendChild(styleSheet);
-
-    window.print();
-
-    // Cleanup
-    setTimeout(() => {
-      document.head.removeChild(styleSheet);
-      setShowPrintDialog(false);
-    }, 1000);
   };
 
   const handleBulkPrint = (selectedRows: Receipt[]) => {
@@ -479,18 +489,19 @@ export default function Page() {
                   In hóa đơn
                 </DropdownMenuItem>
                 {/* Chỉ hiện nút đánh dấu lỗi khi hóa đơn chưa bị hủy và chưa lỗi */}
-                {row.original.status !== "cancelled" && !row.original.isError && (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={() => handleOpenMarkError(row.original)}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      <AlertTriangle className="h-4 w-4 mr-2" />
-                      Đánh dấu lỗi
-                    </DropdownMenuItem>
-                  </>
-                )}
+                {row.original.status !== "cancelled" &&
+                  !row.original.isError && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => handleOpenMarkError(row.original)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <AlertTriangle className="h-4 w-4 mr-2" />
+                        Đánh dấu lỗi
+                      </DropdownMenuItem>
+                    </>
+                  )}
               </DropdownMenuContent>
             </DropdownMenu>
           );
@@ -568,7 +579,9 @@ export default function Page() {
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-primary">Quản lý hóa đơn</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-primary">
+          Quản lý hóa đơn
+        </h1>
         <Button onClick={() => router.push("/trang-quan-ly/hoa-don/tao-moi")}>
           <Plus className="h-4 w-4 mr-2" />
           Tạo hóa đơn
@@ -606,7 +619,11 @@ export default function Page() {
       </div>
 
       {/* Tabs for Normal and Error Receipts */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="flex-1 flex flex-col"
+      >
         <TabsList>
           <TabsTrigger value="all" className="gap-2">
             Tất cả hóa đơn
@@ -717,26 +734,30 @@ export default function Page() {
               </div>
 
               {/* Tiền khách đưa và tiền thối - chỉ hiện khi thanh toán tiền mặt */}
-              {selectedItem.paymentMethod === "cash" && selectedItem.customerPaid != null && selectedItem.customerPaid > 0 && (
-                <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg">
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">
-                      Tiền khách đưa
-                    </Label>
-                    <p className="text-sm font-medium">
-                      {formatCurrency(selectedItem.customerPaid)}
-                    </p>
+              {selectedItem.paymentMethod === "cash" &&
+                selectedItem.customerPaid != null &&
+                selectedItem.customerPaid > 0 && (
+                  <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        Tiền khách đưa
+                      </Label>
+                      <p className="text-sm font-medium">
+                        {formatCurrency(selectedItem.customerPaid)}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">
+                        Tiền thối
+                      </Label>
+                      <p className="text-sm font-semibold text-green-600">
+                        {formatCurrency(
+                          selectedItem.customerPaid - selectedItem.totalAmount
+                        )}
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">
-                      Tiền thối
-                    </Label>
-                    <p className="text-sm font-semibold text-green-600">
-                      {formatCurrency(selectedItem.customerPaid - selectedItem.totalAmount)}
-                    </p>
-                  </div>
-                </div>
-              )}
+                )}
 
               {/* Payment QR Code for transfer payments */}
               {selectedItem.paymentMethod === "transfer" && (
@@ -752,17 +773,44 @@ export default function Page() {
                           className="w-44 h-44 object-contain"
                           onError={(e) => {
                             const info = selectedItem.paymentInfo;
-                            if (info?.bin && info?.accountNumber && info?.amount) {
-                              (e.target as HTMLImageElement).src = `https://img.vietqr.io/image/${info.bin}-${info.accountNumber}-compact2.png?amount=${info.amount}&addInfo=${encodeURIComponent(info.description || "")}&accountName=${encodeURIComponent(info.accountName || "")}`;
+                            if (
+                              info?.bin &&
+                              info?.accountNumber &&
+                              info?.amount
+                            ) {
+                              (
+                                e.target as HTMLImageElement
+                              ).src = `https://img.vietqr.io/image/${
+                                info.bin
+                              }-${info.accountNumber}-compact2.png?amount=${
+                                info.amount
+                              }&addInfo=${encodeURIComponent(
+                                info.description || ""
+                              )}&accountName=${encodeURIComponent(
+                                info.accountName || ""
+                              )}`;
                             }
                           }}
                         />
                       </div>
-                    ) : selectedItem.paymentInfo?.bin && selectedItem.paymentInfo?.accountNumber ? (
+                    ) : selectedItem.paymentInfo?.bin &&
+                      selectedItem.paymentInfo?.accountNumber ? (
                       <div className="bg-white rounded border">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={`https://img.vietqr.io/image/${selectedItem.paymentInfo.bin}-${selectedItem.paymentInfo.accountNumber}-compact2.png?amount=${selectedItem.paymentInfo.amount || selectedItem.totalAmount}&addInfo=${encodeURIComponent(selectedItem.paymentInfo.description || selectedItem.code)}&accountName=${encodeURIComponent(selectedItem.paymentInfo.accountName || "")}`}
+                          src={`https://img.vietqr.io/image/${
+                            selectedItem.paymentInfo.bin
+                          }-${
+                            selectedItem.paymentInfo.accountNumber
+                          }-compact2.png?amount=${
+                            selectedItem.paymentInfo.amount ||
+                            selectedItem.totalAmount
+                          }&addInfo=${encodeURIComponent(
+                            selectedItem.paymentInfo.description ||
+                              selectedItem.code
+                          )}&accountName=${encodeURIComponent(
+                            selectedItem.paymentInfo.accountName || ""
+                          )}`}
                           alt="Payment QR"
                           className="w-44 h-44 object-contain"
                         />
@@ -777,7 +825,9 @@ export default function Page() {
                       </div>
                     ) : (
                       <div className="w-44 h-44 bg-muted flex items-center justify-center rounded">
-                        <span className="text-xs text-muted-foreground">Không có QR</span>
+                        <span className="text-xs text-muted-foreground">
+                          Không có QR
+                        </span>
                       </div>
                     )}
                   </div>
@@ -785,10 +835,14 @@ export default function Page() {
                   {/* Info - bên phải */}
                   <div className="space-y-2 text-sm">
                     {selectedItem.paymentInfo?.accountName && (
-                      <p className="font-medium">{selectedItem.paymentInfo.accountName}</p>
+                      <p className="font-medium">
+                        {selectedItem.paymentInfo.accountName}
+                      </p>
                     )}
                     {selectedItem.paymentInfo?.accountNumber && (
-                      <p className="font-mono text-muted-foreground">{selectedItem.paymentInfo.accountNumber}</p>
+                      <p className="font-mono text-muted-foreground">
+                        {selectedItem.paymentInfo.accountNumber}
+                      </p>
                     )}
                     <Badge
                       variant={
@@ -872,39 +926,6 @@ export default function Page() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Print Preview Dialog */}
-      <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
-        <DialogContent className="sm:max-w-[400px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Xem trước hóa đơn</DialogTitle>
-            <DialogDescription>
-              Xem trước trước khi in hóa đơn
-            </DialogDescription>
-          </DialogHeader>
-          {selectedItem && (
-            <div className="flex justify-center py-4 bg-gray-100 rounded-lg">
-              <PrintBill ref={printRef} receipt={selectedItem} />
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
-              Hủy
-            </Button>
-            <Button onClick={executePrint}>
-              <Printer className="h-4 w-4 mr-2" />
-              In hóa đơn
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Hidden Print Component */}
-      {selectedItem && (
-        <div className="hidden">
-          <PrintBill ref={printRef} receipt={selectedItem} />
-        </div>
-      )}
 
       {/* Multiple Print Preview Dialog */}
       <Dialog

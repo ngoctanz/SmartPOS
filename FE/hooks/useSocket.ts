@@ -1,8 +1,3 @@
-/**
- * useSocket Hook
- * React hook for managing WebSocket connections and events
- */
-
 import { useEffect, useRef, useState } from "react";
 import { socketService } from "@/service/socket.service";
 import { useAuth } from "./useAuth";
@@ -11,7 +6,7 @@ interface PaymentSuccessData {
   receiptCode: string;
   amount: number;
   timestamp: string;
-  fromDraft?: boolean; // True if payment was from draft receipt (QR preview)
+  fromDraft?: boolean;
 }
 
 interface UseSocketOptions {
@@ -33,11 +28,24 @@ export const useSocket = (options: UseSocketOptions = {}) => {
 
   // Connect to WebSocket
   useEffect(() => {
-    if (!enabled || !isAuthenticated || !user || connectAttemptedRef.current) {
+    // Disconnect and cleanup if conditions not met
+    if (!enabled || !isAuthenticated || !user) {
+      if (connectAttemptedRef.current) {
+        console.log("[Socket] Disconnecting due to condition change");
+        socketService.disconnect();
+        connectAttemptedRef.current = false;
+      }
+      // Defer setState to avoid cascading renders warning
+      queueMicrotask(() => setIsConnected(false));
       return;
     }
 
-    let handlePaymentSuccess: ((data: PaymentSuccessData) => void) | null = null;
+    // Already connected
+    if (connectAttemptedRef.current) {
+      return;
+    }
+
+    let handlePaymentSuccess: ((data: unknown) => void) | null = null;
 
     const connect = async () => {
       try {
@@ -46,9 +54,10 @@ export const useSocket = (options: UseSocketOptions = {}) => {
         socketService.connect();
 
         // Setup payment success listener
-        handlePaymentSuccess = (data: PaymentSuccessData) => {
-          console.log("[Socket] Payment success in hook:", data);
-          onPaymentSuccessRef.current?.(data);
+        handlePaymentSuccess = (data: unknown) => {
+          const paymentData = data as PaymentSuccessData;
+          console.log("[Socket] Payment success in hook:", paymentData);
+          onPaymentSuccessRef.current?.(paymentData);
         };
 
         socketService.on("payment:success", handlePaymentSuccess);
@@ -71,16 +80,6 @@ export const useSocket = (options: UseSocketOptions = {}) => {
       }
     };
   }, [enabled, isAuthenticated, user]);
-
-  // Disconnect when auth changes
-  useEffect(() => {
-    if (!isAuthenticated) {
-      console.log("[Socket] Disconnecting due to auth loss");
-      socketService.disconnect();
-      setIsConnected(false);
-      connectAttemptedRef.current = false;
-    }
-  }, [isAuthenticated]);
 
   // Update connection status (don't auto-reconnect - socket.io handles it)
   useEffect(() => {

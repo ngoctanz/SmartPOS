@@ -22,37 +22,21 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import receiptService, { Receipt } from "@/service/receipt.service";
 import { ROUTES } from "@/configs/routes.config";
-import {
-  PrintBill,
-  printStyles,
-  MarkErrorDialog,
-} from "@/components/receipt";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { MarkErrorDialog } from "@/components/receipt";
 import { formatCurrency } from "@/utils/format.utils";
 import { useSocket } from "@/hooks/useSocket";
-import { useAuthContext } from "@/contexts/auth-context";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { printReceipt } from "@/utils/print-direct";
 
 export default function ReceiptDetailPage() {
   const params = useParams();
   const router = useRouter();
   const code = params.code as string;
-  const { user } = useAuthContext();
 
   const [receipt, setReceipt] = React.useState<Receipt | null>(null);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [showPrintDialog, setShowPrintDialog] = React.useState(false);
   const [showMarkErrorDialog, setShowMarkErrorDialog] = React.useState(false);
   const [isMarkingError, setIsMarkingError] = React.useState(false);
-
-  const printRef = React.useRef<HTMLDivElement>(null);
 
   // Real-time payment notifications via WebSocket
   useSocket({
@@ -60,7 +44,9 @@ export default function ReceiptDetailPage() {
       // Only refresh if this receipt was paid
       if (receipt && data.receiptCode === receipt.code) {
         toast.success(
-          `Hóa đơn ${data.receiptCode} đã thanh toán thành công: ${formatCurrency(data.amount)}`,
+          `Hóa đơn ${
+            data.receiptCode
+          } đã thanh toán thành công: ${formatCurrency(data.amount)}`,
           {
             duration: 5000,
             position: "top-right",
@@ -145,7 +131,10 @@ export default function ReceiptDetailPage() {
 
     setIsMarkingError(true);
     try {
-      const response = await receiptService.markAsError(receipt._id, errorReason);
+      const response = await receiptService.markAsError(
+        receipt._id,
+        errorReason
+      );
 
       if (response.success && response.data) {
         setReceipt(response.data);
@@ -167,23 +156,11 @@ export default function ReceiptDetailPage() {
     router.push(`/trang-quan-ly/hoa-don/tao-moi?fromError=${receipt.code}`);
   };
 
-  // Print bill
+  // Print bill - opens browser print dialog directly
   const handlePrint = () => {
-    setShowPrintDialog(true);
-  };
-
-  const executePrint = () => {
-    // Add print styles
-    const styleSheet = document.createElement("style");
-    styleSheet.innerHTML = printStyles;
-    document.head.appendChild(styleSheet);
-
-    window.print();
-
-    // Cleanup
-    setTimeout(() => {
-      document.head.removeChild(styleSheet);
-    }, 1000);
+    if (receipt) {
+      printReceipt(receipt);
+    }
   };
 
   if (isLoading) {
@@ -254,7 +231,7 @@ export default function ReceiptDetailPage() {
             <Printer className="h-4 w-4 sm:mr-2" />
             <span className="hidden sm:inline">In hóa đơn</span>
           </Button>
-          
+
           {/* Normal receipt - show mark error button */}
           {!receipt.isError && receipt.status !== "cancelled" && (
             <Button
@@ -369,9 +346,7 @@ export default function ReceiptDetailPage() {
                       <th className="text-left p-3 font-medium">Sản phẩm</th>
                       <th className="text-right p-3 font-medium">Đơn giá</th>
                       <th className="text-center p-3 font-medium">SL</th>
-                      <th className="text-right p-3 font-medium">
-                        Thành tiền
-                      </th>
+                      <th className="text-right p-3 font-medium">Thành tiền</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -380,9 +355,7 @@ export default function ReceiptDetailPage() {
                         <td className="p-3 text-muted-foreground">
                           {index + 1}
                         </td>
-                        <td className="p-3 font-medium">
-                          {item.productName}
-                        </td>
+                        <td className="p-3 font-medium">{item.productName}</td>
                         <td className="p-3 text-right">
                           {formatCurrency(item.salePrice)}
                         </td>
@@ -420,7 +393,10 @@ export default function ReceiptDetailPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Số lượng SP:</span>
                   <span>
-                    {receipt.listProduct.reduce((sum, p) => sum + p.quantity, 0)}
+                    {receipt.listProduct.reduce(
+                      (sum, p) => sum + p.quantity,
+                      0
+                    )}
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
@@ -439,20 +415,28 @@ export default function ReceiptDetailPage() {
               </div>
 
               {/* Tiền khách đưa và tiền thối - chỉ hiện khi thanh toán tiền mặt */}
-              {receipt.paymentMethod === "cash" && receipt.customerPaid != null && receipt.customerPaid > 0 && (
-                <div className="p-3 bg-muted/50 rounded-lg space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Tiền khách đưa:</span>
-                    <span className="font-medium">{formatCurrency(receipt.customerPaid)}</span>
+              {receipt.paymentMethod === "cash" &&
+                receipt.customerPaid != null &&
+                receipt.customerPaid > 0 && (
+                  <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        Tiền khách đưa:
+                      </span>
+                      <span className="font-medium">
+                        {formatCurrency(receipt.customerPaid)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Tiền thối:</span>
+                      <span className="font-semibold text-green-600">
+                        {formatCurrency(
+                          receipt.customerPaid - receipt.totalAmount
+                        )}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Tiền thối:</span>
-                    <span className="font-semibold text-green-600">
-                      {formatCurrency(receipt.customerPaid - receipt.totalAmount)}
-                    </span>
-                  </div>
-                </div>
-              )}
+                )}
 
               {/* Payment QR for transfer */}
               {receipt.paymentMethod === "transfer" && (
@@ -551,40 +535,6 @@ export default function ReceiptDetailPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
-
-      {/* Print Preview Dialog */}
-      <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
-        <DialogContent className="sm:max-w-[400px] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Xem trước hóa đơn</DialogTitle>
-            <DialogDescription>
-              Xem trước trước khi in hóa đơn
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-center py-4 bg-gray-100 rounded-lg">
-            <PrintBill ref={printRef} receipt={receipt} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPrintDialog(false)}>
-              Hủy
-            </Button>
-            <Button
-              onClick={() => {
-                setShowPrintDialog(false);
-                setTimeout(executePrint, 100);
-              }}
-            >
-              <Printer className="h-4 w-4 mr-2" />
-              In hóa đơn
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Hidden Print Component */}
-      <div className="hidden">
-        <PrintBill ref={printRef} receipt={receipt} />
       </div>
 
       {/* Mark Error Dialog */}

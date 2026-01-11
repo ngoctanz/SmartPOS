@@ -123,6 +123,14 @@ receiptSchema.index({ "paymentInfo.orderCode": 1 });
 receiptSchema.index({ isError: 1 });
 receiptSchema.index({ isError: 1, branchId: 1 });
 
+receiptSchema.index(
+  { createdAt: 1 },
+  {
+    expireAfterSeconds: 15 * 60, // 15 minutes
+    partialFilterExpression: { status: "draft" },
+  }
+);
+
 // Static methods
 receiptSchema.statics = {
   async getStats(branchId, period, startDate, endDate) {
@@ -144,21 +152,33 @@ receiptSchema.statics = {
         $group: {
           _id: null,
           totalReceipts: { $sum: 1 },
-          pendingCount: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
-          completedCount: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
-          cancelledCount: { $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] } },
-          totalRevenue: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, "$totalAmount", 0] } },
+          pendingCount: {
+            $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] },
+          },
+          completedCount: {
+            $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] },
+          },
+          cancelledCount: {
+            $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] },
+          },
+          totalRevenue: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "completed"] }, "$totalAmount", 0],
+            },
+          },
         },
       },
     ]);
 
-    return result[0] || {
-      totalReceipts: 0,
-      pendingCount: 0,
-      completedCount: 0,
-      cancelledCount: 0,
-      totalRevenue: 0,
-    };
+    return (
+      result[0] || {
+        totalReceipts: 0,
+        pendingCount: 0,
+        completedCount: 0,
+        cancelledCount: 0,
+        totalRevenue: 0,
+      }
+    );
   },
 
   async generateCode() {
@@ -347,7 +367,8 @@ receiptSchema.statics = {
       status: "completed",
       isError: false,
     };
-    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
+    if (branchId)
+      matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
 
     const result = await this.aggregate([
       { $match: matchStage },
@@ -368,7 +389,8 @@ receiptSchema.statics = {
       status: "completed",
       isError: false,
     };
-    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
+    if (branchId)
+      matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
 
     return this.aggregate([
       { $match: matchStage },
@@ -389,7 +411,8 @@ receiptSchema.statics = {
       status: "completed",
       isError: false,
     };
-    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
+    if (branchId)
+      matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
 
     return this.aggregate([
       { $match: matchStage },
@@ -399,7 +422,11 @@ receiptSchema.statics = {
           _id: "$listProduct.productId",
           productName: { $first: "$listProduct.productName" },
           totalQuantity: { $sum: "$listProduct.quantity" },
-          totalRevenue: { $sum: { $multiply: ["$listProduct.salePrice", "$listProduct.quantity"] } },
+          totalRevenue: {
+            $sum: {
+              $multiply: ["$listProduct.salePrice", "$listProduct.quantity"],
+            },
+          },
         },
       },
       { $sort: { totalQuantity: -1 } },
@@ -413,7 +440,8 @@ receiptSchema.statics = {
       status: "completed",
       isError: false,
     };
-    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
+    if (branchId)
+      matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
 
     return this.aggregate([
       { $match: matchStage },
@@ -427,13 +455,19 @@ receiptSchema.statics = {
     ]);
   },
 
-  async getLeastSellingProducts(startDate, endDate, branchId = null, limit = 10) {
+  async getLeastSellingProducts(
+    startDate,
+    endDate,
+    branchId = null,
+    limit = 10
+  ) {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
       isError: false,
     };
-    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
+    if (branchId)
+      matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
 
     const soldProducts = await this.aggregate([
       { $match: matchStage },
@@ -443,15 +477,25 @@ receiptSchema.statics = {
           _id: "$listProduct.productId",
           productName: { $first: "$listProduct.productName" },
           totalQuantity: { $sum: "$listProduct.quantity" },
-          totalRevenue: { $sum: { $multiply: ["$listProduct.salePrice", "$listProduct.quantity"] } },
+          totalRevenue: {
+            $sum: {
+              $multiply: ["$listProduct.salePrice", "$listProduct.quantity"],
+            },
+          },
         },
       },
     ]);
 
-    const allProducts = await mongoose.model("Product").find({ status: "active" }).select("_id name").lean();
-    const soldProductsMap = new Map(soldProducts.map(p => [p._id.toString(), p]));
+    const allProducts = await mongoose
+      .model("Product")
+      .find({ status: "active" })
+      .select("_id name")
+      .lean();
+    const soldProductsMap = new Map(
+      soldProducts.map((p) => [p._id.toString(), p])
+    );
 
-    const allProductsWithSales = allProducts.map(product => {
+    const allProductsWithSales = allProducts.map((product) => {
       const sold = soldProductsMap.get(product._id.toString());
       return {
         _id: product._id,
@@ -509,7 +553,8 @@ receiptSchema.statics = {
       status: "completed",
       isError: false,
     };
-    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
+    if (branchId)
+      matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
 
     return this.aggregate([
       { $match: matchStage },
@@ -535,9 +580,15 @@ receiptSchema.statics = {
       {
         $group: {
           _id: "$product.categoryId",
-          categoryName: { $first: { $ifNull: ["$category.name", "Chưa phân loại"] } },
+          categoryName: {
+            $first: { $ifNull: ["$category.name", "Chưa phân loại"] },
+          },
           totalQuantity: { $sum: "$listProduct.quantity" },
-          totalRevenue: { $sum: { $multiply: ["$listProduct.salePrice", "$listProduct.quantity"] } },
+          totalRevenue: {
+            $sum: {
+              $multiply: ["$listProduct.salePrice", "$listProduct.quantity"],
+            },
+          },
         },
       },
       { $sort: { totalRevenue: -1 } },

@@ -5,274 +5,171 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import productService, { Product } from "@/service/product.service";
 import receiptService, {
   CreateReceiptRequest,
-  QRPreviewResponse,
+  Receipt,
 } from "@/service/receipt.service";
-import branchService, { Branch } from "@/service/branch.service";
 import { useAuthContext } from "@/contexts/auth-context";
 import { ROUTES } from "@/configs/routes.config";
-import { CartItemsTable, PaymentSummary, CartItem, QRPreviewDialog } from "@/components/receipt";
+import {
+  CartItemsTable,
+  PaymentSummary,
+  SuccessDialog,
+  CashPaymentDialog,
+} from "@/components/receipt";
 import { SmartProductInput } from "@/components/common/smart-product-input";
 import { useSocket } from "@/hooks/useSocket";
-import { formatCurrency } from "@/utils/format.utils";
+import { useQRDraft } from "@/hooks/useQRDraft";
+import { useCart } from "@/hooks/useCart";
+import { useBranches } from "@/hooks/useBranches";
+import { useProductSearch } from "@/hooks/useProductSearch";
+import { useErrorReceiptLoader } from "@/hooks/useErrorReceiptLoader";
+import {
+  printDraftWithQR,
+  printCashPreview,
+  printReceipt,
+} from "@/utils/print-direct";
 
 export default function CreateReceiptPage() {
   const router = useRouter();
   const { user } = useAuthContext();
   const isAdmin = user?.role === "admin";
 
-  const [branches, setBranches] = React.useState<Branch[]>([]);
-  const [selectedBranch, setSelectedBranch] = React.useState<string>("");
-  const [cartItems, setCartItems] = React.useState<CartItem[]>([]);
+  // === Cart Hook ===
+  const {
+    cartItems,
+    setCartItems,
+    addProduct,
+    updateQuantity,
+    removeItem,
+    clearCart,
+    totalAmount,
+  } = useCart();
+
+  // === Branches Hook ===
+  const { branches, selectedBranch, setSelectedBranch, getBranchName } =
+    useBranches({ defaultBranchId: user?.branchId });
+
+  // === Product Search Hook ===
+  const { searchProducts, getProductByBarcode } = useProductSearch({
+    branchId: selectedBranch,
+    isAdmin,
+  });
+
+  // === Payment State ===
   const [paymentMethod, setPaymentMethod] = React.useState<"cash" | "transfer">(
     "cash"
   );
   const [customerPaid, setCustomerPaid] = React.useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  // QR Preview state (for transfer payment)
-  const [showQRPreview, setShowQRPreview] = React.useState(false);
-  const [qrPreviewData, setQrPreviewData] = React.useState<QRPreviewResponse | null>(null);
-  const [isCreatingPreview, setIsCreatingPreview] = React.useState(false);
-  const [isConfirmingReceipt, setIsConfirmingReceipt] = React.useState(false);
-  const [qrCooldown, setQrCooldown] = React.useState(false); 
+  // === Cash Payment Dialog State ===
+  const [showCashDialog, setShowCashDialog] = React.useState(false);
+  const [cashSuccessReceipt, setCashSuccessReceipt] =
+    React.useState<Receipt | null>(null);
+  const [showCashSuccessDialog, setShowCashSuccessDialog] =
+    React.useState(false);
 
-  // Real-time payment notifications via WebSocket
+  // === Load from error receipt ===
+  useErrorReceiptLoader({ setCartItems, setPaymentMethod });
+
+  // === QR Draft Hook ===
+  const {
+    draftData,
+    isCreatingDraft,
+    isConfirmingDraft,
+    showQRPreview,
+    remainingTime,
+    isExpired,
+    completedReceipt,
+    showSuccessDialog,
+    successType,
+    createDraft,
+    confirmDraft,
+    cancelDraft,
+    resetAfterSuccess,
+    handleWebhookPaymentSuccess,
+  } = useQRDraft({
+    cartItems,
+    branchId: selectedBranch,
+    isAdmin,
+    paymentMethod,
+  });
+
+  // === Refs for socket callback (avoid stale closure) ===
+  const showQRPreviewRef = React.useRef(showQRPreview);
+  const draftDataRef = React.useRef(draftData);
+  React.useEffect(() => {
+    showQRPreviewRef.current = showQRPreview;
+    draftDataRef.current = draftData;
+  }, [showQRPreview, draftData]);
+
+  // === Socket: Real-time payment notifications ===
   useSocket({
-    onPaymentSuccess: (data) => {
-      toast.success(
-        `Đơn hàng ${data.receiptCode} đã thanh toán thành công: ${formatCurrency(data.amount)}`,
-        { duration: 5000, position: "top-right" }
-      );
-      // If payment was made from QR preview (draft receipt paid directly)
-      if (showQRPreview && qrPreviewData?.receiptCode === data.receiptCode) {
-        setShowQRPreview(false);
-        setQrPreviewData(null);
-        setCartItems([]);
-        toast.info("Khách đã thanh toán! Chuyển đến trang chi tiết...");
-        setTimeout(() => {
+    onPaymentSuccess: async (data) => {
+      const currentShowQR = showQRPreviewRef.current;
+      const currentDraft = draftDataRef.current;
+
+      if (currentShowQR && currentDraft?.receiptCode === data.receiptCode) {
+        try {
+          const response = await receiptService.getByCode(data.receiptCode);
+          if (response.success && response.data) {
+            handleWebhookPaymentSuccess(response.data);
+          }
+        } catch (error) {
+          console.error("Failed to fetch receipt after payment:", error);
+          cancelDraft();
           router.push(`/trang-quan-ly/hoa-don/${data.receiptCode}`);
-        }, 1500);
+        }
       }
     },
     enabled: true,
   });
 
-  // Load branches
-  React.useEffect(() => {
-    const loadBranches = async () => {
-      try {
-        const response = await branchService.getAll();
-        if (response.success && response.data) {
-          setBranches(response.data);
-          if (user?.branchId) {
-            setSelectedBranch(user.branchId);
-          } else if (response.data.length > 0) {
-            setSelectedBranch(response.data[0]._id);
-          }
-        }
-      } catch {
-        toast.error("Không thể tải danh sách chi nhánh");
+  // === Create cash receipt (called from dialog confirm) ===
+  const confirmCashPayment = React.useCallback(async () => {
+    setIsSubmitting(true);
+    try {
+      const receiptData: CreateReceiptRequest = {
+        ...(isAdmin && { branchId: selectedBranch }),
+        listProduct: cartItems.map((item) => ({
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          salePrice: item.salePrice,
+        })),
+        totalAmount,
+        paymentMethod: "cash",
+        ...(customerPaid && { customerPaid }),
+      };
+
+      const response = await receiptService.create(receiptData);
+
+      if (response.success && response.data) {
+        // Close cash dialog, show success dialog
+        setShowCashDialog(false);
+        setCashSuccessReceipt(response.data);
+        setShowCashSuccessDialog(true);
+      } else {
+        toast.error(response.message || "Tạo hóa đơn thất bại");
       }
-    };
-    loadBranches();
-  }, [user?.branchId]);
+    } catch (error) {
+      toast.error((error as Error).message || "Lỗi tạo hóa đơn");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [cartItems, isAdmin, selectedBranch, totalAmount, customerPaid]);
 
-  // Prefill from error receipt if fromError param exists
-  React.useEffect(() => {
-    const loadFromError = async () => {
-      const params = new URLSearchParams(window.location.search);
-      const errorCode = params.get("fromError");
-
-      if (errorCode) {
-        try {
-          const response = await receiptService.getByCode(errorCode);
-          if (response.success && response.data) {
-            const errorReceipt = response.data;
-
-            // Verify it's actually an error receipt
-            if (!errorReceipt.isError) {
-              toast.error("Hóa đơn này không phải hóa đơn lỗi");
-              return;
-            }
-
-            // Fetch full product details to get barcode and unit
-            const items: CartItem[] = [];
-            const deletedProducts: string[] = [];
-            
-            await Promise.all(
-              errorReceipt.listProduct.map(async (p) => {
-                try {
-                  const productResponse = await productService.getById(
-                    p.productId
-                  );
-                  if (productResponse.success && productResponse.data) {
-                    const product = productResponse.data;
-                    items.push({
-                      productId: p.productId,
-                      productName: p.productName,
-                      barcode: product?.barcode || "",
-                      quantity: p.quantity,
-                      salePrice: p.salePrice,
-                      unit: product?.unit || "",
-                      image: product?.images?.[0],
-                    });
-                  } else {
-                    // Product deleted
-                    deletedProducts.push(p.productName);
-                  }
-                } catch (error) {
-                  // Product deleted
-                  deletedProducts.push(p.productName);
-                  console.error(
-                    `Failed to fetch product ${p.productId}:`,
-                    error
-                  );
-                }
-              })
-            );
-
-            setCartItems(items);
-            
-            // Only set payment method if it's cash or transfer (not card)
-            if (
-              errorReceipt.paymentMethod === "cash" ||
-              errorReceipt.paymentMethod === "transfer"
-            ) {
-              setPaymentMethod(errorReceipt.paymentMethod);
-            }
-            
-            // Show appropriate message
-            if (items.length > 0 && deletedProducts.length === 0) {
-              toast.success(
-                `Đã tải ${items.length} sản phẩm từ hóa đơn lỗi ${errorCode}`,
-                {
-                  description: "Vui lòng kiểm tra và chỉnh sửa nếu cần",
-                  duration: 5000,
-                }
-              );
-            } else if (items.length > 0 && deletedProducts.length > 0) {
-              toast.warning(
-                `Đã tải ${items.length} sản phẩm. ${deletedProducts.length} sản phẩm đã bị xóa: ${deletedProducts.join(", ")}`,
-                { duration: 7000 }
-              );
-            } else if (items.length === 0 && deletedProducts.length > 0) {
-              toast.error(
-                `Không thể tải sản phẩm. Tất cả ${deletedProducts.length} sản phẩm trong hóa đơn đã bị xóa khỏi hệ thống.`,
-                { duration: 5000 }
-              );
-            }
-          }
-        } catch (error) {
-          console.error("Failed to load error receipt:", error);
-          toast.error("Không thể tải hóa đơn lỗi");
-        }
-      }
-    };
-
-    loadFromError();
+  // === Cash success dialog OK handler ===
+  const handleCashSuccessOk = React.useCallback(() => {
+    setShowCashSuccessDialog(false);
+    setCashSuccessReceipt(null);
+    setCustomerPaid(null);
+    // Giữ nguyên cart items - không clear
   }, []);
 
-  // Handle search - search from Product
-  const handleSearch = React.useCallback(async (term: string) => {
-    const branchId = isAdmin ? selectedBranch : undefined;
-    const response = await productService.search({ name: term, branchId });
-    return response.success && response.data ? response.data : [];
-  }, [selectedBranch, isAdmin]);
-
-  // Get product by barcode for SmartProductInput
-  const getProductByBarcode = React.useCallback(
-    async (barcode: string): Promise<Product | null> => {
-      try {
-        const branchId = isAdmin ? selectedBranch : undefined;
-        const response = await productService.getByBarcode(barcode, branchId);
-        if (response.success && response.data) {
-          return response.data;
-        }
-        return null;
-      } catch {
-        return null;
-      }
-    },
-    [selectedBranch, isAdmin]
-  );
-
-  // Handle product select from search
-  const handleProductSelect = React.useCallback(
-    (product: Product) => {
-      const existingItem = cartItems.find(
-        (item) => item.productId === product._id
-      );
-
-      if (existingItem) {
-        setCartItems((prev) =>
-          prev.map((item) =>
-            item.productId === product._id
-              ? { ...item, quantity: item.quantity + 1 }
-              : item
-          )
-        );
-        toast.success(`+1 ${product.name}`);
-      } else {
-        // Ưu tiên salePrice (giá theo chi nhánh), fallback về currentSalePrice
-        const price = product.salePrice ?? product.currentSalePrice;
-        
-        setCartItems((prev) => [
-          ...prev,
-          {
-            productId: product._id,
-            productName: product.name,
-            barcode: product.barcode || "",
-            quantity: 1,
-            salePrice: price,
-            unit: product.unit,
-            image: product.images?.[0],
-          },
-        ]);
-        
-        // Thông báo nếu sản phẩm không có trong kho (stock = 0 hoặc undefined)
-        if (!product.stock || product.stock <= 0) {
-          toast.warning(`Đã thêm: ${product.name}`, {
-            description: "⚠️ Sản phẩm này chưa có trong kho chi nhánh",
-          });
-        } else {
-          toast.success(`Đã thêm: ${product.name}`);
-        }
-      }
-    },
-    [cartItems]
-  );
-
-  // Update quantity
-  const updateQuantity = (productId: string, newQuantity: number) => {
-    if (newQuantity < 1) {
-      setCartItems((prev) =>
-        prev.filter((item) => item.productId !== productId)
-      );
-      return;
-    }
-    setCartItems((prev) =>
-      prev.map((item) =>
-        item.productId === productId ? { ...item, quantity: newQuantity } : item
-      )
-    );
-  };
-
-  // Remove item
-  const removeItem = (productId: string) => {
-    setCartItems((prev) => prev.filter((item) => item.productId !== productId));
-  };
-
-  // Clear cart
-  const clearCart = () => {
-    setCartItems([]);
-  };
-
-  // Submit - Direct without confirmation for speed
+  // === Submit handler ===
   const handleSubmit = React.useCallback(async () => {
-    // Admin phải chọn chi nhánh, staff không cần (backend tự inject)
     if (isAdmin && !selectedBranch) {
       toast.error("Vui lòng chọn chi nhánh");
       return;
@@ -283,140 +180,45 @@ export default function CreateReceiptPage() {
       return;
     }
 
-    // For transfer payment, show QR preview first
     if (paymentMethod === "transfer") {
-      await handleCreateQRPreview();
+      await createDraft();
       return;
     }
 
-    // For cash payment, create receipt directly
-    await createReceipt();
-  }, [selectedBranch, cartItems, paymentMethod, isAdmin]);
+    // Cash payment → show confirmation dialog
+    setShowCashDialog(true);
+  }, [isAdmin, selectedBranch, cartItems.length, paymentMethod, createDraft]);
 
-  // Create QR preview for transfer payment
-  const handleCreateQRPreview = React.useCallback(async () => {
-    if (isAdmin && !selectedBranch) {
-      toast.error("Vui lòng chọn chi nhánh");
-      return;
-    }
+  // === Success dialog handler ===
+  const handleSuccessDialogOk = React.useCallback(() => {
+    resetAfterSuccess();
+  }, [resetAfterSuccess]);
 
-    // Check cooldown to prevent spam
-    if (qrCooldown) {
-      toast.warning("Vui lòng đợi vài giây trước khi tạo mã QR mới");
-      return;
-    }
+  // === Print handler (direct browser print dialog) ===
+  const currentBranchName = getBranchName(selectedBranch || user?.branchId);
 
-    setIsCreatingPreview(true);
-    try {
-      const response = await receiptService.createQRPreview({
-        ...(isAdmin && { branchId: selectedBranch }),
-        listProduct: cartItems.map((item) => ({
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          salePrice: item.salePrice,
-        })),
-      });
+  const handlePrintDraftReceipt = React.useCallback(() => {
+    if (!draftData) return;
+    printDraftWithQR({
+      code: draftData.receiptCode,
+      cartItems,
+      totalAmount,
+      paymentMethod: "transfer",
+      branchName: currentBranchName,
+      staffName: user?.name || user?.userName,
+      qrCode: draftData.paymentInfo?.qrCode,
+    });
+  }, [draftData, cartItems, totalAmount, currentBranchName, user]);
 
-      if (response.success && response.data) {
-        setQrPreviewData(response.data);
-        setShowQRPreview(true);
-        
-        // Set cooldown for 3 seconds after creating QR
-        setQrCooldown(true);
-        setTimeout(() => setQrCooldown(false), 3000);
-      } else {
-        toast.error(response.message || "Không thể tạo mã QR");
-      }
-    } catch (error) {
-      toast.error((error as Error).message || "Lỗi tạo mã QR");
-    } finally {
-      setIsCreatingPreview(false);
-    }
-  }, [selectedBranch, cartItems, isAdmin, qrCooldown]);
-
-  // Handle back from QR preview (cancel preview and return to cart)
-  const handleBackFromPreview = React.useCallback(async () => {
-    if (qrPreviewData?.orderCode) {
-      // Cancel the preview in background (don't wait)
-      receiptService.cancelQRPreview(qrPreviewData.orderCode).catch(() => {});
-    }
-    setShowQRPreview(false);
-    setQrPreviewData(null);
-  }, [qrPreviewData]);
-
-  // Confirm and complete - move draft to pending and go to list
-  const handleConfirmFromPreview = React.useCallback(async () => {
-    if (!qrPreviewData) return;
-
-    setIsConfirmingReceipt(true);
-    try {
-      // Call confirmQRPreview to update draft -> pending
-      const response = await receiptService.confirmQRPreview(qrPreviewData.orderCode);
-
-      if (response.success && response.data) {
-        setShowQRPreview(false);
-        setQrPreviewData(null);
-        setCartItems([]);
-        
-        toast.success("Đã lưu hóa đơn vào danh sách chờ thanh toán");
-        router.push(ROUTES.INVOICES);
-      } else {
-        toast.error(response.message || "Lưu hóa đơn thất bại");
-      }
-    } catch (error) {
-      toast.error((error as Error).message || "Lỗi lưu hóa đơn");
-    } finally {
-      setIsConfirmingReceipt(false);
-    }
-  }, [qrPreviewData, router]);
-
-  // Create receipt directly (for cash payment)
-  const createReceipt = React.useCallback(async () => {
-    setIsSubmitting(true);
-    try {
-      const totalAmount = cartItems.reduce(
-        (sum, item) => sum + item.salePrice * item.quantity,
-        0
-      );
-
-      // Staff không cần gửi branchId - backend tự inject từ token
-      // Admin bắt buộc phải gửi branchId
-      const receiptData: CreateReceiptRequest = {
-        ...(isAdmin && { branchId: selectedBranch }),
-        listProduct: cartItems.map((item) => ({
-          productId: item.productId,
-          productName: item.productName,
-          quantity: item.quantity,
-          salePrice: item.salePrice,
-        })),
-        totalAmount,
-        paymentMethod,
-        // Chỉ gửi customerPaid khi thanh toán tiền mặt và có nhập
-        ...(paymentMethod === "cash" && customerPaid && { customerPaid }),
-      };
-
-      const response = await receiptService.create(receiptData);
-
-      if (response.success && response.data) {
-        toast.success("Tạo hóa đơn thành công!");
-        setCartItems([]);
-        setCustomerPaid(null); // Reset customerPaid
-        router.push(ROUTES.INVOICES);
-      } else {
-        toast.error(response.message || "Tạo hóa đơn thất bại");
-      }
-    } catch (error) {
-      toast.error((error as Error).message || "Lỗi tạo hóa đơn");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [selectedBranch, cartItems, paymentMethod, customerPaid, isAdmin, router]);
-
-  // Keyboard shortcuts - F9 to submit directly
+  // === Keyboard shortcuts ===
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "F9" && cartItems.length > 0 && !isSubmitting) {
+      if (
+        e.key === "F9" &&
+        cartItems.length > 0 &&
+        !isSubmitting &&
+        !isCreatingDraft
+      ) {
         e.preventDefault();
         handleSubmit();
       }
@@ -424,8 +226,9 @@ export default function CreateReceiptPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [cartItems.length, isSubmitting, handleSubmit]);
+  }, [cartItems.length, isSubmitting, isCreatingDraft, handleSubmit]);
 
+  // === Render ===
   return (
     <div className="flex flex-col h-full p-4 pt-0">
       {/* Header */}
@@ -452,8 +255,8 @@ export default function CreateReceiptPage() {
           {/* Search Section */}
           <div className="bg-muted/50 rounded-lg p-4 mb-4">
             <SmartProductInput
-              onProductSelect={handleProductSelect}
-              searchFn={handleSearch}
+              onProductSelect={addProduct}
+              searchFn={searchProducts}
               getByBarcodeFn={getProductByBarcode}
               placeholder="Quét mã barcode hoặc nhập tên sản phẩm..."
               autoFocus
@@ -470,7 +273,7 @@ export default function CreateReceiptPage() {
         </div>
 
         {/* Right Panel - Payment Summary */}
-        <div className="lg:w-96 lg:flex-shrink-0">
+        <div className="lg:w-96 lg:shrink-0">
           <PaymentSummary
             items={cartItems}
             branches={branches}
@@ -482,23 +285,83 @@ export default function CreateReceiptPage() {
             onSubmit={handleSubmit}
             disabled={cartItems.length === 0 || !selectedBranch}
             isSubmitting={isSubmitting}
-            isCreatingPreview={isCreatingPreview}
+            isCreatingPreview={isCreatingDraft}
             customerPaid={customerPaid}
             onCustomerPaidChange={setCustomerPaid}
+            // QR Inline props
+            qrPaymentInfo={
+              draftData?.paymentInfo
+                ? {
+                    orderCode: draftData.orderCode,
+                    qrCode: draftData.paymentInfo.qrCode,
+                    checkoutUrl: draftData.paymentInfo.checkoutUrl,
+                    accountNumber: draftData.paymentInfo.accountNumber,
+                    accountName: draftData.paymentInfo.accountName,
+                    bin: draftData.paymentInfo.bin,
+                    amount:
+                      draftData.paymentInfo.amount || draftData.totalAmount,
+                    description: draftData.paymentInfo.description,
+                    status: draftData.paymentInfo.status,
+                  }
+                : null
+            }
+            receiptCode={draftData?.receiptCode}
+            qrRemainingTime={remainingTime}
+            isQRExpired={isExpired}
+            showQRPreview={showQRPreview}
+            onBackFromQR={cancelDraft}
+            onConfirmQR={confirmDraft}
+            isConfirmingQR={isConfirmingDraft}
+            onPrintReceipt={handlePrintDraftReceipt}
           />
         </div>
       </div>
 
-      {/* QR Preview Dialog - For transfer payment flow */}
-      <QRPreviewDialog
-        open={showQRPreview}
-        onOpenChange={setShowQRPreview}
-        previewData={qrPreviewData}
-        onBack={handleBackFromPreview}
-        onConfirm={handleConfirmFromPreview}
-        isConfirming={isConfirmingReceipt}
-        itemCount={cartItems.length}
-        totalQuantity={cartItems.reduce((sum, item) => sum + item.quantity, 0)}
+      {/* Success Dialog (for transfer payment) */}
+      <SuccessDialog
+        open={showSuccessDialog}
+        receipt={completedReceipt}
+        type={successType}
+        onPrint={() => {
+          if (completedReceipt) {
+            printReceipt(completedReceipt);
+          }
+        }}
+        onOk={handleSuccessDialogOk}
+      />
+
+      {/* Cash Payment Confirmation Dialog */}
+      <CashPaymentDialog
+        open={showCashDialog}
+        onClose={() => setShowCashDialog(false)}
+        onConfirm={confirmCashPayment}
+        cartItems={cartItems}
+        totalAmount={totalAmount}
+        customerPaid={customerPaid}
+        branchName={currentBranchName}
+        staffName={user?.name || user?.userName}
+        isConfirming={isSubmitting}
+      />
+
+      {/* Success Dialog (for cash payment) */}
+      <SuccessDialog
+        open={showCashSuccessDialog}
+        receipt={cashSuccessReceipt}
+        type="cash"
+        onPrint={() => {
+          // Print cash receipt directly
+          if (cashSuccessReceipt) {
+            printCashPreview({
+              code: cashSuccessReceipt.code,
+              cartItems,
+              totalAmount,
+              paymentMethod: "cash",
+              branchName: currentBranchName,
+              staffName: user?.name || user?.userName,
+            });
+          }
+        }}
+        onOk={handleCashSuccessOk}
       />
     </div>
   );

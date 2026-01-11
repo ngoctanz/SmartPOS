@@ -5,7 +5,8 @@
 
 import { io, Socket } from "socket.io-client";
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:8081";
+const SOCKET_URL =
+  process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:8081";
 
 class SocketService {
   private socket: Socket | null = null;
@@ -13,7 +14,7 @@ class SocketService {
   private maxReconnectAttempts = 10;
   private reconnectDelay = 2000; // Start with 2s
   private maxReconnectDelay = 10000; // Max 10s between attempts
-  private listeners: Map<string, Set<Function>> = new Map();
+  private listeners: Map<string, Set<(data: unknown) => void>> = new Map();
   private hasExhaustedRetries = false;
 
   constructor() {
@@ -77,15 +78,8 @@ class SocketService {
       this.reconnectAttempts = 0;
       this.hasExhaustedRetries = false;
       console.log("[Socket] ✓ Connected successfully", this.socket?.id);
-      
-      // Re-setup payment success listener after reconnection
-      // (socket.io automatically re-registers listeners, but we ensure it's set)
-      if (this.listeners.has("payment:success") && this.socket) {
-        this.socket.on("payment:success", (data) => {
-          console.log("[Socket] 💰 Payment success received:", data);
-          this.notifyListeners("payment:success", data);
-        });
-      }
+      // Socket.IO automatically preserves listeners after reconnect
+      // No need to re-register payment:success listener here
     });
 
     this.socket.on("connected", (data) => {
@@ -105,7 +99,9 @@ class SocketService {
       );
 
       if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-        console.error("[Socket] Max reconnection attempts reached, will retry on window focus");
+        console.error(
+          "[Socket] Max reconnection attempts reached, will retry on window focus"
+        );
         this.hasExhaustedRetries = true;
       }
     });
@@ -149,7 +145,7 @@ class SocketService {
   /**
    * Add event listener
    */
-  on(event: string, callback: Function) {
+  on(event: string, callback: (data: unknown) => void) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set());
     }
@@ -159,14 +155,14 @@ class SocketService {
   /**
    * Remove event listener
    */
-  off(event: string, callback: Function) {
+  off(event: string, callback: (data: unknown) => void) {
     this.listeners.get(event)?.delete(callback);
   }
 
   /**
    * Notify all listeners for an event
    */
-  private notifyListeners(event: string, data: any) {
+  private notifyListeners(event: string, data: unknown) {
     const callbacks = this.listeners.get(event);
     if (callbacks) {
       callbacks.forEach((callback) => {

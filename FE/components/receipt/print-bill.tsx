@@ -44,12 +44,12 @@ export const PrintBill = React.forwardRef<HTMLDivElement, PrintBillProps>(
     return (
       <div
         ref={ref}
-        className="print-bill bg-white text-black p-4"
+        className="print-bill bg-white text-black p-3"
         style={{
           width: "80mm",
           fontFamily: "monospace",
-          fontSize: "12px",
-          lineHeight: "1.4",
+          fontSize: "11px",
+          lineHeight: "1.3",
         }}
       >
         {/* Header */}
@@ -206,7 +206,7 @@ export const MultiplePrintBill = React.forwardRef<
 
 MultiplePrintBill.displayName = "MultiplePrintBill";
 
-// Print styles with optimized paper size configuration for 80mm thermal printer
+// Print styles with optimized paper size configuration for 80mm thermal printer (roll paper)
 export const printStyles = `
   @media print {
     @page {

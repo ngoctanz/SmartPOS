@@ -18,16 +18,16 @@ import {
 // Helper: Get branch PayOS credentials
 const getBranchPayOSCredentials = async (branchId) => {
   const branch = await Branch.findBranchById(branchId);
-  
+
   const credentials = {
     PAYOS_CLIENT_ID: branch.PAYOS_CLIENT_ID,
     PAYOS_API_KEY: branch.PAYOS_API_KEY,
     PAYOS_CHECKSUM_KEY: branch.PAYOS_CHECKSUM_KEY,
   };
 
-  const isConfigured = 
-    credentials.PAYOS_CLIENT_ID && 
-    credentials.PAYOS_API_KEY && 
+  const isConfigured =
+    credentials.PAYOS_CLIENT_ID &&
+    credentials.PAYOS_API_KEY &&
     credentials.PAYOS_CHECKSUM_KEY;
 
   return { branch, credentials, isConfigured };
@@ -104,9 +104,14 @@ const createQRPreview = async (data, user) => {
     validateBranchAccess(user, branchId, "create QR preview for");
 
     // 3. Get branch and validate PayOS config
-    const { credentials, isConfigured } = await getBranchPayOSCredentials(branchId);
+    const { credentials, isConfigured } = await getBranchPayOSCredentials(
+      branchId
+    );
     if (!isConfigured) {
-      throw new ApiError(400, "Chi nhánh chưa cấu hình PayOS. Vui lòng liên hệ quản trị viên.");
+      throw new ApiError(
+        400,
+        "Chi nhánh chưa cấu hình PayOS. Vui lòng liên hệ quản trị viên."
+      );
     }
 
     // 4. Validate listProduct
@@ -125,13 +130,17 @@ const createQRPreview = async (data, user) => {
       if (!item.quantity || item.quantity <= 0) {
         throw new ApiError(400, "Số lượng sản phẩm phải lớn hơn 0");
       }
-      if (item.salePrice === undefined || item.salePrice === null || item.salePrice < 0) {
+      if (
+        item.salePrice === undefined ||
+        item.salePrice === null ||
+        item.salePrice < 0
+      ) {
         throw new ApiError(400, "Giá sản phẩm không hợp lệ");
       }
 
       // Validate product exists
       const product = await Product.findProductById(item.productId);
-      
+
       listProduct.push({
         productId: product._id,
         productName: item.productName || product.name,
@@ -199,7 +208,9 @@ const createQRPreview = async (data, user) => {
 
     const receipt = await Receipt.createReceipt(receiptData);
 
-    console.log(`[QR Preview] Created draft receipt ${receipt.code} with orderCode: ${orderCode}`);
+    console.log(
+      `[QR Preview] Created draft receipt ${receipt.code} with orderCode: ${orderCode}`
+    );
 
     return {
       orderCode,
@@ -223,7 +234,7 @@ const cancelQRPreview = async (orderCode, user) => {
   try {
     // 1. Find draft receipt by orderCode
     const receipt = await Receipt.findReceiptByOrderCode(orderCode);
-    
+
     if (!receipt) {
       // Already deleted or doesn't exist - return success (idempotent)
       console.log(`[QR Preview] Cancel: orderCode ${orderCode} not found`);
@@ -233,7 +244,9 @@ const cancelQRPreview = async (orderCode, user) => {
     // 2. Only allow deleting draft receipts
     if (receipt.status !== "draft") {
       // If already pending/completed, don't delete
-      console.log(`[QR Preview] Cannot delete non-draft receipt ${receipt.code} (status: ${receipt.status})`);
+      console.log(
+        `[QR Preview] Cannot delete non-draft receipt ${receipt.code} (status: ${receipt.status})`
+      );
       return { success: true, message: "Receipt already confirmed" };
     }
 
@@ -268,7 +281,7 @@ const cancelQRPreview = async (orderCode, user) => {
 const getQRPreview = async (orderCode, user) => {
   try {
     const receipt = await Receipt.findReceiptByOrderCode(orderCode);
-    
+
     if (!receipt) {
       throw new ApiError(404, "Mã QR không tồn tại hoặc đã hết hạn");
     }
@@ -280,7 +293,7 @@ const getQRPreview = async (orderCode, user) => {
     // Check if expired (15 minutes)
     const createdAt = new Date(receipt.createdAt);
     const expiresAt = new Date(createdAt.getTime() + 15 * 60 * 1000);
-    
+
     if (new Date() > expiresAt && receipt.status === "draft") {
       throw new ApiError(404, "Mã QR đã hết hạn");
     }
@@ -310,7 +323,7 @@ const confirmQRPreview = async (orderCode, user) => {
   try {
     // 1. Find draft receipt
     const receipt = await Receipt.findReceiptByOrderCode(orderCode);
-    
+
     if (!receipt) {
       throw new ApiError(404, "Mã QR không tồn tại hoặc đã hết hạn");
     }
@@ -338,11 +351,13 @@ const confirmQRPreview = async (orderCode, user) => {
     // 4. Check if expired
     const createdAt = new Date(receipt.createdAt);
     const expiresAt = new Date(createdAt.getTime() + 15 * 60 * 1000);
-    
+
     if (new Date() > expiresAt) {
       // Update to cancelled
       await Receipt.updateStatus(receipt._id, "cancelled");
-      await Receipt.findByIdAndUpdate(receipt._id, { "paymentInfo.status": "expired" });
+      await Receipt.findByIdAndUpdate(receipt._id, {
+        "paymentInfo.status": "expired",
+      });
       throw new ApiError(400, "Mã QR đã hết hạn. Vui lòng tạo mã QR mới.");
     }
 
@@ -355,7 +370,9 @@ const confirmQRPreview = async (orderCode, user) => {
       .populate("branchId", "branchName")
       .populate("createdBy", "userName name");
 
-    console.log(`[QR Preview] Confirmed receipt ${receipt.code} - now pending payment`);
+    console.log(
+      `[QR Preview] Confirmed receipt ${receipt.code} - now pending payment`
+    );
 
     return updatedReceipt;
   } catch (error) {
@@ -372,8 +389,8 @@ const updateQRPreview = async (orderCode, data, user) => {
   try {
     // 1. Get branchId BEFORE cancelling (since cancel deletes the receipt)
     const oldReceipt = await Receipt.findReceiptByOrderCode(orderCode);
-    const branchId = oldReceipt 
-      ? (oldReceipt.branchId._id || oldReceipt.branchId) 
+    const branchId = oldReceipt
+      ? oldReceipt.branchId._id || oldReceipt.branchId
       : data.branchId;
 
     if (!branchId) {
@@ -455,9 +472,10 @@ const create = async (data, user) => {
     // For cash payment - create completed receipt directly
     if (data.paymentMethod === "cash") {
       // customerPaid: nếu không nhập thì mặc định = totalAmount
-      const customerPaid = data.customerPaid != null && data.customerPaid >= totalAmount 
-        ? data.customerPaid 
-        : totalAmount;
+      const customerPaid =
+        data.customerPaid != null && data.customerPaid >= totalAmount
+          ? data.customerPaid
+          : totalAmount;
 
       const receiptData = {
         branchId: data.branchId,
@@ -486,8 +504,10 @@ const create = async (data, user) => {
     // For transfer payment - should use createQRPreview flow
     // But keep legacy support for direct creation
     if (data.paymentMethod === "transfer") {
-      const { credentials, isConfigured } = await getBranchPayOSCredentials(data.branchId);
-      
+      const { credentials, isConfigured } = await getBranchPayOSCredentials(
+        data.branchId
+      );
+
       if (!isConfigured) {
         throw new ApiError(400, "Chi nhánh chưa cấu hình PayOS.");
       }
@@ -566,10 +586,17 @@ const cancel = async (id, user) => {
     }
 
     // Cancel PayOS link if transfer payment
-    if (receipt.paymentMethod === "transfer" && receipt.paymentInfo?.orderCode) {
+    if (
+      receipt.paymentMethod === "transfer" &&
+      receipt.paymentInfo?.orderCode
+    ) {
       try {
         const { credentials } = await getBranchPayOSCredentials(branchId);
-        await cancelPayOSLinkSilently(receipt.paymentInfo.orderCode, "Receipt cancelled", credentials);
+        await cancelPayOSLinkSilently(
+          receipt.paymentInfo.orderCode,
+          "Receipt cancelled",
+          credentials
+        );
       } catch (e) {
         console.log(`[Cancel] Could not cancel PayOS link: ${e.message}`);
       }
@@ -682,7 +709,12 @@ const getDailyRevenue = async (period, branchId = null) => {
 const getTopProducts = async (period, branchId = null, limit = 10) => {
   try {
     const { startDate, endDate } = getDateRange(period);
-    return await Receipt.getTopSellingProducts(startDate, endDate, branchId, limit);
+    return await Receipt.getTopSellingProducts(
+      startDate,
+      endDate,
+      branchId,
+      limit
+    );
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -691,12 +723,15 @@ const getTopProducts = async (period, branchId = null, limit = 10) => {
 const getRevenueByPaymentMethod = async (period, branchId = null) => {
   try {
     const { startDate, endDate } = getDateRange(period);
-    return await Receipt.getRevenueByPaymentMethod(startDate, endDate, branchId);
+    return await Receipt.getRevenueByPaymentMethod(
+      startDate,
+      endDate,
+      branchId
+    );
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
-
 
 // ============================================================================
 // WEBHOOK & PAYMENT FUNCTIONS
@@ -727,12 +762,15 @@ const handlePaymentWebhook = async (webhookData) => {
 
     // Get branch credentials for verification
     const branchId = receipt.branchId._id || receipt.branchId;
-    
+
     let branch;
     try {
       branch = await Branch.findBranchById(branchId);
     } catch (branchError) {
-      console.error(`[Webhook] Branch not found for receipt ${receipt.code}:`, branchError.message);
+      console.error(
+        `[Webhook] Branch not found for receipt ${receipt.code}:`,
+        branchError.message
+      );
       return { success: true, message: "Branch not found" };
     }
 
@@ -770,15 +808,17 @@ const handlePaymentWebhook = async (webhookData) => {
     const payosStatus = webhookData.data?.status || verifiedData.status;
     const currentStatus = receipt.status;
 
-    console.log(`[Webhook] Processing receipt ${receipt.code}: code=${code}, success=${success}, payosStatus=${payosStatus}, currentStatus=${currentStatus}`);
+    console.log(
+      `[Webhook] Processing receipt ${receipt.code}: code=${code}, success=${success}, payosStatus=${payosStatus}, currentStatus=${currentStatus}`
+    );
 
     // Handle successful payment - use atomic update to prevent race condition
     if (code === "00" && success) {
       // Atomic update: only update if status is draft or pending (not already completed/cancelled)
       const updateResult = await Receipt.findOneAndUpdate(
-        { 
-          _id: receipt._id, 
-          status: { $in: ["draft", "pending"] } // Only update if not already processed
+        {
+          _id: receipt._id,
+          status: { $in: ["draft", "pending"] }, // Only update if not already processed
         },
         {
           status: "completed",
@@ -789,7 +829,9 @@ const handlePaymentWebhook = async (webhookData) => {
 
       // If no document was updated, it was already processed
       if (!updateResult) {
-        console.log(`[Webhook] Receipt ${receipt.code} already processed, skipping stock update`);
+        console.log(
+          `[Webhook] Receipt ${receipt.code} already processed, skipping stock update`
+        );
         return { success: true, message: "Already processed" };
       }
 
@@ -803,7 +845,10 @@ const handlePaymentWebhook = async (webhookData) => {
           );
         }
       } catch (stockError) {
-        console.error(`[Webhook] Stock decrease error for ${receipt.code}:`, stockError.message);
+        console.error(
+          `[Webhook] Stock decrease error for ${receipt.code}:`,
+          stockError.message
+        );
         // Don't throw - payment is already confirmed, log for manual review
       }
 
@@ -829,7 +874,9 @@ const handlePaymentWebhook = async (webhookData) => {
       try {
         if (currentStatus === "draft") {
           await Receipt.findByIdAndDelete(receipt._id);
-          console.log(`[Webhook] ✗ Deleted ${logMessage} draft receipt: ${receipt.code}`);
+          console.log(
+            `[Webhook] ✗ Deleted ${logMessage} draft receipt: ${receipt.code}`
+          );
         } else if (currentStatus === "pending") {
           await Receipt.findByIdAndUpdate(receipt._id, {
             status: "cancelled",
@@ -839,7 +886,9 @@ const handlePaymentWebhook = async (webhookData) => {
         }
         // If already completed/cancelled, do nothing
       } catch (failureError) {
-        console.error(`[Webhook] Handle failure error: ${failureError.message}`);
+        console.error(
+          `[Webhook] Handle failure error: ${failureError.message}`
+        );
       }
     };
 
@@ -885,16 +934,22 @@ const checkPaymentStatus = async (orderCode) => {
       PAYOS_CHECKSUM_KEY: branch.PAYOS_CHECKSUM_KEY,
     };
 
-    const paymentInfo = await payosService.getPaymentInfo(orderCode, branchCredentials);
+    const paymentInfo = await payosService.getPaymentInfo(
+      orderCode,
+      branchCredentials
+    );
     const currentStatus = receipt.status;
 
     // Handle PAID status - use atomic update
-    if (paymentInfo.status === "PAID" && receipt.paymentInfo?.status !== "paid") {
+    if (
+      paymentInfo.status === "PAID" &&
+      receipt.paymentInfo?.status !== "paid"
+    ) {
       // Atomic update: only update if not already completed
       const updateResult = await Receipt.findOneAndUpdate(
-        { 
-          _id: receipt._id, 
-          status: { $in: ["draft", "pending"] }
+        {
+          _id: receipt._id,
+          status: { $in: ["draft", "pending"] },
         },
         {
           status: "completed",
@@ -906,17 +961,24 @@ const checkPaymentStatus = async (orderCode) => {
       // Decrease stock only if atomic update succeeded
       if (updateResult) {
         for (const item of receipt.listProduct) {
-          await BranchProduct.decreaseStock(branchId, item.productId, item.quantity);
+          await BranchProduct.decreaseStock(
+            branchId,
+            item.productId,
+            item.quantity
+          );
         }
       }
-    } 
+    }
     // Handle CANCELLED status
-    else if (paymentInfo.status === "CANCELLED" && currentStatus !== "cancelled") {
+    else if (
+      paymentInfo.status === "CANCELLED" &&
+      currentStatus !== "cancelled"
+    ) {
       await Receipt.findByIdAndUpdate(receipt._id, {
         status: "cancelled",
         "paymentInfo.status": "cancelled",
       });
-    } 
+    }
     // Handle EXPIRED status
     else if (paymentInfo.status === "EXPIRED") {
       if (currentStatus === "draft") {
@@ -987,12 +1049,20 @@ const update = async (id, data, user) => {
 
       // Restore old stock
       for (const item of receipt.listProduct) {
-        await BranchProduct.increaseStock(branchId, item.productId, item.quantity);
+        await BranchProduct.increaseStock(
+          branchId,
+          item.productId,
+          item.quantity
+        );
       }
 
       // Decrease new stock
       for (const item of data.listProduct) {
-        await BranchProduct.decreaseStock(branchId, item.productId, item.quantity);
+        await BranchProduct.decreaseStock(
+          branchId,
+          item.productId,
+          item.quantity
+        );
       }
     }
 
@@ -1038,7 +1108,11 @@ const markAsError = async (receiptId, userId, user, errorReason = null) => {
     // Return products to stock only if receipt was completed
     if (receipt.status === "completed") {
       for (const item of receipt.listProduct) {
-        await BranchProduct.increaseStock(branchId, item.productId, item.quantity);
+        await BranchProduct.increaseStock(
+          branchId,
+          item.productId,
+          item.quantity
+        );
       }
     }
 
@@ -1135,7 +1209,10 @@ const getErrorStats = async (branchId, user) => {
       },
     ]);
 
-    const totals = totalResult[0] || { totalErrorReceipts: 0, totalErrorAmount: 0 };
+    const totals = totalResult[0] || {
+      totalErrorReceipts: 0,
+      totalErrorAmount: 0,
+    };
 
     let errorsByBranch = [];
     if (user.role === "admin") {
@@ -1200,7 +1277,10 @@ const deleteErrorReceipt = async (id, user) => {
 
     if (user.role === "manager") {
       if (!user.branchId || user.branchId.toString() !== branchId.toString()) {
-        throw new ApiError(403, "Bạn không có quyền xóa hóa đơn lỗi của chi nhánh khác");
+        throw new ApiError(
+          403,
+          "Bạn không có quyền xóa hóa đơn lỗi của chi nhánh khác"
+        );
       }
     }
 
@@ -1219,14 +1299,14 @@ const deleteErrorReceipt = async (id, user) => {
 export const receiptService = {
   // Stats
   getStats,
-  
+
   // QR Preview (new flow)
   createQRPreview,
   cancelQRPreview,
   getQRPreview,
   confirmQRPreview,
   updateQRPreview,
-  
+
   // CRUD
   create,
   cancel,
@@ -1237,17 +1317,17 @@ export const receiptService = {
   getByCode,
   getByBranch,
   getByDateRange,
-  
+
   // Revenue
   getRevenue,
   getDailyRevenue,
   getTopProducts,
   getRevenueByPaymentMethod,
-  
+
   // Payment
   handlePaymentWebhook,
   checkPaymentStatus,
-  
+
   // Error receipts
   markAsError,
   getErrorReceipts,

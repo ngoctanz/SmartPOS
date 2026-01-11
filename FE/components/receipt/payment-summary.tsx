@@ -9,11 +9,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Banknote, Building2, ShoppingCart } from "lucide-react";
+import {
+  Banknote,
+  Building2,
+  ShoppingCart,
+  Check,
+  X,
+  Loader2,
+  Printer,
+} from "lucide-react";
 import { CartItem } from "./cart-items-table";
 import { Branch } from "@/service/branch.service";
 import { formatCurrency } from "@/utils/format.utils";
 import { CashPaymentInput } from "./cash-payment-input";
+import { QRInlineDisplay, QRPaymentInfo } from "./qr-inline-display";
 
 interface PaymentSummaryProps {
   items: CartItem[];
@@ -29,6 +38,18 @@ interface PaymentSummaryProps {
   isCreatingPreview?: boolean;
   customerPaid: number | null;
   onCustomerPaidChange: (amount: number | null) => void;
+  // QR Inline props
+  qrPaymentInfo?: QRPaymentInfo | null;
+  receiptCode?: string;
+  qrRemainingTime?: string;
+  isQRExpired?: boolean;
+  onRefreshQR?: () => void;
+  isRefreshingQR?: boolean;
+  showQRPreview?: boolean;
+  onBackFromQR?: () => void;
+  onConfirmQR?: () => void;
+  isConfirmingQR?: boolean;
+  onPrintReceipt?: () => void;
 }
 
 export function PaymentSummary({
@@ -45,6 +66,18 @@ export function PaymentSummary({
   isCreatingPreview = false,
   customerPaid,
   onCustomerPaidChange,
+  // QR Inline props
+  qrPaymentInfo,
+  receiptCode,
+  qrRemainingTime,
+  isQRExpired = false,
+  onRefreshQR,
+  isRefreshingQR = false,
+  showQRPreview = false,
+  onBackFromQR,
+  onConfirmQR,
+  isConfirmingQR = false,
+  onPrintReceipt,
 }: PaymentSummaryProps) {
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalAmount = items.reduce(
@@ -140,23 +173,85 @@ export function PaymentSummary({
         </div>
       </div>
 
-      {/* Submit Button */}
-      <Button
-        className="h-14 text-lg font-bold"
-        disabled={disabled || isSubmitting || isCreatingPreview}
-        onClick={onSubmit}
-      >
-        {isSubmitting ? (
-          <span className="animate-pulse">Đang xử lý...</span>
-        ) : isCreatingPreview ? (
-          <span className="animate-pulse">Đang tạo mã QR...</span>
-        ) : (
-          <>
-            <ShoppingCart className="h-5 w-5 mr-2" />
-            THANH TOÁN (F9)
-          </>
-        )}
-      </Button>
+      {/* QR Inline Display - hiện khi chọn chuyển khoản và có QR data */}
+      {paymentMethod === "transfer" && showQRPreview && qrPaymentInfo && (
+        <QRInlineDisplay
+          paymentInfo={qrPaymentInfo}
+          totalAmount={totalAmount}
+          receiptCode={receiptCode}
+          remainingTime={qrRemainingTime}
+          isExpired={isQRExpired}
+          onRefresh={onRefreshQR}
+          isRefreshing={isRefreshingQR}
+        />
+      )}
+
+      {/* Submit Button - thay đổi theo trạng thái QR preview */}
+      {showQRPreview && qrPaymentInfo ? (
+        <div className="flex flex-col gap-2">
+          {/* Nút In hóa đơn */}
+          {onPrintReceipt && (
+            <Button
+              variant="outline"
+              className="h-12 w-full"
+              onClick={onPrintReceipt}
+              disabled={isConfirmingQR}
+            >
+              <Printer className="h-5 w-5 mr-2" />
+              In hóa đơn (có mã QR)
+            </Button>
+          )}
+
+          {/* Nút Hủy + Hoàn thành */}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1 h-14 text-destructive hover:text-destructive"
+              onClick={onBackFromQR}
+              disabled={isConfirmingQR}
+            >
+              <X className="h-5 w-5 mr-2" />
+              Hủy đơn
+            </Button>
+            <Button
+              className="flex-1 h-14 text-lg font-bold"
+              onClick={onConfirmQR}
+              disabled={isConfirmingQR || isQRExpired}
+            >
+              {isConfirmingQR ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Đang xử lý...
+                </>
+              ) : isQRExpired ? (
+                "Mã QR đã hết hạn"
+              ) : (
+                <>
+                  <Check className="h-5 w-5 mr-2" />
+                  Hoàn thành
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          className="h-14 text-lg font-bold"
+          disabled={disabled || isSubmitting || isCreatingPreview}
+          onClick={onSubmit}
+        >
+          {isSubmitting ? (
+            <span className="animate-pulse">Đang xử lý...</span>
+          ) : isCreatingPreview ? (
+            <span className="animate-pulse">Đang tạo mã QR...</span>
+          ) : (
+            <>
+              <ShoppingCart className="h-5 w-5 mr-2" />
+              THANH TOÁN (F9)
+            </>
+          )}
+        </Button>
+      )}
     </div>
   );
 }
