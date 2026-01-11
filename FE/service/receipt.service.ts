@@ -28,6 +28,7 @@ export interface Receipt {
   createdBy: string | { _id: string; userName: string; name?: string };
   listProduct: ReceiptItem[];
   totalAmount: number;
+  customerPaid?: number | null; // Tiền khách đưa
   paymentMethod: "cash" | "card" | "transfer";
   status: "completed" | "cancelled" | "pending";
   // Error receipt fields
@@ -51,6 +52,26 @@ export interface CreateReceiptRequest {
   }[];
   totalAmount: number;
   paymentMethod: "cash" | "card" | "transfer";
+  customerPaid?: number; // Tiền khách đưa (chỉ dùng cho cash)
+}
+
+export interface QRPreviewRequest {
+  branchId?: string;
+  listProduct: {
+    productId: string;
+    productName: string;
+    quantity: number;
+    salePrice: number;
+  }[];
+}
+
+export interface QRPreviewResponse {
+  orderCode: number;
+  receiptCode: string;
+  receiptId: string;
+  totalAmount: number;
+  paymentInfo: PaymentInfo;
+  expiresAt: string;
 }
 
 export interface GetReceiptParams {
@@ -60,6 +81,9 @@ export interface GetReceiptParams {
   status?: string;
   paymentMethod?: string;
   search?: string;
+  period?: "today" | "week" | "month" | "3month" | "6month" | "year" | "custom";
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface Pagination {
@@ -123,9 +147,12 @@ const receiptService = {
    * Get stats for receipts
    * GET /api/v1/receipt/stats
    */
-  getStats: async (branchId?: string): Promise<ApiResponse<ReceiptStats>> => {
+  getStats: async (branchId?: string, period?: string, startDate?: string, endDate?: string): Promise<ApiResponse<ReceiptStats>> => {
     const queryParams = new URLSearchParams();
     if (branchId) queryParams.append("branchId", branchId);
+    if (period && period !== "custom") queryParams.append("period", period);
+    if (startDate) queryParams.append("startDate", startDate);
+    if (endDate) queryParams.append("endDate", endDate);
     return apiGet<ReceiptStats>(`/receipt/stats?${queryParams.toString()}`);
   },
 
@@ -144,6 +171,9 @@ const receiptService = {
     if (params?.paymentMethod)
       queryParams.append("paymentMethod", params.paymentMethod);
     if (params?.search) queryParams.append("search", params.search);
+    if (params?.period && params.period !== "custom") queryParams.append("period", params.period);
+    if (params?.startDate) queryParams.append("startDate", params.startDate);
+    if (params?.endDate) queryParams.append("endDate", params.endDate);
 
     const query = queryParams.toString();
     return apiGet<Receipt[]>(`/receipt${query ? `?${query}` : ""}`);
@@ -246,6 +276,50 @@ const receiptService = {
    */
   create: async (data: CreateReceiptRequest): Promise<ApiResponse<Receipt>> => {
     return apiPost<Receipt>("/receipt", data);
+  },
+
+  /**
+   * Tạo QR preview cho thanh toán chuyển khoản (chưa tạo hóa đơn)
+   * POST /api/v1/receipt/preview-qr
+   */
+  createQRPreview: async (data: QRPreviewRequest): Promise<ApiResponse<QRPreviewResponse>> => {
+    return apiPost<QRPreviewResponse>("/receipt/preview-qr", data);
+  },
+
+  /**
+   * Hủy QR preview
+   * POST /api/v1/receipt/cancel-preview
+   */
+  cancelQRPreview: async (orderCode: number): Promise<ApiResponse<void>> => {
+    return apiPost<void>("/receipt/cancel-preview", { orderCode });
+  },
+
+  /**
+   * Lấy thông tin QR preview
+   * GET /api/v1/receipt/preview-qr/:orderCode
+   */
+  getQRPreview: async (orderCode: number): Promise<ApiResponse<QRPreviewResponse>> => {
+    return apiGet<QRPreviewResponse>(`/receipt/preview-qr/${orderCode}`);
+  },
+
+  /**
+   * Cập nhật QR preview với giỏ hàng mới
+   * PUT /api/v1/receipt/preview-qr/:orderCode
+   */
+  updateQRPreview: async (
+    orderCode: number,
+    data: QRPreviewRequest
+  ): Promise<ApiResponse<QRPreviewResponse>> => {
+    const { apiPut } = await import("./api.service");
+    return apiPut<QRPreviewResponse>(`/receipt/preview-qr/${orderCode}`, data);
+  },
+
+  /**
+   * Xác nhận QR preview - chuyển draft thành pending
+   * POST /api/v1/receipt/confirm-preview
+   */
+  confirmQRPreview: async (orderCode: number): Promise<ApiResponse<Receipt>> => {
+    return apiPost<Receipt>("/receipt/confirm-preview", { orderCode });
   },
 
   /**

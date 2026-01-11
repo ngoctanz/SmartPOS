@@ -24,6 +24,97 @@ const create = async (req, res, next) => {
   }
 };
 
+/**
+ * Create QR preview for transfer payment
+ * POST /receipt/preview-qr
+ */
+const createQRPreview = async (req, res, next) => {
+  try {
+    const result = await receiptService.createQRPreview(req.body, req.user);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "QR preview created successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Cancel QR preview
+ * POST /receipt/cancel-preview
+ */
+const cancelQRPreview = async (req, res, next) => {
+  try {
+    const { orderCode } = req.body;
+    const result = await receiptService.cancelQRPreview(orderCode, req.user);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: result.message,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get QR preview data
+ * GET /receipt/preview-qr/:orderCode
+ */
+const getQRPreview = async (req, res, next) => {
+  try {
+    const { orderCode } = req.params;
+    const result = await receiptService.getQRPreview(parseInt(orderCode), req.user);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Update QR preview with new cart data
+ * PUT /receipt/preview-qr/:orderCode
+ */
+const updateQRPreview = async (req, res, next) => {
+  try {
+    const { orderCode } = req.params;
+    const result = await receiptService.updateQRPreview(
+      parseInt(orderCode),
+      req.body,
+      req.user
+    );
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "QR preview updated successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Confirm QR preview - Update draft to pending
+ * POST /receipt/confirm-preview
+ */
+const confirmQRPreview = async (req, res, next) => {
+  try {
+    const { orderCode } = req.body;
+    const result = await receiptService.confirmQRPreview(orderCode, req.user);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "QR preview confirmed successfully",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 const cancel = async (req, res, next) => {
   try {
     // Pass user for branch validation
@@ -58,9 +149,9 @@ const update = async (req, res, next) => {
 
 const getStats = async (req, res, next) => {
   try {
-    const { branchId } = req.query;
+    const { branchId, period, startDate, endDate } = req.query;
     // branchId is already injected for staff by middleware
-    const stats = await receiptService.getStats(branchId);
+    const stats = await receiptService.getStats(branchId, period, startDate, endDate);
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get receipt stats successfully",
@@ -73,7 +164,7 @@ const getStats = async (req, res, next) => {
 
 const getAll = async (req, res, next) => {
   try {
-    const { search, branchId, status, paymentMethod, page, limit } = req.query;
+    const { search, branchId, status, paymentMethod, period, startDate, endDate, page, limit } = req.query;
 
     // Nếu có params phân trang thì dùng paginated
     if (page || limit || search) {
@@ -82,6 +173,9 @@ const getAll = async (req, res, next) => {
         branchId,
         status,
         paymentMethod,
+        period,
+        startDate,
+        endDate,
         page: parseInt(page) || 1,
         limit: parseInt(limit) || 20,
       };
@@ -363,6 +457,11 @@ const deleteErrorReceipt = async (req, res, next) => {
 export const receiptController = {
   getStats,
   create,
+  createQRPreview,
+  cancelQRPreview,
+  getQRPreview,
+  updateQRPreview,
+  confirmQRPreview,
   cancel,
   update,
   getAll,

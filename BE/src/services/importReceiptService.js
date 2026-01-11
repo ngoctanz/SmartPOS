@@ -3,13 +3,12 @@ import { Product } from "../models/productModel.js";
 import { BranchProduct } from "../models/branchProductModel.js";
 import { Branch } from "../models/branchModel.js";
 import ApiError from "../utils/apiError.js";
-import { getDateRange } from "../utils/calculators.js";
 import { validateBranchAccess, buildSecureFilter, validateRecordAccess } from "../utils/branchSecurity.js";
 
 
-const getStats = async (branchId) => {
+const getStats = async (branchId, period, startDate, endDate) => {
     try {
-        return await ImportReceipt.getStats(branchId);
+        return await ImportReceipt.getStats(branchId, period, startDate, endDate);
     } catch (error) {
         throw new Error(error.message || error);
     }

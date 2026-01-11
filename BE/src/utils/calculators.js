@@ -2,52 +2,8 @@
  * Utility functions for calculations
  */
 
-/**
- * Get date range for different periods
- * @param {string} period - 'today', 'week', 'month', 'year'
- * @returns {Object} { startDate, endDate }
- */
-export const getDateRange = (period) => {
-  const now = new Date();
-  let startDate, endDate;
-
-  switch (period) {
-    case "today":
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-      break;
-    case "week":
-      const dayOfWeek = now.getDay();
-      const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-      startDate = new Date(now.setDate(diff));
-      startDate.setHours(0, 0, 0, 0);
-      endDate = new Date(startDate);
-      endDate.setDate(endDate.getDate() + 6);
-      endDate.setHours(23, 59, 59, 999);
-      break;
-    case "month":
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-      break;
-    case "3month":
-      startDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-      break;
-    case "6month":
-      startDate = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-      break;
-    case "year":
-      startDate = new Date(now.getFullYear(), 0, 1);
-      endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
-      break;
-    default:
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-  }
-
-  return { startDate, endDate };
-};
+// Re-export date utilities from dateUtils.js for backward compatibility
+export { getDateRange, getCustomDateRange, buildDateFilter, PERIOD_TYPES } from "./dateUtils.js";
 
 /**
  * Format currency (VND)

@@ -36,6 +36,20 @@ export function ChartRevenueByBranch({ data, loading }: ChartRevenueByBranchProp
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', notation: 'compact' }).format(value)
   }
 
+  // Format ngắn gọn cho trục Y (tự động chọn đơn vị phù hợp)
+  const formatYAxis = (value: number) => {
+    if (value >= 1000000000) {
+      return `${(value / 1000000000).toFixed(1)}B`
+    }
+    if (value >= 1000000) {
+      return `${(value / 1000000).toFixed(1)}M`
+    }
+    if (value >= 1000) {
+      return `${(value / 1000).toFixed(0)}K`
+    }
+    return value.toString()
+  }
+
   const chartData = data.map(item => ({
     branch: item.branchName,
     revenue: item.totalRevenue,
@@ -87,7 +101,8 @@ export function ChartRevenueByBranch({ data, loading }: ChartRevenueByBranchProp
                 tickLine={false}
                 axisLine={false}
                 tickMargin={10}
-                tickFormatter={(value) => `${(value / 1000000).toFixed(0)}M`}
+                tickFormatter={formatYAxis}
+                width={60}
               />
               <ChartTooltip
                 cursor={false}

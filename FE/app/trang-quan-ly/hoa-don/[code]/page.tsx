@@ -438,6 +438,22 @@ export default function ReceiptDetailPage() {
                 </span>
               </div>
 
+              {/* Tiền khách đưa và tiền thối - chỉ hiện khi thanh toán tiền mặt */}
+              {receipt.paymentMethod === "cash" && receipt.customerPaid != null && receipt.customerPaid > 0 && (
+                <div className="p-3 bg-muted/50 rounded-lg space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Tiền khách đưa:</span>
+                    <span className="font-medium">{formatCurrency(receipt.customerPaid)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Tiền thối:</span>
+                    <span className="font-semibold text-green-600">
+                      {formatCurrency(receipt.customerPaid - receipt.totalAmount)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Payment QR for transfer */}
               {receipt.paymentMethod === "transfer" && (
                 <div className="mt-4 p-3 border rounded-lg bg-muted/30">

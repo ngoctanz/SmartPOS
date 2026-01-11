@@ -32,9 +32,9 @@ const confirm = async (req, res, next) => {
 
 const getStats = async (req, res, next) => {
     try {
-        const { branchId } = req.query;
+        const { branchId, period, startDate, endDate } = req.query;
         // branchId is already injected for staff by middleware
-        const stats = await importReceiptService.getStats(branchId);
+        const stats = await importReceiptService.getStats(branchId, period, startDate, endDate);
         res.status(StatusCodes.OK).json({
             success: true,
             message: "Get import receipt stats successfully",
@@ -141,7 +141,7 @@ const deleteErrorReceipt = async (req, res, next) => {
 
 const getAll = async (req, res, next) => {
   try {
-    const { search, branchId, status, page, limit } = req.query;
+    const { search, branchId, status, period, startDate, endDate, page, limit } = req.query;
     
     // Nếu có params phân trang thì dùng paginated
     if (page || limit || search) {
@@ -149,6 +149,9 @@ const getAll = async (req, res, next) => {
         search,
         branchId,
         status,
+        period,
+        startDate,
+        endDate,
         page: parseInt(page) || 1,
         limit: parseInt(limit) || 20,
       };

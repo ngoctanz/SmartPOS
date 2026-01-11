@@ -5,25 +5,16 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import { QRCodeSVG } from "qrcode.react";
 import productService, { Product } from "@/service/product.service";
 import receiptService, {
   CreateReceiptRequest,
-  Receipt,
+  QRPreviewResponse,
 } from "@/service/receipt.service";
 import branchService, { Branch } from "@/service/branch.service";
 import { useAuthContext } from "@/contexts/auth-context";
 import { ROUTES } from "@/configs/routes.config";
-import { CartItemsTable, PaymentSummary, CartItem } from "@/components/receipt";
+import { CartItemsTable, PaymentSummary, CartItem, QRPreviewDialog } from "@/components/receipt";
 import { SmartProductInput } from "@/components/common/smart-product-input";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
 import { useSocket } from "@/hooks/useSocket";
 import { formatCurrency } from "@/utils/format.utils";
 
@@ -38,28 +29,29 @@ export default function CreateReceiptPage() {
   const [paymentMethod, setPaymentMethod] = React.useState<"cash" | "transfer">(
     "cash"
   );
+  const [customerPaid, setCustomerPaid] = React.useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  // Payment QR Dialog state
-  const [showQRDialog, setShowQRDialog] = React.useState(false);
-  const [paymentData, setPaymentData] = React.useState<Receipt | null>(null);
+  // QR Preview state (for transfer payment)
+  const [showQRPreview, setShowQRPreview] = React.useState(false);
+  const [qrPreviewData, setQrPreviewData] = React.useState<QRPreviewResponse | null>(null);
+  const [isCreatingPreview, setIsCreatingPreview] = React.useState(false);
+  const [isConfirmingReceipt, setIsConfirmingReceipt] = React.useState(false);
+  const [qrCooldown, setQrCooldown] = React.useState(false); 
 
   // Real-time payment notifications via WebSocket
   useSocket({
     onPaymentSuccess: (data) => {
       toast.success(
-        `Đơn hàng ${
-          data.receiptCode
-        } đã thanh toán thành công: ${formatCurrency(data.amount)}`,
-        {
-          duration: 5000,
-          position: "top-right",
-        }
+        `Đơn hàng ${data.receiptCode} đã thanh toán thành công: ${formatCurrency(data.amount)}`,
+        { duration: 5000, position: "top-right" }
       );
-      // If currently showing QR for this receipt, close dialog and redirect
-      if (paymentData?.code === data.receiptCode) {
-        setShowQRDialog(false);
-        toast.info("Chuyển đến trang chi tiết đơn hàng...");
+      // If payment was made from QR preview (draft receipt paid directly)
+      if (showQRPreview && qrPreviewData?.receiptCode === data.receiptCode) {
+        setShowQRPreview(false);
+        setQrPreviewData(null);
+        setCartItems([]);
+        toast.info("Khách đã thanh toán! Chuyển đến trang chi tiết...");
         setTimeout(() => {
           router.push(`/trang-quan-ly/hoa-don/${data.receiptCode}`);
         }, 1500);
@@ -183,62 +175,6 @@ export default function CreateReceiptPage() {
     loadFromError();
   }, []);
 
-  // Handle barcode scanned - search from Product
-  const handleBarcodeScanned = React.useCallback(
-    async (barcode: string) => {
-      const existingItem = cartItems.find((item) => item.barcode === barcode);
-
-      if (existingItem) {
-        setCartItems((prev) =>
-          prev.map((item) =>
-            item.barcode === barcode
-              ? { ...item, quantity: item.quantity + 1 }
-              : item
-          )
-        );
-        toast.success(`+1 ${existingItem.productName}`);
-      } else {
-        try {
-          // Admin truyền branchId từ dropdown, staff middleware tự inject
-          const branchId = isAdmin ? selectedBranch : undefined;
-          const response = await productService.getByBarcode(barcode, branchId);
-          if (response.success && response.data) {
-            const product = response.data;
-            // Ưu tiên salePrice (giá theo chi nhánh), fallback về currentSalePrice
-            const price = product.salePrice ?? product.currentSalePrice;
-            
-            setCartItems((prev) => [
-              ...prev,
-              {
-                productId: product._id,
-                productName: product.name,
-                barcode: product.barcode || barcode,
-                quantity: 1,
-                salePrice: price,
-                unit: product.unit,
-                image: product.images?.[0],
-              },
-            ]);
-            
-            // Thông báo nếu sản phẩm không có trong kho
-            if (!product.stock || product.stock <= 0) {
-              toast.warning(`Đã thêm: ${product.name}`, {
-                description: "⚠️ Sản phẩm này chưa có trong kho chi nhánh",
-              });
-            } else {
-              toast.success(`Đã thêm: ${product.name}`);
-            }
-          } else {
-            toast.error("Không tìm thấy sản phẩm");
-          }
-        } catch (error) {
-          toast.error((error as Error).message || "Không tìm thấy sản phẩm");
-        }
-      }
-    },
-    [cartItems, selectedBranch, isAdmin]
-  );
-
   // Handle search - search from Product
   const handleSearch = React.useCallback(async (term: string) => {
     const branchId = isAdmin ? selectedBranch : undefined;
@@ -347,6 +283,96 @@ export default function CreateReceiptPage() {
       return;
     }
 
+    // For transfer payment, show QR preview first
+    if (paymentMethod === "transfer") {
+      await handleCreateQRPreview();
+      return;
+    }
+
+    // For cash payment, create receipt directly
+    await createReceipt();
+  }, [selectedBranch, cartItems, paymentMethod, isAdmin]);
+
+  // Create QR preview for transfer payment
+  const handleCreateQRPreview = React.useCallback(async () => {
+    if (isAdmin && !selectedBranch) {
+      toast.error("Vui lòng chọn chi nhánh");
+      return;
+    }
+
+    // Check cooldown to prevent spam
+    if (qrCooldown) {
+      toast.warning("Vui lòng đợi vài giây trước khi tạo mã QR mới");
+      return;
+    }
+
+    setIsCreatingPreview(true);
+    try {
+      const response = await receiptService.createQRPreview({
+        ...(isAdmin && { branchId: selectedBranch }),
+        listProduct: cartItems.map((item) => ({
+          productId: item.productId,
+          productName: item.productName,
+          quantity: item.quantity,
+          salePrice: item.salePrice,
+        })),
+      });
+
+      if (response.success && response.data) {
+        setQrPreviewData(response.data);
+        setShowQRPreview(true);
+        
+        // Set cooldown for 3 seconds after creating QR
+        setQrCooldown(true);
+        setTimeout(() => setQrCooldown(false), 3000);
+      } else {
+        toast.error(response.message || "Không thể tạo mã QR");
+      }
+    } catch (error) {
+      toast.error((error as Error).message || "Lỗi tạo mã QR");
+    } finally {
+      setIsCreatingPreview(false);
+    }
+  }, [selectedBranch, cartItems, isAdmin, qrCooldown]);
+
+  // Handle back from QR preview (cancel preview and return to cart)
+  const handleBackFromPreview = React.useCallback(async () => {
+    if (qrPreviewData?.orderCode) {
+      // Cancel the preview in background (don't wait)
+      receiptService.cancelQRPreview(qrPreviewData.orderCode).catch(() => {});
+    }
+    setShowQRPreview(false);
+    setQrPreviewData(null);
+  }, [qrPreviewData]);
+
+  // Confirm and complete - move draft to pending and go to list
+  const handleConfirmFromPreview = React.useCallback(async () => {
+    if (!qrPreviewData) return;
+
+    setIsConfirmingReceipt(true);
+    try {
+      // Call confirmQRPreview to update draft -> pending
+      const response = await receiptService.confirmQRPreview(qrPreviewData.orderCode);
+
+      if (response.success && response.data) {
+        setShowQRPreview(false);
+        setQrPreviewData(null);
+        setCartItems([]);
+        
+        toast.success("Đã lưu hóa đơn vào danh sách chờ thanh toán");
+        router.push(ROUTES.INVOICES);
+      } else {
+        toast.error(response.message || "Lưu hóa đơn thất bại");
+      }
+    } catch (error) {
+      toast.error((error as Error).message || "Lỗi lưu hóa đơn");
+    } finally {
+      setIsConfirmingReceipt(false);
+    }
+  }, [qrPreviewData, router]);
+
+  // Create receipt directly (for cash payment)
+  const createReceipt = React.useCallback(async () => {
     setIsSubmitting(true);
     try {
       const totalAmount = cartItems.reduce(
@@ -366,24 +392,17 @@ export default function CreateReceiptPage() {
         })),
         totalAmount,
         paymentMethod,
+        // Chỉ gửi customerPaid khi thanh toán tiền mặt và có nhập
+        ...(paymentMethod === "cash" && customerPaid && { customerPaid }),
       };
 
       const response = await receiptService.create(receiptData);
 
       if (response.success && response.data) {
-        // If transfer payment, show QR dialog
-        if (paymentMethod === "transfer" && response.data.paymentInfo?.qrCode) {
-          setPaymentData(response.data);
-          setShowQRDialog(true);
-          toast.success(
-            "Tạo hóa đơn thành công! Vui lòng quét mã QR để thanh toán."
-          );
-          setCartItems([]);
-        } else {
-          toast.success("Tạo hóa đơn thành công!");
-          setCartItems([]);
-          router.push(ROUTES.INVOICES);
-        }
+        toast.success("Tạo hóa đơn thành công!");
+        setCartItems([]);
+        setCustomerPaid(null); // Reset customerPaid
+        router.push(ROUTES.INVOICES);
       } else {
         toast.error(response.message || "Tạo hóa đơn thất bại");
       }
@@ -392,7 +411,7 @@ export default function CreateReceiptPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedBranch, cartItems, paymentMethod, isAdmin]);
+  }, [selectedBranch, cartItems, paymentMethod, customerPaid, isAdmin, router]);
 
   // Keyboard shortcuts - F9 to submit directly
   React.useEffect(() => {
@@ -463,162 +482,24 @@ export default function CreateReceiptPage() {
             onSubmit={handleSubmit}
             disabled={cartItems.length === 0 || !selectedBranch}
             isSubmitting={isSubmitting}
+            isCreatingPreview={isCreatingPreview}
+            customerPaid={customerPaid}
+            onCustomerPaidChange={setCustomerPaid}
           />
         </div>
       </div>
 
-      {/* Payment QR Code Dialog */}
-      <Dialog open={showQRDialog} onOpenChange={setShowQRDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-center">
-              Thanh toán chuyển khoản
-            </DialogTitle>
-            <DialogDescription className="text-center">
-              Mở app ngân hàng và quét mã QR bên dưới
-            </DialogDescription>
-          </DialogHeader>
-          {paymentData && (
-            <div className="flex flex-col items-center gap-4 py-4">
-              {/* VietQR - Direct bank app scanning */}
-              {paymentData.paymentInfo?.qrCode ? (
-                <div className="p-3 bg-white rounded-xl border-2 shadow-sm">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={paymentData.paymentInfo.qrCode}
-                    alt="QR Thanh toán"
-                    className="w-56 h-56 object-contain"
-                    onError={(e) => {
-                      // Fallback: regenerate QR from saved info
-                      const info = paymentData.paymentInfo;
-                      if (info?.bin && info?.accountNumber && info?.amount) {
-                        (
-                          e.target as HTMLImageElement
-                        ).src = `https://img.vietqr.io/image/${info.bin}-${
-                          info.accountNumber
-                        }-compact2.png?amount=${
-                          info.amount
-                        }&addInfo=${encodeURIComponent(
-                          info.description || ""
-                        )}&accountName=${encodeURIComponent(
-                          info.accountName || ""
-                        )}`;
-                      }
-                    }}
-                  />
-                </div>
-              ) : paymentData.paymentInfo?.bin &&
-                paymentData.paymentInfo?.accountNumber ? (
-                <div className="p-3 bg-white rounded-xl border-2 shadow-sm">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`https://img.vietqr.io/image/${
-                      paymentData.paymentInfo.bin
-                    }-${
-                      paymentData.paymentInfo.accountNumber
-                    }-compact2.png?amount=${
-                      paymentData.paymentInfo.amount || paymentData.totalAmount
-                    }&addInfo=${encodeURIComponent(
-                      paymentData.paymentInfo.description || paymentData.code
-                    )}&accountName=${encodeURIComponent(
-                      paymentData.paymentInfo.accountName || ""
-                    )}`}
-                    alt="QR Thanh toán"
-                    className="w-56 h-56 object-contain"
-                  />
-                </div>
-              ) : (
-                <div className="p-4 bg-white rounded-lg border">
-                  <QRCodeSVG
-                    value={paymentData.paymentInfo?.checkoutUrl || ""}
-                    size={220}
-                    level="H"
-                    includeMargin
-                  />
-                </div>
-              )}
-
-              {/* Bank account info */}
-              {paymentData.paymentInfo?.accountNumber && (
-                <div className="w-full p-3 bg-muted/50 rounded-lg text-sm space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Ngân hàng:</span>
-                    <span className="font-medium">
-                      {paymentData.paymentInfo.accountName}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Số TK:</span>
-                    <span className="font-mono font-medium">
-                      {paymentData.paymentInfo.accountNumber}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Nội dung:</span>
-                    <span className="font-medium">
-                      {paymentData.paymentInfo.description}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              <div className="text-center space-y-2">
-                <p className="font-medium">
-                  Mã hóa đơn:{" "}
-                  <span className="text-primary">{paymentData.code}</span>
-                </p>
-                <p className="text-2xl font-bold text-primary">
-                  {new Intl.NumberFormat("vi-VN", {
-                    style: "currency",
-                    currency: "VND",
-                  }).format(paymentData.totalAmount)}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Trạng thái:{" "}
-                  <Badge
-                    variant={
-                      paymentData.paymentInfo?.status === "paid"
-                        ? "default"
-                        : paymentData.paymentInfo?.status === "expired"
-                        ? "destructive"
-                        : "secondary"
-                    }
-                  >
-                    {paymentData.paymentInfo?.status === "pending"
-                      ? "Chờ thanh toán"
-                      : paymentData.paymentInfo?.status === "paid"
-                      ? "Đã thanh toán"
-                      : paymentData.paymentInfo?.status === "expired"
-                      ? "Hết hạn"
-                      : paymentData.paymentInfo?.status === "cancelled"
-                      ? "Đã hủy"
-                      : paymentData.paymentInfo?.status}
-                  </Badge>
-                </p>
-              </div>
-
-              <p className="text-xs text-muted-foreground text-center">
-                💡 Mở ứng dụng ngân hàng bất kỳ → Quét QR → Xác nhận thanh toán
-              </p>
-
-              <div className="flex gap-2 mt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowQRDialog(false);
-                    setPaymentData(null);
-                  }}
-                >
-                  Đóng
-                </Button>
-                <Button onClick={() => router.push(ROUTES.INVOICES)}>
-                  Về danh sách hóa đơn
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* QR Preview Dialog - For transfer payment flow */}
+      <QRPreviewDialog
+        open={showQRPreview}
+        onOpenChange={setShowQRPreview}
+        previewData={qrPreviewData}
+        onBack={handleBackFromPreview}
+        onConfirm={handleConfirmFromPreview}
+        isConfirming={isConfirmingReceipt}
+        itemCount={cartItems.length}
+        totalQuantity={cartItems.reduce((sum, item) => sum + item.quantity, 0)}
+      />
     </div>
   );
 }

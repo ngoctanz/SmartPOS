@@ -3,14 +3,13 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { CommonTable } from "@/components/common/common-table";
-import { ImportReceipt, ImportReceiptStats, ErrorReceiptStats } from "@/service/import-receipt.service";
+import { ImportReceipt, ImportReceiptStats } from "@/service/import-receipt.service";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { RowActions } from "@/components/common/row-actions";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import Barcode from "react-barcode";
@@ -18,7 +17,7 @@ import { DetailModal } from "@/components/common/detail-modal";
 import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
 import { ImportReceiptFormModal } from "@/components/forms/import-receipt-form-modal";
 import { toast } from "sonner";
-import { Loader2, Plus, Check, X, FileText, CheckCircle, Clock, DollarSign, AlertTriangle, Trash2, RefreshCw } from "lucide-react";
+import { Loader2, Plus, Check, X, FileText, CheckCircle, Clock, DollarSign, AlertTriangle } from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import { useAuth } from "@/hooks/useAuth";
 import importReceiptService, { CreateImportReceiptRequest } from "@/service/import-receipt.service";
@@ -31,10 +30,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DateRangeFilter, DateRangeValue } from "@/components/common/date-range-filter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFilteredTableData } from "@/hooks/useFilteredTableData";
 import { useStats } from "@/hooks/useStats";
 import { ErrorReceiptsTab } from "@/components/import-receipt/error-receipts-tab";
+
+interface DateFilters {
+  branchId?: string;
+  status?: string;
+  period?: string;
+  startDate?: string;
+  endDate?: string;
+}
 
 // Helper để lấy tên từ populated field
 const getBranchName = (branchId: ImportReceipt["branchId"]): string => {
@@ -80,14 +88,19 @@ export default function Page() {
     handleSearch,
     updateFilter,
     refetch 
-  } = useFilteredTableData<ImportReceipt, { branchId?: string; status?: string }>({
+  } = useFilteredTableData<ImportReceipt, DateFilters>({
     fetchFn: importReceiptService.getAll,
-    initialFilters: { branchId: undefined, status: undefined },
+    initialFilters: { branchId: undefined, status: undefined, period: undefined, startDate: undefined, endDate: undefined },
   });
 
   const { stats } = useStats<ImportReceiptStats>({
-    fetchFn: () => importReceiptService.getStats(isAdmin ? filters.branchId : user?.branchId),
-    dependencies: [filters.branchId, isAdmin, user?.branchId],
+    fetchFn: () => importReceiptService.getStats(
+      isAdmin ? filters.branchId : user?.branchId, 
+      filters.period, 
+      filters.startDate, 
+      filters.endDate
+    ),
+    dependencies: [filters.branchId, filters.period, filters.startDate, filters.endDate, isAdmin, user?.branchId],
   });
 
   const [branches, setBranches] = React.useState<Branch[]>([]);
@@ -374,6 +387,13 @@ export default function Page() {
     [isAdmin, filters.branchId]
   );
 
+  // Handle date range filter change
+  const handleDateRangeChange = (value: DateRangeValue) => {
+    updateFilter("period", value.period);
+    updateFilter("startDate", value.startDate);
+    updateFilter("endDate", value.endDate);
+  };
+
   const toolbarActions = (
     <>
       {isAdmin && (
@@ -408,6 +428,15 @@ export default function Page() {
           <SelectItem value="cancelled">Đã hủy</SelectItem>
         </SelectContent>
       </Select>
+      <DateRangeFilter
+        value={{
+          period: filters.period,
+          startDate: filters.startDate,
+          endDate: filters.endDate,
+        }}
+        onChange={handleDateRangeChange}
+        className="w-[160px]"
+      />
     </>
   );
 

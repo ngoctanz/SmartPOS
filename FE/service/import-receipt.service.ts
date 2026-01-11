@@ -46,6 +46,9 @@ export interface GetImportReceiptParams {
   branchId?: string;
   status?: string;
   search?: string;
+  period?: "today" | "week" | "month" | "3month" | "6month" | "year" | "custom";
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface Pagination {
@@ -84,9 +87,12 @@ const importReceiptService = {
    * Get stats for import receipts
    * GET /api/v1/import-receipt/stats
    */
-  getStats: async (branchId?: string): Promise<ApiResponse<ImportReceiptStats>> => {
+  getStats: async (branchId?: string, period?: string, startDate?: string, endDate?: string): Promise<ApiResponse<ImportReceiptStats>> => {
     const queryParams = new URLSearchParams();
     if (branchId) queryParams.append("branchId", branchId);
+    if (period && period !== "custom") queryParams.append("period", period);
+    if (startDate) queryParams.append("startDate", startDate);
+    if (endDate) queryParams.append("endDate", endDate);
     return apiGet<ImportReceiptStats>(`/import-receipt/stats?${queryParams.toString()}`);
   },
 
@@ -103,6 +109,9 @@ const importReceiptService = {
     if (params?.branchId) queryParams.append("branchId", params.branchId);
     if (params?.status) queryParams.append("status", params.status);
     if (params?.search) queryParams.append("search", params.search);
+    if (params?.period && params.period !== "custom") queryParams.append("period", params.period);
+    if (params?.startDate) queryParams.append("startDate", params.startDate);
+    if (params?.endDate) queryParams.append("endDate", params.endDate);
 
     const query = queryParams.toString();
     return apiGet<ImportReceipt[]>(

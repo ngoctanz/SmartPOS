@@ -3,7 +3,6 @@ import { Product } from "../models/productModel.js";
 import { BranchProduct } from "../models/branchProductModel.js";
 import { Branch } from "../models/branchModel.js";
 import ApiError from "../utils/apiError.js";
-import { getDateRange } from "../utils/calculators.js";
 import { payosService } from "./payosService.js";
 import { socketService } from "./socketService.js";
 import {
@@ -12,36 +11,430 @@ import {
   validateRecordAccess,
 } from "../utils/branchSecurity.js";
 
-const getStats = async (branchId) => {
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+// Helper: Get branch PayOS credentials
+const getBranchPayOSCredentials = async (branchId) => {
+  const branch = await Branch.findBranchById(branchId);
+  
+  const credentials = {
+    PAYOS_CLIENT_ID: branch.PAYOS_CLIENT_ID,
+    PAYOS_API_KEY: branch.PAYOS_API_KEY,
+    PAYOS_CHECKSUM_KEY: branch.PAYOS_CHECKSUM_KEY,
+  };
+
+  const isConfigured = 
+    credentials.PAYOS_CLIENT_ID && 
+    credentials.PAYOS_API_KEY && 
+    credentials.PAYOS_CHECKSUM_KEY;
+
+  return { branch, credentials, isConfigured };
+};
+
+// Helper: Cancel PayOS link silently (ignore errors)
+const cancelPayOSLinkSilently = async (orderCode, reason, credentials) => {
   try {
-    return await Receipt.getStats(branchId);
+    await payosService.cancelPaymentLink(orderCode, reason, credentials);
+    console.log(`[PayOS] Link ${orderCode} cancelled: ${reason}`);
+    return true;
+  } catch (e) {
+    console.log(`[PayOS] Could not cancel link ${orderCode}: ${e.message}`);
+    return false;
+  }
+};
+
+// Helper: Get date range for period
+const getDateRange = (period) => {
+  const now = new Date();
+  let startDate, endDate;
+
+  switch (period) {
+    case "today":
+      startDate = new Date(now.setHours(0, 0, 0, 0));
+      endDate = new Date();
+      break;
+    case "week":
+      startDate = new Date(now.setDate(now.getDate() - 7));
+      endDate = new Date();
+      break;
+    case "month":
+      startDate = new Date(now.setMonth(now.getMonth() - 1));
+      endDate = new Date();
+      break;
+    case "3month":
+      startDate = new Date(now.setMonth(now.getMonth() - 3));
+      endDate = new Date();
+      break;
+    case "6month":
+      startDate = new Date(now.setMonth(now.getMonth() - 6));
+      endDate = new Date();
+      break;
+    case "year":
+      startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+      endDate = new Date();
+      break;
+    default:
+      startDate = new Date(now.setMonth(now.getMonth() - 1));
+      endDate = new Date();
+  }
+
+  return { startDate, endDate };
+};
+
+// ============================================================================
+// QR PREVIEW FUNCTIONS (NEW FLOW - Creates draft receipt)
+// ============================================================================
+
+/**
+ * Create QR preview for transfer payment
+ * Creates a draft receipt + PayOS link
+ * Draft receipts are auto-deleted after 15 minutes
+ */
+const createQRPreview = async (data, user) => {
+  try {
+    // 1. Validate branchId
+    const branchId = data.branchId;
+    if (!branchId) {
+      throw new ApiError(400, "branchId is required");
+    }
+
+    // 2. Validate branch access
+    validateBranchAccess(user, branchId, "create QR preview for");
+
+    // 3. Get branch and validate PayOS config
+    const { credentials, isConfigured } = await getBranchPayOSCredentials(branchId);
+    if (!isConfigured) {
+      throw new ApiError(400, "Chi nhánh chưa cấu hình PayOS. Vui lòng liên hệ quản trị viên.");
+    }
+
+    // 4. Validate listProduct
+    if (!Array.isArray(data.listProduct) || data.listProduct.length === 0) {
+      throw new ApiError(400, "Danh sách sản phẩm không được trống");
+    }
+
+    // 5. Prepare product list and calculate total
+    const listProduct = [];
+    let totalAmount = 0;
+
+    for (const item of data.listProduct) {
+      if (!item.productId) {
+        throw new ApiError(400, "productId không được trống");
+      }
+      if (!item.quantity || item.quantity <= 0) {
+        throw new ApiError(400, "Số lượng sản phẩm phải lớn hơn 0");
+      }
+      if (item.salePrice === undefined || item.salePrice === null || item.salePrice < 0) {
+        throw new ApiError(400, "Giá sản phẩm không hợp lệ");
+      }
+
+      // Validate product exists
+      const product = await Product.findProductById(item.productId);
+      
+      listProduct.push({
+        productId: product._id,
+        productName: item.productName || product.name,
+        quantity: item.quantity,
+        salePrice: item.salePrice,
+      });
+
+      totalAmount += item.salePrice * item.quantity;
+    }
+
+    if (totalAmount <= 0) {
+      throw new ApiError(400, "Tổng tiền phải lớn hơn 0");
+    }
+
+    // 6. Generate PayOS payment link
+    const orderCode = payosService.generateOrderCode();
+    const baseUrl = process.env.CLIENT_URL || "http://localhost:3000";
+    const paymentDescription = `HD${orderCode}`.slice(0, 25);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    let paymentResult;
+    try {
+      paymentResult = await payosService.createPaymentLink(
+        {
+          orderCode,
+          amount: Math.round(totalAmount),
+          description: paymentDescription,
+          returnUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
+          cancelUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
+          expiredAt: expiresAt,
+        },
+        credentials
+      );
+    } catch (payosError) {
+      console.error("[QR Preview] PayOS error:", payosError.message);
+      throw new ApiError(500, `Lỗi tạo mã QR: ${payosError.message}`);
+    }
+
+    if (!paymentResult?.success || !paymentResult?.data) {
+      throw new ApiError(500, "Không thể tạo mã QR thanh toán");
+    }
+
+    // 7. Create draft receipt in database
+    const receiptData = {
+      branchId,
+      createdBy: user.userId,
+      listProduct,
+      totalAmount: Math.round(totalAmount),
+      customerPaid: Math.round(totalAmount), // Transfer: customerPaid = totalAmount
+      paymentMethod: "transfer",
+      status: "draft", // Draft status - not visible in lists
+      paymentInfo: {
+        orderCode,
+        linkId: paymentResult.data.paymentLinkId,
+        qrCode: paymentResult.data.qrCode,
+        checkoutUrl: paymentResult.data.checkoutUrl,
+        accountNumber: paymentResult.data.accountNumber,
+        accountName: paymentResult.data.accountName,
+        bin: paymentResult.data.bin,
+        amount: Math.round(totalAmount),
+        description: paymentDescription,
+        status: "pending",
+      },
+    };
+
+    const receipt = await Receipt.createReceipt(receiptData);
+
+    console.log(`[QR Preview] Created draft receipt ${receipt.code} with orderCode: ${orderCode}`);
+
+    return {
+      orderCode,
+      receiptCode: receipt.code,
+      receiptId: receipt._id,
+      totalAmount: receipt.totalAmount,
+      paymentInfo: receipt.paymentInfo,
+      expiresAt,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    console.error("[QR Preview] Create error:", error);
+    throw new ApiError(500, error.message || "Lỗi tạo mã QR thanh toán");
+  }
+};
+
+/**
+ * Cancel QR preview - Delete draft receipt
+ */
+const cancelQRPreview = async (orderCode, user) => {
+  try {
+    // 1. Find draft receipt by orderCode
+    const receipt = await Receipt.findReceiptByOrderCode(orderCode);
+    
+    if (!receipt) {
+      // Already deleted or doesn't exist - return success (idempotent)
+      console.log(`[QR Preview] Cancel: orderCode ${orderCode} not found`);
+      return { success: true, message: "Receipt not found or already deleted" };
+    }
+
+    // 2. Only allow deleting draft receipts
+    if (receipt.status !== "draft") {
+      // If already pending/completed, don't delete
+      console.log(`[QR Preview] Cannot delete non-draft receipt ${receipt.code} (status: ${receipt.status})`);
+      return { success: true, message: "Receipt already confirmed" };
+    }
+
+    // 3. Validate ownership
+    const branchId = receipt.branchId._id || receipt.branchId;
+    validateBranchAccess(user, branchId, "cancel QR preview for");
+
+    // 4. Cancel PayOS link (best effort)
+    try {
+      const { credentials } = await getBranchPayOSCredentials(branchId);
+      await cancelPayOSLinkSilently(orderCode, "User cancelled", credentials);
+    } catch (e) {
+      console.log(`[QR Preview] Could not cancel PayOS link: ${e.message}`);
+    }
+
+    // 5. Delete draft receipt (not cancelled - just delete it)
+    await Receipt.findByIdAndDelete(receipt._id);
+
+    console.log(`[QR Preview] Deleted draft receipt ${receipt.code}`);
+
+    return { success: true, message: "QR preview deleted" };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    console.error("[QR Preview] Cancel error:", error);
+    throw new ApiError(500, error.message || "Lỗi hủy mã QR");
+  }
+};
+
+/**
+ * Get QR preview data by orderCode
+ */
+const getQRPreview = async (orderCode, user) => {
+  try {
+    const receipt = await Receipt.findReceiptByOrderCode(orderCode);
+    
+    if (!receipt) {
+      throw new ApiError(404, "Mã QR không tồn tại hoặc đã hết hạn");
+    }
+
+    // Validate ownership
+    const branchId = receipt.branchId._id || receipt.branchId;
+    validateBranchAccess(user, branchId, "view QR preview for");
+
+    // Check if expired (15 minutes)
+    const createdAt = new Date(receipt.createdAt);
+    const expiresAt = new Date(createdAt.getTime() + 15 * 60 * 1000);
+    
+    if (new Date() > expiresAt && receipt.status === "draft") {
+      throw new ApiError(404, "Mã QR đã hết hạn");
+    }
+
+    return {
+      orderCode: receipt.paymentInfo?.orderCode || orderCode,
+      receiptCode: receipt.code,
+      receiptId: receipt._id,
+      totalAmount: receipt.totalAmount,
+      listProduct: receipt.listProduct,
+      paymentInfo: receipt.paymentInfo,
+      expiresAt,
+      status: receipt.status,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    console.error("[QR Preview] Get error:", error);
+    throw new ApiError(500, error.message || "Lỗi lấy thông tin mã QR");
+  }
+};
+
+/**
+ * Confirm QR preview - Updates draft receipt to pending
+ * Called when staff clicks "Hoàn thành" in QR preview dialog
+ */
+const confirmQRPreview = async (orderCode, user) => {
+  try {
+    // 1. Find draft receipt
+    const receipt = await Receipt.findReceiptByOrderCode(orderCode);
+    
+    if (!receipt) {
+      throw new ApiError(404, "Mã QR không tồn tại hoặc đã hết hạn");
+    }
+
+    // 2. Validate ownership
+    const branchId = receipt.branchId._id || receipt.branchId;
+    validateBranchAccess(user, branchId, "confirm QR preview for");
+
+    // 3. Check current status
+    if (receipt.status === "completed") {
+      // Already paid via webhook - return success
+      console.log(`[QR Preview] Receipt ${receipt.code} already completed`);
+      return receipt;
+    }
+
+    if (receipt.status === "cancelled") {
+      throw new ApiError(400, "Mã QR đã bị hủy");
+    }
+
+    if (receipt.status === "pending") {
+      // Already confirmed - return success (idempotent)
+      return receipt;
+    }
+
+    // 4. Check if expired
+    const createdAt = new Date(receipt.createdAt);
+    const expiresAt = new Date(createdAt.getTime() + 15 * 60 * 1000);
+    
+    if (new Date() > expiresAt) {
+      // Update to cancelled
+      await Receipt.updateStatus(receipt._id, "cancelled");
+      await Receipt.findByIdAndUpdate(receipt._id, { "paymentInfo.status": "expired" });
+      throw new ApiError(400, "Mã QR đã hết hạn. Vui lòng tạo mã QR mới.");
+    }
+
+    // 5. Update status from draft to pending
+    const updatedReceipt = await Receipt.findByIdAndUpdate(
+      receipt._id,
+      { status: "pending" },
+      { new: true }
+    )
+      .populate("branchId", "branchName")
+      .populate("createdBy", "userName name");
+
+    console.log(`[QR Preview] Confirmed receipt ${receipt.code} - now pending payment`);
+
+    return updatedReceipt;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    console.error("[QR Preview] Confirm error:", error);
+    throw new ApiError(500, error.message || "Lỗi xác nhận hóa đơn");
+  }
+};
+
+/**
+ * Update QR preview - Cancel old draft and create new one
+ */
+const updateQRPreview = async (orderCode, data, user) => {
+  try {
+    // 1. Get branchId BEFORE cancelling (since cancel deletes the receipt)
+    const oldReceipt = await Receipt.findReceiptByOrderCode(orderCode);
+    const branchId = oldReceipt 
+      ? (oldReceipt.branchId._id || oldReceipt.branchId) 
+      : data.branchId;
+
+    if (!branchId) {
+      throw new ApiError(400, "branchId is required");
+    }
+
+    // 2. Cancel old preview (deletes draft receipt)
+    await cancelQRPreview(orderCode, user);
+
+    // 3. Create new preview with updated data
+    return await createQRPreview(
+      {
+        branchId,
+        listProduct: data.listProduct,
+      },
+      user
+    );
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    console.error("[QR Preview] Update error:", error);
+    throw new ApiError(500, error.message || "Lỗi cập nhật mã QR");
+  }
+};
+
+// ============================================================================
+// RECEIPT CRUD FUNCTIONS
+// ============================================================================
+
+const getStats = async (branchId, period, startDate, endDate) => {
+  try {
+    return await Receipt.getStats(branchId, period, startDate, endDate);
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
+/**
+ * Create receipt (for cash payment only in new flow)
+ * Transfer payments use createQRPreview -> confirmQRPreview flow
+ */
 const create = async (data, user) => {
   try {
     // Defense-in-depth: Double check branch access
     validateBranchAccess(user, data.branchId, "create receipt for");
 
-    // Validate branch exists and get branch data with PayOS credentials
+    // Validate branch exists
     const branch = await Branch.findBranchById(data.branchId);
 
     const listProduct = [];
     let totalAmount = 0;
 
-    // Validate stock và prepare list
+    // Validate and prepare product list
     for (const item of data.listProduct) {
       const product = await Product.findProductById(item.productId);
 
-      // Lấy thông tin giá từ BranchProduct nếu có, không thì dùng giá từ Product
+      // Get price from BranchProduct or Product
       const productInfo = await BranchProduct.getProductInfo(
         data.branchId,
         item.productId
       );
 
-      // Get sale price: priority is item.salePrice > branchProduct.salePrice > product.currentSalePrice
       const salePrice =
         item.salePrice ??
         productInfo.salePrice ??
@@ -59,86 +452,26 @@ const create = async (data, user) => {
       totalAmount += subtotal;
     }
 
-    // Determine initial status based on payment method
-    const isTransfer = data.paymentMethod === "transfer";
-    const initialStatus = isTransfer ? "pending" : "completed";
+    // For cash payment - create completed receipt directly
+    if (data.paymentMethod === "cash") {
+      // customerPaid: nếu không nhập thì mặc định = totalAmount
+      const customerPaid = data.customerPaid != null && data.customerPaid >= totalAmount 
+        ? data.customerPaid 
+        : totalAmount;
 
-    // Create receipt data
-    const receiptData = {
-      branchId: data.branchId,
-      createdBy: user.userId,
-      listProduct,
-      totalAmount,
-      paymentMethod: data.paymentMethod || "cash",
-      status: initialStatus,
-    };
+      const receiptData = {
+        branchId: data.branchId,
+        createdBy: user.userId,
+        listProduct,
+        totalAmount,
+        customerPaid,
+        paymentMethod: "cash",
+        status: "completed",
+      };
 
-    // If transfer payment, create PayOS payment link
-    if (isTransfer) {
-      try {
-        // Get branch PayOS credentials
-        const branchCredentials = {
-          PAYOS_CLIENT_ID: branch.PAYOS_CLIENT_ID,
-          PAYOS_API_KEY: branch.PAYOS_API_KEY,
-          PAYOS_CHECKSUM_KEY: branch.PAYOS_CHECKSUM_KEY,
-        };
+      const receipt = await Receipt.createReceipt(receiptData);
 
-        // Validate branch has PayOS configured
-        if (
-          !branchCredentials.PAYOS_CLIENT_ID ||
-          !branchCredentials.PAYOS_API_KEY ||
-          !branchCredentials.PAYOS_CHECKSUM_KEY
-        ) {
-          throw new ApiError(
-            400,
-            "Chi nhánh chưa cấu hình PayOS. Vui lòng liên hệ quản trị viên để cấu hình thanh toán online."
-          );
-        }
-
-        const orderCode = payosService.generateOrderCode();
-        const baseUrl = process.env.CLIENT_URL || "http://localhost:3000";
-        const paymentDescription = `HD${orderCode}`.slice(0, 25); // Max 25 chars
-
-        const paymentResult = await payosService.createPaymentLink(
-          {
-            orderCode,
-            amount: Math.round(totalAmount),
-            description: paymentDescription,
-            returnUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
-            cancelUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
-            expiredAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
-          },
-          branchCredentials
-        ); // Pass branch credentials
-
-        if (paymentResult.success) {
-          receiptData.paymentInfo = {
-            orderCode,
-            linkId: paymentResult.data.paymentLinkId,
-            qrCode: paymentResult.data.qrCode,
-            checkoutUrl: paymentResult.data.checkoutUrl,
-            accountNumber: paymentResult.data.accountNumber,
-            accountName: paymentResult.data.accountName,
-            bin: paymentResult.data.bin,
-            // Save for regenerating VietQR later
-            amount: Math.round(totalAmount),
-            description: paymentDescription,
-            status: "pending",
-          };
-        }
-      } catch (payosError) {
-        console.error("PayOS Error:", payosError);
-        throw new ApiError(
-          500,
-          `Lỗi tạo thanh toán PayOS: ${payosError.message}`
-        );
-      }
-    }
-
-    const receipt = await Receipt.createReceipt(receiptData);
-
-    // Only decrease stock if payment is completed (not transfer)
-    if (!isTransfer) {
+      // Decrease stock immediately for cash payment
       for (const item of listProduct) {
         await BranchProduct.decreaseStock(
           data.branchId,
@@ -146,15 +479,67 @@ const create = async (data, user) => {
           item.quantity
         );
       }
+
+      return receipt;
     }
 
-    return receipt;
+    // For transfer payment - should use createQRPreview flow
+    // But keep legacy support for direct creation
+    if (data.paymentMethod === "transfer") {
+      const { credentials, isConfigured } = await getBranchPayOSCredentials(data.branchId);
+      
+      if (!isConfigured) {
+        throw new ApiError(400, "Chi nhánh chưa cấu hình PayOS.");
+      }
+
+      const orderCode = payosService.generateOrderCode();
+      const baseUrl = process.env.CLIENT_URL || "http://localhost:3000";
+      const paymentDescription = `HD${orderCode}`.slice(0, 25);
+
+      const paymentResult = await payosService.createPaymentLink(
+        {
+          orderCode,
+          amount: Math.round(totalAmount),
+          description: paymentDescription,
+          returnUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
+          cancelUrl: `${baseUrl}/trang-quan-ly/hoa-don`,
+          expiredAt: new Date(Date.now() + 15 * 60 * 1000),
+        },
+        credentials
+      );
+
+      const receiptData = {
+        branchId: data.branchId,
+        createdBy: user.userId,
+        listProduct,
+        totalAmount,
+        customerPaid: totalAmount, // Transfer: customerPaid = totalAmount
+        paymentMethod: "transfer",
+        status: "pending",
+        paymentInfo: {
+          orderCode,
+          linkId: paymentResult.data?.paymentLinkId,
+          qrCode: paymentResult.data?.qrCode,
+          checkoutUrl: paymentResult.data?.checkoutUrl,
+          accountNumber: paymentResult.data?.accountNumber,
+          accountName: paymentResult.data?.accountName,
+          bin: paymentResult.data?.bin,
+          amount: Math.round(totalAmount),
+          description: paymentDescription,
+          status: "pending",
+        },
+      };
+
+      return await Receipt.createReceipt(receiptData);
+    }
+
+    throw new ApiError(400, "Invalid payment method");
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
-const cancel = async (id) => {
+const cancel = async (id, user) => {
   try {
     const receipt = await Receipt.findReceiptById(id);
 
@@ -164,13 +549,30 @@ const cancel = async (id) => {
 
     const branchId = receipt.branchId._id || receipt.branchId;
 
-    // Restore stock
-    for (const item of receipt.listProduct) {
-      await BranchProduct.increaseStock(
-        branchId,
-        item.productId,
-        item.quantity
-      );
+    // Validate access
+    if (user) {
+      validateBranchAccess(user, branchId, "cancel receipt for");
+    }
+
+    // Only restore stock if receipt was completed
+    if (receipt.status === "completed") {
+      for (const item of receipt.listProduct) {
+        await BranchProduct.increaseStock(
+          branchId,
+          item.productId,
+          item.quantity
+        );
+      }
+    }
+
+    // Cancel PayOS link if transfer payment
+    if (receipt.paymentMethod === "transfer" && receipt.paymentInfo?.orderCode) {
+      try {
+        const { credentials } = await getBranchPayOSCredentials(branchId);
+        await cancelPayOSLinkSilently(receipt.paymentInfo.orderCode, "Receipt cancelled", credentials);
+      } catch (e) {
+        console.log(`[Cancel] Could not cancel PayOS link: ${e.message}`);
+      }
     }
 
     return await Receipt.updateStatus(id, "cancelled");
@@ -181,7 +583,6 @@ const cancel = async (id) => {
 
 const getAll = async (filter = {}, user = null) => {
   try {
-    // Defense-in-depth: Apply secure filter if user provided
     const secureFilter = user ? buildSecureFilter(user, filter) : filter;
     return await Receipt.findAllReceipts(secureFilter);
   } catch (error) {
@@ -191,7 +592,6 @@ const getAll = async (filter = {}, user = null) => {
 
 const getAllPaginated = async (options = {}, user = null) => {
   try {
-    // Defense-in-depth: Ensure branchId filter for staff
     if (user && user.role !== "admin" && user.branchId) {
       options.branchId = user.branchId;
     }
@@ -208,7 +608,6 @@ const getById = async (id, user = null) => {
     }
     const receipt = await Receipt.findReceiptById(id);
 
-    // Defense-in-depth: Validate access if user provided
     if (user) {
       validateRecordAccess(user, receipt, "receipt");
     }
@@ -229,7 +628,6 @@ const getByCode = async (code, user = null) => {
       throw new ApiError(404, "Receipt not found");
     }
 
-    // Defense-in-depth: Validate access if user provided
     if (user) {
       validateRecordAccess(user, receipt, "receipt");
     }
@@ -284,12 +682,7 @@ const getDailyRevenue = async (period, branchId = null) => {
 const getTopProducts = async (period, branchId = null, limit = 10) => {
   try {
     const { startDate, endDate } = getDateRange(period);
-    return await Receipt.getTopSellingProducts(
-      startDate,
-      endDate,
-      branchId,
-      limit
-    );
+    return await Receipt.getTopSellingProducts(startDate, endDate, branchId, limit);
   } catch (error) {
     throw new Error(error.message || error);
   }
@@ -298,22 +691,24 @@ const getTopProducts = async (period, branchId = null, limit = 10) => {
 const getRevenueByPaymentMethod = async (period, branchId = null) => {
   try {
     const { startDate, endDate } = getDateRange(period);
-    return await Receipt.getRevenueByPaymentMethod(
-      startDate,
-      endDate,
-      branchId
-    );
+    return await Receipt.getRevenueByPaymentMethod(startDate, endDate, branchId);
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
+
+// ============================================================================
+// WEBHOOK & PAYMENT FUNCTIONS
+// ============================================================================
+
 /**
  * Handle PayOS webhook callback
+ * Handles both draft and pending receipts
+ * Uses atomic operations to prevent race conditions
  */
 const handlePaymentWebhook = async (webhookData) => {
   try {
-    // Log raw webhook for debugging
     console.log("[Webhook] Received:", JSON.stringify(webhookData, null, 2));
 
     const orderCode = webhookData.data?.orderCode;
@@ -322,17 +717,29 @@ const handlePaymentWebhook = async (webhookData) => {
       return { success: true, message: "No orderCode" };
     }
 
-    // Find receipt first to get branch info
+    // Find receipt by orderCode (could be draft or pending)
     const receipt = await Receipt.findReceiptByOrderCode(orderCode);
 
     if (!receipt) {
       console.log(`[Webhook] Receipt not found for orderCode: ${orderCode}`);
-      return { success: true }; // Return success to prevent PayOS from retrying
+      return { success: true };
     }
 
-    // Get branch PayOS credentials for verification
+    // Get branch credentials for verification
     const branchId = receipt.branchId._id || receipt.branchId;
-    const branch = await Branch.findBranchById(branchId);
+    
+    let branch;
+    try {
+      branch = await Branch.findBranchById(branchId);
+    } catch (branchError) {
+      console.error(`[Webhook] Branch not found for receipt ${receipt.code}:`, branchError.message);
+      return { success: true, message: "Branch not found" };
+    }
+
+    if (!branch) {
+      console.log(`[Webhook] Branch ${branchId} not found`);
+      return { success: true, message: "Branch not found" };
+    }
 
     const branchCredentials = {
       PAYOS_CLIENT_ID: branch.PAYOS_CLIENT_ID,
@@ -340,94 +747,126 @@ const handlePaymentWebhook = async (webhookData) => {
       PAYOS_CHECKSUM_KEY: branch.PAYOS_CHECKSUM_KEY,
     };
 
-    // Verify webhook data using branch credentials
-    const verifiedData = await payosService.verifyPaymentWebhookData(
-      webhookData,
-      branchCredentials
-    );
+    // Verify webhook signature
+    let verifiedData;
+    try {
+      verifiedData = await payosService.verifyPaymentWebhookData(
+        webhookData,
+        branchCredentials
+      );
+    } catch (verifyError) {
+      console.log("[Webhook] Verification error:", verifyError.message);
+      return { success: true, message: "Verification failed" };
+    }
+
     if (!verifiedData) {
       console.log("[Webhook] Invalid signature, skipping...");
-      // Return success to prevent PayOS from retrying
       return { success: true, message: "Invalid signature" };
     }
 
-    // Already processed
-    if (receipt.paymentInfo?.status !== "pending") {
-      console.log(
-        `[Webhook] Receipt ${receipt.code} already processed (status: ${receipt.paymentInfo?.status})`
-      );
-      return { success: true };
-    }
-
-    // Check webhook code/status
-    // PayOS webhook codes: "00" = success, others = failure
+    // Parse webhook data
     const code = webhookData.code;
     const success = webhookData.success;
     const payosStatus = webhookData.data?.status || verifiedData.status;
+    const currentStatus = receipt.status;
 
-    console.log(
-      `[Webhook] Processing: code=${code}, success=${success}, payosStatus=${payosStatus}`
-    );
+    console.log(`[Webhook] Processing receipt ${receipt.code}: code=${code}, success=${success}, payosStatus=${payosStatus}, currentStatus=${currentStatus}`);
 
-    // Success payment
+    // Handle successful payment - use atomic update to prevent race condition
     if (code === "00" && success) {
-      // Update payment status to paid
-      await Receipt.updatePaymentStatus(orderCode, "paid", "completed");
-
-      // Decrease stock after successful payment
-      const branchId = receipt.branchId._id || receipt.branchId;
-      for (const item of receipt.listProduct) {
-        await BranchProduct.decreaseStock(
-          branchId,
-          item.productId,
-          item.quantity
-        );
-      }
-
-      console.log(
-        `[Webhook] ✓ Payment confirmed for receipt: ${receipt.code} (Branch: ${branch.branchName})`
+      // Atomic update: only update if status is draft or pending (not already completed/cancelled)
+      const updateResult = await Receipt.findOneAndUpdate(
+        { 
+          _id: receipt._id, 
+          status: { $in: ["draft", "pending"] } // Only update if not already processed
+        },
+        {
+          status: "completed",
+          "paymentInfo.status": "paid",
+        },
+        { new: true }
       );
 
-      // Broadcast payment success via WebSocket
-      socketService.broadcastPaymentSuccess(branchId.toString(), {
-        receiptCode: receipt.code,
-        amount: receipt.totalAmount,
-        timestamp: new Date().toISOString(),
-      });
+      // If no document was updated, it was already processed
+      if (!updateResult) {
+        console.log(`[Webhook] Receipt ${receipt.code} already processed, skipping stock update`);
+        return { success: true, message: "Already processed" };
+      }
+
+      // Decrease stock (only runs if atomic update succeeded)
+      try {
+        for (const item of receipt.listProduct) {
+          await BranchProduct.decreaseStock(
+            branchId,
+            item.productId,
+            item.quantity
+          );
+        }
+      } catch (stockError) {
+        console.error(`[Webhook] Stock decrease error for ${receipt.code}:`, stockError.message);
+        // Don't throw - payment is already confirmed, log for manual review
+      }
+
+      console.log(`[Webhook] ✓ Payment confirmed for receipt: ${receipt.code}`);
+
+      // Broadcast payment success (best effort)
+      try {
+        socketService.broadcastPaymentSuccess(branchId.toString(), {
+          receiptCode: receipt.code,
+          amount: receipt.totalAmount,
+          timestamp: new Date().toISOString(),
+          fromDraft: currentStatus === "draft", // Flag if payment was from draft (QR preview)
+        });
+      } catch (socketError) {
+        console.log(`[Webhook] Socket broadcast error: ${socketError.message}`);
+      }
 
       return { success: true, message: "Payment confirmed" };
     }
 
-    // Handle expired status from PayOS
+    // Handle expired/cancelled/failed - helper function to reduce duplication
+    const handleFailure = async (paymentStatus, logMessage) => {
+      try {
+        if (currentStatus === "draft") {
+          await Receipt.findByIdAndDelete(receipt._id);
+          console.log(`[Webhook] ✗ Deleted ${logMessage} draft receipt: ${receipt.code}`);
+        } else if (currentStatus === "pending") {
+          await Receipt.findByIdAndUpdate(receipt._id, {
+            status: "cancelled",
+            "paymentInfo.status": paymentStatus,
+          });
+          console.log(`[Webhook] ✗ ${logMessage} for receipt: ${receipt.code}`);
+        }
+        // If already completed/cancelled, do nothing
+      } catch (failureError) {
+        console.error(`[Webhook] Handle failure error: ${failureError.message}`);
+      }
+    };
+
+    // Handle expired
     if (payosStatus === "EXPIRED" || code === "expired") {
-      await Receipt.updatePaymentStatus(orderCode, "expired", "cancelled");
-      console.log(`[Webhook] ✗ Payment expired for receipt: ${receipt.code}`);
+      await handleFailure("expired", "Payment expired");
       return { success: true, message: "Payment expired" };
     }
 
-    // Handle cancelled status from PayOS
+    // Handle cancelled
     if (payosStatus === "CANCELLED" || code === "cancelled") {
-      await Receipt.updatePaymentStatus(orderCode, "cancelled", "cancelled");
-      console.log(`[Webhook] ✗ Payment cancelled for receipt: ${receipt.code}`);
+      await handleFailure("cancelled", "Payment cancelled");
       return { success: true, message: "Payment cancelled" };
     }
 
-    // Payment failed for other reasons
-    await Receipt.updatePaymentStatus(orderCode, "cancelled", "cancelled");
-    console.log(
-      `[Webhook] ✗ Payment failed for receipt: ${receipt.code} (code: ${code})`
-    );
-
+    // Other failures
+    await handleFailure("cancelled", `Payment failed (code: ${code})`);
     return { success: true, message: "Payment failed" };
   } catch (error) {
     console.error("[Webhook] Error:", error);
-    // Always return success to prevent PayOS from endless retrying
     return { success: true, error: error.message };
   }
 };
 
 /**
  * Check payment status from PayOS
+ * Uses atomic operations to prevent race conditions
  */
 const checkPaymentStatus = async (orderCode) => {
   try {
@@ -437,7 +876,6 @@ const checkPaymentStatus = async (orderCode) => {
       throw new ApiError(404, "Receipt not found");
     }
 
-    // Get branch PayOS credentials
     const branchId = receipt.branchId._id || receipt.branchId;
     const branch = await Branch.findBranchById(branchId);
 
@@ -447,67 +885,66 @@ const checkPaymentStatus = async (orderCode) => {
       PAYOS_CHECKSUM_KEY: branch.PAYOS_CHECKSUM_KEY,
     };
 
-    // Get payment info using branch credentials
-    const paymentInfo = await payosService.getPaymentInfo(
-      orderCode,
-      branchCredentials
-    );
+    const paymentInfo = await payosService.getPaymentInfo(orderCode, branchCredentials);
+    const currentStatus = receipt.status;
 
-    // Update local status based on PayOS status
-    if (
-      paymentInfo.status === "PAID" &&
-      receipt.paymentInfo?.status !== "paid"
-    ) {
-      await Receipt.updatePaymentStatus(orderCode, "paid", "completed");
+    // Handle PAID status - use atomic update
+    if (paymentInfo.status === "PAID" && receipt.paymentInfo?.status !== "paid") {
+      // Atomic update: only update if not already completed
+      const updateResult = await Receipt.findOneAndUpdate(
+        { 
+          _id: receipt._id, 
+          status: { $in: ["draft", "pending"] }
+        },
+        {
+          status: "completed",
+          "paymentInfo.status": "paid",
+        },
+        { new: true }
+      );
 
-      // Decrease stock
-      for (const item of receipt.listProduct) {
-        await BranchProduct.decreaseStock(
-          branchId,
-          item.productId,
-          item.quantity
-        );
+      // Decrease stock only if atomic update succeeded
+      if (updateResult) {
+        for (const item of receipt.listProduct) {
+          await BranchProduct.decreaseStock(branchId, item.productId, item.quantity);
+        }
       }
-    } else if (paymentInfo.status === "CANCELLED") {
-      await Receipt.updatePaymentStatus(orderCode, "cancelled", "cancelled");
-    } else if (paymentInfo.status === "EXPIRED") {
-      await Receipt.updatePaymentStatus(orderCode, "expired", "cancelled");
+    } 
+    // Handle CANCELLED status
+    else if (paymentInfo.status === "CANCELLED" && currentStatus !== "cancelled") {
+      await Receipt.findByIdAndUpdate(receipt._id, {
+        status: "cancelled",
+        "paymentInfo.status": "cancelled",
+      });
+    } 
+    // Handle EXPIRED status
+    else if (paymentInfo.status === "EXPIRED") {
+      if (currentStatus === "draft") {
+        await Receipt.findByIdAndDelete(receipt._id);
+      } else if (currentStatus === "pending") {
+        await Receipt.findByIdAndUpdate(receipt._id, {
+          status: "cancelled",
+          "paymentInfo.status": "expired",
+        });
+      }
     }
 
+    // Return fresh receipt data (or null if deleted)
+    const updatedReceipt = await Receipt.findReceiptByOrderCode(orderCode);
     return {
       paymentStatus: paymentInfo.status,
-      receipt: await Receipt.findReceiptByOrderCode(orderCode),
+      receipt: updatedReceipt,
     };
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
-/**
- * Get payment info by order code
- */
-const getPaymentInfo = async (orderCode) => {
-  try {
-    const receipt = await Receipt.findReceiptByOrderCode(orderCode);
-    if (!receipt) {
-      throw new ApiError(404, "Receipt not found");
-    }
+// ============================================================================
+// UPDATE & ERROR FUNCTIONS
+// ============================================================================
 
-    return {
-      receipt,
-      paymentInfo: receipt.paymentInfo?.orderCode
-        ? await payosService.getPaymentInfo(orderCode)
-        : null,
-    };
-  } catch (error) {
-    throw new Error(error.message || error);
-  }
-};
-
-/**
- * Update receipt products and total
- */
-const update = async (id, data) => {
+const update = async (id, data, user) => {
   try {
     const receipt = await Receipt.findReceiptById(id);
 
@@ -521,20 +958,23 @@ const update = async (id, data) => {
 
     const branchId = receipt.branchId._id || receipt.branchId;
 
-    // If updating products, validate stock for new/increased items
-    if (data.listProduct) {
-      // Calculate stock adjustments needed
+    if (user) {
+      validateBranchAccess(user, branchId, "update receipt for");
+    }
+
+    // If updating products, handle stock adjustments
+    if (data.listProduct && receipt.status === "completed") {
       const oldProducts = new Map(
         receipt.listProduct.map((p) => [p.productId.toString(), p.quantity])
       );
 
+      // Validate stock for increased quantities
       for (const item of data.listProduct) {
         const product = await Product.findProductById(item.productId);
         const oldQty = oldProducts.get(item.productId.toString()) || 0;
         const qtyDiff = item.quantity - oldQty;
 
-        // Only check stock if quantity is increasing
-        if (qtyDiff > 0 && receipt.status === "completed") {
+        if (qtyDiff > 0) {
           const stock = await BranchProduct.getStock(branchId, item.productId);
           if (stock < qtyDiff) {
             throw new ApiError(
@@ -545,29 +985,17 @@ const update = async (id, data) => {
         }
       }
 
-      // Adjust stock based on changes (only for completed receipts)
-      if (receipt.status === "completed") {
-        // Restore old stock
-        for (const item of receipt.listProduct) {
-          await BranchProduct.increaseStock(
-            branchId,
-            item.productId,
-            item.quantity
-          );
-        }
+      // Restore old stock
+      for (const item of receipt.listProduct) {
+        await BranchProduct.increaseStock(branchId, item.productId, item.quantity);
+      }
 
-        // Decrease new stock
-        for (const item of data.listProduct) {
-          await BranchProduct.decreaseStock(
-            branchId,
-            item.productId,
-            item.quantity
-          );
-        }
+      // Decrease new stock
+      for (const item of data.listProduct) {
+        await BranchProduct.decreaseStock(branchId, item.productId, item.quantity);
       }
     }
 
-    // Update receipt
     const updatedReceipt = await Receipt.findByIdAndUpdate(
       id,
       {
@@ -591,95 +1019,43 @@ const update = async (id, data) => {
  */
 const markAsError = async (receiptId, userId, user, errorReason = null) => {
   try {
-    // Get receipt
     const receipt = await Receipt.findById(receiptId);
     if (!receipt) {
       throw new ApiError(404, "Không tìm thấy hóa đơn");
     }
 
-    // Extract branchId (could be ObjectId or populated object)
     const branchId = receipt.branchId._id || receipt.branchId;
-
-    // Validate access
     validateBranchAccess(user, branchId, "mark error for");
 
-    // Validate status (allow marking error for both pending and completed)
     if (receipt.status === "cancelled") {
       throw new ApiError(400, "Không thể đánh dấu lỗi cho hóa đơn đã hủy");
     }
 
-    // Validate not already marked as error
     if (receipt.isError) {
       throw new ApiError(400, "Hóa đơn đã được đánh dấu lỗi trước đó");
     }
 
-    // Try to use transaction if available (replica set)
-    // Otherwise, fall back to sequential operations
-    const mongoose = await import("mongoose");
-    let session = null;
-    let useTransaction = false;
-
-    try {
-      // Check if we can use transactions
-      const client = mongoose.default.connection.getClient();
-      const admin = client.db().admin();
-      const serverInfo = await admin.serverStatus();
-
-      // Only use transactions if replica set is available
-      if (serverInfo.repl && serverInfo.repl.setName) {
-        session = await mongoose.default.startSession();
-        session.startTransaction();
-        useTransaction = true;
-      }
-    } catch (error) {
-      console.log("Transactions not available, using sequential operations");
-      useTransaction = false;
-    }
-
-    try {
-      // Return products to stock ONLY if receipt was completed (stock was decreased)
-      if (receipt.status === "completed") {
-        for (const item of receipt.listProduct) {
-          await BranchProduct.increaseStock(
-            branchId,
-            item.productId,
-            item.quantity,
-            session
-          );
-        }
-      }
-
-      // Update receipt
-      receipt.isError = true;
-      receipt.markedErrorBy = userId;
-      receipt.markedErrorAt = new Date();
-      receipt.errorReason = errorReason || null;
-
-      if (useTransaction && session) {
-        await receipt.save({ session });
-        await session.commitTransaction();
-      } else {
-        await receipt.save();
-      }
-
-      // Populate for response
-      const populatedReceipt = await Receipt.findById(receiptId)
-        .populate("branchId", "branchName")
-        .populate("createdBy", "userName name")
-        .populate("markedErrorBy", "userName name")
-        .lean();
-
-      return populatedReceipt;
-    } catch (error) {
-      if (useTransaction && session) {
-        await session.abortTransaction();
-      }
-      throw error;
-    } finally {
-      if (session) {
-        session.endSession();
+    // Return products to stock only if receipt was completed
+    if (receipt.status === "completed") {
+      for (const item of receipt.listProduct) {
+        await BranchProduct.increaseStock(branchId, item.productId, item.quantity);
       }
     }
+
+    // Update receipt
+    receipt.isError = true;
+    receipt.markedErrorBy = userId;
+    receipt.markedErrorAt = new Date();
+    receipt.errorReason = errorReason || null;
+    await receipt.save();
+
+    const populatedReceipt = await Receipt.findById(receiptId)
+      .populate("branchId", "branchName")
+      .populate("createdBy", "userName name")
+      .populate("markedErrorBy", "userName name")
+      .lean();
+
+    return populatedReceipt;
   } catch (error) {
     throw error;
   }
@@ -699,32 +1075,24 @@ const getErrorReceipts = async (options, user) => {
       sortOrder = "desc",
     } = options;
 
-    // Build query
     const query = { isError: true };
 
-    // Search by code
     if (search && search.trim()) {
       query.code = { $regex: search, $options: "i" };
     }
 
-    // Branch filter with access control
     if (user.role === "staff" || user.role === "manager") {
-      // Staff and Manager can only see their branch
       query.branchId = user.branchId;
     } else if (branchId) {
-      // Admin can filter by branch
       query.branchId = branchId;
     }
 
-    // Count total
     const total = await Receipt.countDocuments(query);
     const skip = (page - 1) * limit;
 
-    // Sort options
     const sortOptions = {};
     sortOptions[sortBy] = sortOrder === "asc" ? 1 : -1;
 
-    // Fetch data
     const data = await Receipt.find(query)
       .populate("branchId", "branchName")
       .populate("createdBy", "userName name")
@@ -736,12 +1104,7 @@ const getErrorReceipts = async (options, user) => {
 
     return {
       data,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   } catch (error) {
     throw new Error(error.message || error);
@@ -755,14 +1118,12 @@ const getErrorStats = async (branchId, user) => {
   try {
     const query = { isError: true };
 
-    // Access control - manager and staff can only see their branch
     if (user.role === "staff" || user.role === "manager") {
       query.branchId = user.branchId;
     } else if (branchId) {
       query.branchId = branchId;
     }
 
-    // Total count and amount
     const totalResult = await Receipt.aggregate([
       { $match: query },
       {
@@ -774,12 +1135,8 @@ const getErrorStats = async (branchId, user) => {
       },
     ]);
 
-    const totals = totalResult[0] || {
-      totalErrorReceipts: 0,
-      totalErrorAmount: 0,
-    };
+    const totals = totalResult[0] || { totalErrorReceipts: 0, totalErrorAmount: 0 };
 
-    // By branch (admin only)
     let errorsByBranch = [];
     if (user.role === "admin") {
       errorsByBranch = await Receipt.aggregate([
@@ -812,25 +1169,20 @@ const getErrorStats = async (branchId, user) => {
       ]);
     }
 
-    // Recent errors
     const recentErrors = await Receipt.find(query)
       .select("code totalAmount markedErrorAt")
       .sort({ markedErrorAt: -1 })
       .limit(5)
       .lean();
 
-    return {
-      ...totals,
-      errorsByBranch,
-      recentErrors,
-    };
+    return { ...totals, errorsByBranch, recentErrors };
   } catch (error) {
     throw new Error(error.message || error);
   }
 };
 
 /**
- * Delete error receipt - Admin and Manager only
+ * Delete error receipt
  */
 const deleteErrorReceipt = async (id, user) => {
   try {
@@ -844,16 +1196,11 @@ const deleteErrorReceipt = async (id, user) => {
       throw new ApiError(400, "Chỉ có thể xóa hóa đơn đã được đánh dấu lỗi");
     }
 
-    // Extract branchId
     const branchId = receipt.branchId._id || receipt.branchId;
 
-    // Manager can only delete error receipts in their branch
     if (user.role === "manager") {
       if (!user.branchId || user.branchId.toString() !== branchId.toString()) {
-        throw new ApiError(
-          403,
-          "Bạn không có quyền xóa hóa đơn lỗi của chi nhánh khác"
-        );
+        throw new ApiError(403, "Bạn không có quyền xóa hóa đơn lỗi của chi nhánh khác");
       }
     }
 
@@ -865,8 +1212,22 @@ const deleteErrorReceipt = async (id, user) => {
   }
 };
 
+// ============================================================================
+// EXPORTS
+// ============================================================================
+
 export const receiptService = {
+  // Stats
   getStats,
+  
+  // QR Preview (new flow)
+  createQRPreview,
+  cancelQRPreview,
+  getQRPreview,
+  confirmQRPreview,
+  updateQRPreview,
+  
+  // CRUD
   create,
   cancel,
   update,
@@ -876,12 +1237,18 @@ export const receiptService = {
   getByCode,
   getByBranch,
   getByDateRange,
+  
+  // Revenue
   getRevenue,
   getDailyRevenue,
   getTopProducts,
   getRevenueByPaymentMethod,
+  
+  // Payment
   handlePaymentWebhook,
   checkPaymentStatus,
+  
+  // Error receipts
   markAsError,
   getErrorReceipts,
   getErrorStats,

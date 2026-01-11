@@ -59,7 +59,15 @@ export function SmartProductInput({
     const interval = disableAutoRefocus
       ? null
       : setInterval(() => {
-          if (document.activeElement !== inputRef.current && !showDropdown) {
+          // Không refocus nếu đang focus vào input khác (vd: input tiền khách đưa)
+          const activeElement = document.activeElement;
+          const isInputFocused = activeElement?.tagName === "INPUT" || 
+                                  activeElement?.tagName === "TEXTAREA" ||
+                                  activeElement?.tagName === "SELECT" ||
+                                  activeElement?.tagName === "BUTTON" ||
+                                  activeElement?.closest("[data-no-autofocus]"); // Custom attribute to prevent autofocus
+          
+          if (!isInputFocused && document.activeElement !== inputRef.current && !showDropdown) {
             inputRef.current?.focus();
           }
         }, 1000);

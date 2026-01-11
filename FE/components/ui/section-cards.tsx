@@ -23,6 +23,7 @@ interface SectionCardsProps {
 }
 
 const periodLabels: Record<string, string> = {
+  today: "Hôm nay",
   week: "Tuần này",
   month: "Tháng này",
   "3month": "3 tháng",
@@ -115,6 +116,7 @@ export function SectionCards({ stats, loading, period = "month", onPeriodChange 
               <SelectValue placeholder="Chọn kỳ" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="today">Hôm nay</SelectItem>
               <SelectItem value="week">Tuần này</SelectItem>
               <SelectItem value="month">Tháng này</SelectItem>
               <SelectItem value="3month">3 tháng</SelectItem>

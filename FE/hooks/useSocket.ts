@@ -11,6 +11,7 @@ interface PaymentSuccessData {
   receiptCode: string;
   amount: number;
   timestamp: string;
+  fromDraft?: boolean; // True if payment was from draft receipt (QR preview)
 }
 
 interface UseSocketOptions {

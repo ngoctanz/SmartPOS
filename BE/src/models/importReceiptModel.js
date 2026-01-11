@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import { buildDateFilter } from "../utils/dateUtils.js";
 
 const importProductSchema = new mongoose.Schema(
   {
@@ -44,7 +45,7 @@ const importReceiptSchema = new mongoose.Schema(
     barcode: {
       type: String,
       unique: true,
-      sparse: true, // Cho phép null/undefined nhưng nếu có thì phải unique
+      sparse: true,
     },
     branchId: {
       type: Schema.Types.ObjectId,
@@ -122,69 +123,63 @@ importReceiptSchema.index({ isError: 1 });
 
 // Static methods
 importReceiptSchema.statics = {
-  async getStats(branchId) {
-    const pipeline = [
-      // Loại trừ phiếu lỗi khỏi thống kê
-      { $match: { isError: { $ne: true } } },
-      {
-        $group: {
-            _id: null,
-            totalReceipts: { $sum: 1 },
-            pendingCount: {
-                $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] }
-            },
-            completedCount: {
-                $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] }
-            },
-            cancelledCount: {
-                $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] }
-            },
-            totalValue: {
-                 $sum: { $cond: [{ $eq: ["$status", "completed"] }, "$totalAmount", 0] }
-            }
-        }
+  async getStats(branchId, period, startDate, endDate) {
+    const matchStage = { isError: { $ne: true } };
+
+    // Apply date filter
+    const dateFilter = buildDateFilter({ period, startDate, endDate });
+    if (dateFilter) {
+      Object.assign(matchStage, dateFilter);
     }
-    ];
 
     if (branchId) {
-        pipeline.unshift({ $match: { branchId: new mongoose.Types.ObjectId(branchId), isError: { $ne: true } } });
-        // Remove the default isError filter since we combined it
-        pipeline.splice(1, 1);
+      matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
     }
 
-    const result = await this.aggregate(pipeline);
-    return result[0] || { 
-        totalReceipts: 0, 
-        pendingCount: 0, 
-        completedCount: 0, 
-        cancelledCount: 0, 
-        totalValue: 0 
+    const result = await this.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: null,
+          totalReceipts: { $sum: 1 },
+          pendingCount: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
+          completedCount: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
+          cancelledCount: { $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] } },
+          totalValue: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, "$totalAmount", 0] } },
+        },
+      },
+    ]);
+
+    return result[0] || {
+      totalReceipts: 0,
+      pendingCount: 0,
+      completedCount: 0,
+      cancelledCount: 0,
+      totalValue: 0,
     };
   },
 
-  // Get stats for error receipts
   async getErrorStats(branchId) {
-    const pipeline = [
-      { $match: { isError: true } },
+    const matchStage = { isError: true };
+    if (branchId) {
+      matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
+    }
+
+    const result = await this.aggregate([
+      { $match: matchStage },
       {
         $group: {
           _id: null,
           totalErrorReceipts: { $sum: 1 },
-          totalErrorValue: { $sum: "$totalAmount" }
-        }
-      }
-    ];
+          totalErrorValue: { $sum: "$totalAmount" },
+        },
+      },
+    ]);
 
-    if (branchId) {
-      pipeline[0].$match.branchId = new mongoose.Types.ObjectId(branchId);
-    }
-
-    const result = await this.aggregate(pipeline);
     return result[0] || { totalErrorReceipts: 0, totalErrorValue: 0 };
   },
 
   async generateCode() {
-    // Lấy phiếu cuối cùng (bao gồm cả phiếu lỗi) để tránh trùng code
     const lastReceipt = await this.findOne().sort({ createdAt: -1 });
     if (!lastReceipt) return "PN001";
     const lastNumber = parseInt(lastReceipt.code.replace("PN", ""), 10);
@@ -192,9 +187,7 @@ importReceiptSchema.statics = {
     return `PN${String(newNumber).padStart(3, "0")}`;
   },
 
-  // Generate barcode from code (format: 200 + 9 digits from timestamp + check digit placeholder)
   generateBarcode(code) {
-    // Simple approach: use prefix + code number + timestamp suffix
     const codeNum = code.replace("PN", "").padStart(6, "0");
     const timestamp = Date.now().toString().slice(-6);
     return `200${codeNum}${timestamp}`;
@@ -209,7 +202,6 @@ importReceiptSchema.statics = {
   },
 
   async findAllImportReceipts(filter = {}) {
-    // Mặc định loại trừ phiếu lỗi, trừ khi filter chỉ định rõ
     const queryFilter = { ...filter };
     if (queryFilter.isError === undefined) {
       queryFilter.isError = { $ne: true };
@@ -221,7 +213,6 @@ importReceiptSchema.statics = {
       .lean();
   },
 
-  // Lấy danh sách phiếu lỗi
   async findAllErrorReceipts(filter = {}) {
     const queryFilter = { ...filter, isError: true };
     return this.find(queryFilter)
@@ -234,9 +225,9 @@ importReceiptSchema.statics = {
 
   async findAllErrorReceiptsPaginated(options = {}) {
     const { search, branchId, page = 1, limit = 20 } = options;
-    
+
     const query = { isError: true };
-    
+
     if (search && search.trim()) {
       query.$or = [
         { code: { $regex: search, $options: "i" } },
@@ -244,14 +235,14 @@ importReceiptSchema.statics = {
         { errorNote: { $regex: search, $options: "i" } },
       ];
     }
-    
+
     if (branchId) {
-      query.branchId = new mongoose.Types.ObjectId(branchId);
+      query.branchId = new mongoose.Types.ObjectId(String(branchId));
     }
 
     const total = await this.countDocuments(query);
     const skip = (page - 1) * limit;
-    
+
     const data = await this.find(query)
       .populate("branchId", "branchName")
       .populate("createdBy", "userName name")
@@ -263,46 +254,53 @@ importReceiptSchema.statics = {
 
     return {
       data,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   },
 
   async findAllImportReceiptsPaginated(options = {}) {
-    const { search, branchId, status, page = 1, limit = 20, includeError = false } = options;
-    
+    const {
+      search,
+      branchId,
+      status,
+      period,
+      startDate,
+      endDate,
+      page = 1,
+      limit = 20,
+      includeError = false,
+    } = options;
+
     const query = {};
-    
-    // Mặc định loại trừ phiếu lỗi
+
     if (!includeError) {
       query.isError = { $ne: true };
     }
-    
-    // Search by code or supplier name
+
     if (search && search.trim()) {
       query.$or = [
         { code: { $regex: search, $options: "i" } },
         { supplierName: { $regex: search, $options: "i" } },
       ];
     }
-    
-    // Filter by branch
+
     if (branchId) {
-      query.branchId = new mongoose.Types.ObjectId(branchId);
+      query.branchId = new mongoose.Types.ObjectId(String(branchId));
     }
-    
-    // Filter by status
+
     if (status) {
       query.status = status;
     }
 
+    // Apply date filter
+    const dateFilter = buildDateFilter({ period, startDate, endDate });
+    if (dateFilter) {
+      Object.assign(query, dateFilter);
+    }
+
     const total = await this.countDocuments(query);
     const skip = (page - 1) * limit;
-    
+
     const data = await this.find(query)
       .populate("branchId", "branchName")
       .populate("createdBy", "userName name")
@@ -313,12 +311,7 @@ importReceiptSchema.statics = {
 
     return {
       data,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   },
 
@@ -349,7 +342,6 @@ importReceiptSchema.statics = {
   },
 
   async findImportReceiptsByBranch(branchId, filter = {}) {
-    // Mặc định loại trừ phiếu lỗi
     const queryFilter = { branchId, ...filter };
     if (queryFilter.isError === undefined) {
       queryFilter.isError = { $ne: true };
@@ -365,7 +357,7 @@ importReceiptSchema.statics = {
     const query = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
-      isError: { $ne: true }, // Loại trừ phiếu lỗi
+      isError: { $ne: true },
     };
     if (branchId) query.branchId = branchId;
     return this.find(query)
@@ -388,9 +380,9 @@ importReceiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
-      isError: { $ne: true }, // Loại trừ phiếu lỗi
+      isError: { $ne: true },
     };
-    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
+    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
 
     const result = await this.aggregate([
       { $match: matchStage },
@@ -405,27 +397,25 @@ importReceiptSchema.statics = {
     return result[0] || { totalAmount: 0, count: 0 };
   },
 
-  // Đánh dấu phiếu lỗi
   async markAsError(id, errorNote, userId) {
     const receipt = await this.findByIdAndUpdate(
       id,
-      { 
+      {
         isError: true,
         errorNote: errorNote || "",
         errorMarkedAt: new Date(),
-        errorMarkedBy: userId
+        errorMarkedBy: userId,
       },
       { new: true, runValidators: true }
     )
-    .populate("branchId", "branchName")
-    .populate("createdBy", "userName name")
-    .populate("errorMarkedBy", "userName name");
-    
+      .populate("branchId", "branchName")
+      .populate("createdBy", "userName name")
+      .populate("errorMarkedBy", "userName name");
+
     if (!receipt) throw new Error("Import receipt not found");
     return receipt;
   },
 
-  // Xóa phiếu lỗi (chỉ admin)
   async deleteErrorReceipt(id) {
     const receipt = await this.findOneAndDelete({ _id: id, isError: true });
     if (!receipt) throw new Error("Error receipt not found or not an error receipt");
@@ -433,7 +423,4 @@ importReceiptSchema.statics = {
   },
 };
 
-export const ImportReceipt = mongoose.model(
-  "ImportReceipt",
-  importReceiptSchema
-);
+export const ImportReceipt = mongoose.model("ImportReceipt", importReceiptSchema);

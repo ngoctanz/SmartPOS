@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
 
-type PeriodType = "week" | "month" | "3month" | "6month" | "year"
+type PeriodType = "today" | "week" | "month" | "3month" | "6month" | "year"
 
 export default function DashboardPage() {
   const router = useRouter()

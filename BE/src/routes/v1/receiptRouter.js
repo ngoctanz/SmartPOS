@@ -16,12 +16,67 @@ Router.post("/webhook/payos", receiptController.handlePayosWebhook);
 
 // Auth required routes
 Router.use(authMiddleware);
-Router.use(injectUserBranch()); // Tự động inject branchId cho staff
 
-// Get routes - list (đã được filter bởi injectUserBranch)
+
+// QR Preview routes
+Router.post("/preview-qr", injectUserBranch(), receiptController.createQRPreview);
+Router.post("/cancel-preview", injectUserBranch({ requireBranchForWrite: false }), receiptController.cancelQRPreview);
+Router.post("/confirm-preview", injectUserBranch({ requireBranchForWrite: false }), receiptController.confirmQRPreview);
+Router.get("/preview-qr/:orderCode", injectUserBranch({ requireBranchForWrite: false }), receiptController.getQRPreview);
+Router.put("/preview-qr/:orderCode", injectUserBranch({ requireBranchForWrite: false }), receiptController.updateQRPreview);
+
+
+Router.patch(
+  "/:id/mark-error",
+  authorize("admin", "manager", "staff"),
+  injectUserBranch({ requireBranchForWrite: false }),
+  validateRecordBranchAccess(async (req) => {
+    const receipt = await receiptService.getById(req.params.id);
+    return receipt?.branchId;
+  }),
+  receiptController.markError
+);
+
+// Cancel receipt - Admin and Manager only
+// branchId comes from the receipt itself
+Router.patch(
+  "/:id/cancel",
+  authorize("admin", "manager"),
+  injectUserBranch({ requireBranchForWrite: false }),
+  receiptController.cancel
+);
+
+// Delete error receipt - Admin and Manager only
+// branchId comes from the receipt itself
+Router.delete(
+  "/errors/:id",
+  authorize("admin", "manager"),
+  injectUserBranch({ requireBranchForWrite: false }),
+  validateRecordBranchAccess(async (req) => {
+    const receipt = await receiptService.getById(req.params.id);
+    return receipt?.branchId;
+  }),
+  receiptController.deleteErrorReceipt
+);
+
+// Update receipt - Admin and Manager only
+// branchId comes from the receipt itself
+Router.patch(
+  "/:id",
+  authorize("admin", "manager"),
+  injectUserBranch({ requireBranchForWrite: false }),
+  receiptController.update
+);
+
+// ============================================================================
+// ROUTES THAT REQUIRE branchId (via global middleware)
+// ============================================================================
+Router.use(injectUserBranch());
+
+// Get routes - list (filtered by injectUserBranch)
 Router.get("/", receiptController.getAll);
-Router.get("/errors", receiptController.getErrors); // Error receipts list
-Router.get("/errors/stats", receiptController.getErrorStats); // Error stats
+Router.get("/errors", receiptController.getErrors);
+Router.get("/errors/stats", receiptController.getErrorStats);
 Router.get("/date-range", receiptController.getByDateRange);
 Router.get("/revenue", receiptController.getRevenue);
 Router.get("/daily-revenue", receiptController.getDailyRevenue);
@@ -29,7 +84,7 @@ Router.get("/top-products", receiptController.getTopProducts);
 Router.get("/stats", receiptController.getStats);
 Router.get("/payment-status/:orderCode", receiptController.checkPaymentStatus);
 
-// Get by code - cần validate branch access
+// Get by code - validate branch access
 Router.get(
   "/code/:code",
   validateRecordBranchAccess(async (req) => {
@@ -39,14 +94,14 @@ Router.get(
   receiptController.getByCode
 );
 
-// Get by branch - cần check branch access
+// Get by branch - check branch access
 Router.get(
   "/branch/:branchId",
   checkBranchAccess,
   receiptController.getByBranch
 );
 
-// Get by ID - cần validate branch access
+// Get by ID - validate branch access
 Router.get(
   "/:id",
   validateRecordBranchAccess(async (req) => {
@@ -58,33 +113,5 @@ Router.get(
 
 // Create receipt (all authenticated staff can sell)
 Router.post("/", receiptValidation.createReceipt, receiptController.create);
-
-// Update receipt - Admin and Manager only
-Router.patch("/:id", authorize("admin", "manager"), receiptController.update);
-
-// Cancel receipt - Admin and Manager only
-Router.patch("/:id/cancel", authorize("admin", "manager"), receiptController.cancel);
-
-// Mark receipt as error - Admin, Manager and Staff
-Router.patch(
-  "/:id/mark-error",
-  authorize("admin", "manager", "staff"),
-  validateRecordBranchAccess(async (req) => {
-    const receipt = await receiptService.getById(req.params.id);
-    return receipt?.branchId;
-  }),
-  receiptController.markError
-);
-
-// Delete error receipt - Admin and Manager only
-Router.delete(
-  "/errors/:id",
-  authorize("admin", "manager"),
-  validateRecordBranchAccess(async (req) => {
-    const receipt = await receiptService.getById(req.params.id);
-    return receipt?.branchId;
-  }),
-  receiptController.deleteErrorReceipt
-);
 
 export const receiptRouter = Router;

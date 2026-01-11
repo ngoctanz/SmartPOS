@@ -1,4 +1,5 @@
 import mongoose, { Schema } from "mongoose";
+import { buildDateFilter } from "../utils/dateUtils.js";
 
 const receiptProductSchema = new mongoose.Schema(
   {
@@ -57,6 +58,11 @@ const receiptSchema = new mongoose.Schema(
       required: true,
       min: [0, "Total amount cannot be negative"],
     },
+    customerPaid: {
+      type: Number,
+      default: null, // null = chưa nhập, sẽ tự fill = totalAmount
+      min: [0, "Customer paid cannot be negative"],
+    },
     paymentMethod: {
       type: String,
       enum: ["cash", "card", "transfer"],
@@ -64,10 +70,9 @@ const receiptSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["completed", "cancelled", "pending"],
+      enum: ["completed", "cancelled", "pending", "draft"],
       default: "completed",
     },
-    // Error receipt fields
     isError: {
       type: Boolean,
       default: false,
@@ -86,7 +91,6 @@ const receiptSchema = new mongoose.Schema(
       default: null,
       maxlength: [500, "Error reason cannot exceed 500 characters"],
     },
-    // PayOS payment info (only for transfer payments)
     paymentInfo: {
       orderCode: { type: Number },
       linkId: { type: String },
@@ -95,7 +99,6 @@ const receiptSchema = new mongoose.Schema(
       accountNumber: { type: String },
       accountName: { type: String },
       bin: { type: String },
-      // Store amount and description to regenerate VietQR later
       amount: { type: Number },
       description: { type: String },
       status: {
@@ -122,48 +125,40 @@ receiptSchema.index({ isError: 1, branchId: 1 });
 
 // Static methods
 receiptSchema.statics = {
-  async getStats(branchId) {
-    const pipeline = [
-      // Filter out error receipts
-      { $match: { isError: false } },
+  async getStats(branchId, period, startDate, endDate) {
+    const matchStage = { isError: false, status: { $ne: "draft" } };
+
+    // Apply date filter
+    const dateFilter = buildDateFilter({ period, startDate, endDate });
+    if (dateFilter) {
+      Object.assign(matchStage, dateFilter);
+    }
+
+    if (branchId) {
+      matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
+    }
+
+    const result = await this.aggregate([
+      { $match: matchStage },
       {
         $group: {
           _id: null,
           totalReceipts: { $sum: 1 },
-          pendingCount: {
-            $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] },
-          },
-          completedCount: {
-            $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] },
-          },
-          cancelledCount: {
-            $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] },
-          },
-          totalRevenue: {
-            $sum: {
-              $cond: [{ $eq: ["$status", "completed"] }, "$totalAmount", 0],
-            },
-          },
+          pendingCount: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
+          completedCount: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] } },
+          cancelledCount: { $sum: { $cond: [{ $eq: ["$status", "cancelled"] }, 1, 0] } },
+          totalRevenue: { $sum: { $cond: [{ $eq: ["$status", "completed"] }, "$totalAmount", 0] } },
         },
       },
-    ];
+    ]);
 
-    if (branchId) {
-      pipeline.unshift({
-        $match: { branchId: new mongoose.Types.ObjectId(branchId) },
-      });
-    }
-
-    const result = await this.aggregate(pipeline);
-    return (
-      result[0] || {
-        totalReceipts: 0,
-        pendingCount: 0,
-        completedCount: 0,
-        cancelledCount: 0,
-        totalRevenue: 0,
-      }
-    );
+    return result[0] || {
+      totalReceipts: 0,
+      pendingCount: 0,
+      completedCount: 0,
+      cancelledCount: 0,
+      totalRevenue: 0,
+    };
   },
 
   async generateCode() {
@@ -182,7 +177,9 @@ receiptSchema.statics = {
   },
 
   async findAllReceipts(filter = {}) {
-    return this.find(filter)
+    // Always exclude draft from list
+    const query = { ...filter, status: { $ne: "draft" } };
+    return this.find(query)
       .populate("branchId", "branchName")
       .populate("createdBy", "userName name")
       .sort({ createdAt: -1 })
@@ -195,9 +192,12 @@ receiptSchema.statics = {
       branchId,
       status,
       paymentMethod,
+      period,
+      startDate,
+      endDate,
       page = 1,
       limit = 20,
-      includeErrors = false, // New option to include error receipts
+      includeErrors = false,
     } = options;
 
     // Auto-expire pending transfer payments older than 15 minutes
@@ -217,31 +217,40 @@ receiptSchema.statics = {
       }
     );
 
-    const query = {};
+    // Auto-delete draft receipts older than 15 minutes
+    await this.deleteMany({
+      status: "draft",
+      createdAt: { $lt: expirationTime },
+    });
 
-    // Exclude error receipts by default
+    const query = {
+      status: { $ne: "draft" }, // Always exclude draft from list
+    };
+
     if (!includeErrors) {
       query.isError = false;
     }
 
-    // Search by code
     if (search && search.trim()) {
       query.code = { $regex: search, $options: "i" };
     }
 
-    // Filter by branch
     if (branchId) {
-      query.branchId = new mongoose.Types.ObjectId(branchId);
+      query.branchId = new mongoose.Types.ObjectId(String(branchId));
     }
 
-    // Filter by status
     if (status) {
       query.status = status;
     }
 
-    // Filter by payment method
     if (paymentMethod) {
       query.paymentMethod = paymentMethod;
+    }
+
+    // Apply date filter
+    const dateFilter = buildDateFilter({ period, startDate, endDate });
+    if (dateFilter) {
+      Object.assign(query, dateFilter);
     }
 
     const total = await this.countDocuments(query);
@@ -258,12 +267,7 @@ receiptSchema.statics = {
 
     return {
       data,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     };
   },
 
@@ -305,7 +309,9 @@ receiptSchema.statics = {
   },
 
   async findReceiptsByBranch(branchId, filter = {}) {
-    return this.find({ branchId, ...filter })
+    // Always exclude draft from list
+    const query = { branchId, status: { $ne: "draft" }, ...filter };
+    return this.find(query)
       .populate("branchId", "branchName")
       .populate("createdBy", "userName name")
       .sort({ createdAt: -1 })
@@ -316,7 +322,7 @@ receiptSchema.statics = {
     const query = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
-      isError: false, // Exclude error receipts
+      isError: false,
     };
     if (branchId) query.branchId = branchId;
     return this.find(query)
@@ -339,9 +345,9 @@ receiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
-      isError: false, // Exclude error receipts
+      isError: false,
     };
-    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
+    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
 
     const result = await this.aggregate([
       { $match: matchStage },
@@ -360,9 +366,9 @@ receiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
-      isError: false, // Exclude error receipts
+      isError: false,
     };
-    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
+    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
 
     return this.aggregate([
       { $match: matchStage },
@@ -381,9 +387,9 @@ receiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
-      isError: false, // Exclude error receipts
+      isError: false,
     };
-    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
+    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
 
     return this.aggregate([
       { $match: matchStage },
@@ -393,11 +399,7 @@ receiptSchema.statics = {
           _id: "$listProduct.productId",
           productName: { $first: "$listProduct.productName" },
           totalQuantity: { $sum: "$listProduct.quantity" },
-          totalRevenue: {
-            $sum: {
-              $multiply: ["$listProduct.salePrice", "$listProduct.quantity"],
-            },
-          },
+          totalRevenue: { $sum: { $multiply: ["$listProduct.salePrice", "$listProduct.quantity"] } },
         },
       },
       { $sort: { totalQuantity: -1 } },
@@ -409,9 +411,9 @@ receiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
-      isError: false, // Exclude error receipts
+      isError: false,
     };
-    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
+    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
 
     return this.aggregate([
       { $match: matchStage },
@@ -429,11 +431,10 @@ receiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
-      isError: false, // Exclude error receipts
+      isError: false,
     };
-    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
+    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
 
-    // Get all sold products with their quantities
     const soldProducts = await this.aggregate([
       { $match: matchStage },
       { $unwind: "$listProduct" },
@@ -442,24 +443,14 @@ receiptSchema.statics = {
           _id: "$listProduct.productId",
           productName: { $first: "$listProduct.productName" },
           totalQuantity: { $sum: "$listProduct.quantity" },
-          totalRevenue: {
-            $sum: {
-              $multiply: ["$listProduct.salePrice", "$listProduct.quantity"],
-            },
-          },
+          totalRevenue: { $sum: { $multiply: ["$listProduct.salePrice", "$listProduct.quantity"] } },
         },
       },
     ]);
 
-    // Get all active products
     const allProducts = await mongoose.model("Product").find({ status: "active" }).select("_id name").lean();
+    const soldProductsMap = new Map(soldProducts.map(p => [p._id.toString(), p]));
 
-    // Create a map of sold products for quick lookup
-    const soldProductsMap = new Map(
-      soldProducts.map(p => [p._id.toString(), p])
-    );
-
-    // Combine all products with their sales data (0 if not sold)
     const allProductsWithSales = allProducts.map(product => {
       const sold = soldProductsMap.get(product._id.toString());
       return {
@@ -470,7 +461,6 @@ receiptSchema.statics = {
       };
     });
 
-    // Sort by quantity ascending (least sold first) and limit
     return allProductsWithSales
       .sort((a, b) => a.totalQuantity - b.totalQuantity)
       .slice(0, limit);
@@ -480,7 +470,7 @@ receiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
-      isError: false, // Exclude error receipts
+      isError: false,
     };
 
     return this.aggregate([
@@ -517,9 +507,9 @@ receiptSchema.statics = {
     const matchStage = {
       createdAt: { $gte: startDate, $lte: endDate },
       status: "completed",
-      isError: false, // Exclude error receipts
+      isError: false,
     };
-    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(branchId);
+    if (branchId) matchStage.branchId = new mongoose.Types.ObjectId(String(branchId));
 
     return this.aggregate([
       { $match: matchStage },
@@ -547,11 +537,7 @@ receiptSchema.statics = {
           _id: "$product.categoryId",
           categoryName: { $first: { $ifNull: ["$category.name", "Chưa phân loại"] } },
           totalQuantity: { $sum: "$listProduct.quantity" },
-          totalRevenue: {
-            $sum: {
-              $multiply: ["$listProduct.salePrice", "$listProduct.quantity"],
-            },
-          },
+          totalRevenue: { $sum: { $multiply: ["$listProduct.salePrice", "$listProduct.quantity"] } },
         },
       },
       { $sort: { totalRevenue: -1 } },
