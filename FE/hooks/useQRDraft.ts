@@ -5,6 +5,7 @@ import receiptService, {
 } from "@/service/receipt.service";
 import { toast } from "sonner";
 import { CartItem } from "@/components/receipt";
+import { playSuccessSound, speakPaymentSuccess } from "@/utils/audio";
 
 const DEBOUNCE_TIME = 1500;
 const QR_COOLDOWN_TIME = 3000;
@@ -214,6 +215,10 @@ export function useQRDraft({
 
       if (response.success && response.data) {
         const receipt = response.data;
+
+        // Play success sound and speak amount
+        playSuccessSound();
+        speakPaymentSuccess(receipt.totalAmount);
 
         // Backend trả về receipt với status hiện tại:
         // - "completed" nếu webhook đã thanh toán trước

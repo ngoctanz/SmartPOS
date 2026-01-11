@@ -348,6 +348,15 @@ export function printReceipt(receipt: Receipt): void {
     branchAddress,
     staffName,
     createdAt: new Date(receipt.createdAt),
+    // Show QR only if transfer and pending (not paid yet)
+    ...(receipt.paymentMethod === "transfer" && receipt.status === "pending"
+      ? {
+          qrCode: receipt.paymentInfo?.qrCode,
+          accountName: receipt.paymentInfo?.accountName,
+          accountNumber: receipt.paymentInfo?.accountNumber,
+          description: receipt.paymentInfo?.description,
+        }
+      : {}),
   });
 
   executePrint(html, `Hóa đơn - ${receipt.code}`);

@@ -29,6 +29,7 @@ import {
   printCashPreview,
   printReceipt,
 } from "@/utils/print-direct";
+import { playSuccessSound, speakPaymentSuccess } from "@/utils/audio";
 
 export default function CreateReceiptPage() {
   const router = useRouter();
@@ -110,7 +111,12 @@ export default function CreateReceiptPage() {
       const currentShowQR = showQRPreviewRef.current;
       const currentDraft = draftDataRef.current;
 
+      // Play success sound and speak amount for ANY payment (Current or Background)
+      playSuccessSound();
+      speakPaymentSuccess(data.amount);
+
       if (currentShowQR && currentDraft?.receiptCode === data.receiptCode) {
+        // ... Modal handling
         try {
           const response = await receiptService.getByCode(data.receiptCode);
           if (response.success && response.data) {
@@ -121,6 +127,18 @@ export default function CreateReceiptPage() {
           cancelDraft();
           router.push(`/trang-quan-ly/hoa-don/${data.receiptCode}`);
         }
+      } else {
+        // Nếu nhận được socket của đơn khác (ví dụ đơn cũ delay mới thanh toán)
+        // Chỉ hiện thông báo nhỏ (Silent Toast) để NV biết
+        toast.success(`Thanh toán thành công: ${data.receiptCode}`, {
+          description: `Đã nhận: ${data.amount.toLocaleString("vi-VN")} đ`,
+          duration: 5000,
+          action: {
+            label: "Xem",
+            onClick: () =>
+              router.push(`/trang-quan-ly/hoa-don/${data.receiptCode}`),
+          },
+        });
       }
     },
     enabled: true,
