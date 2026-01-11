@@ -2,7 +2,7 @@ export const playSuccessSound = () => {
   try {
     const audio = new Audio();
     // Use local file for stability and speed
-    audio.src = "/audios/success-audio.mp3";
+    audio.src = "/audios/success-audio2.mp3";
     audio.volume = 0.5;
     audio.play().catch((e) => console.log("Audio play failed:", e));
   } catch (error) {
