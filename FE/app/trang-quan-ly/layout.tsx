@@ -3,6 +3,8 @@ import { SiteHeader } from "@/components/ui/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { ProtectedRoute } from "@/components/common/ProtectedRoute";
 
+import { GlobalSocketListener } from "@/components/common/global-socket-listener";
+
 export default function DashboardLayout({
   children,
 }: {
@@ -10,6 +12,7 @@ export default function DashboardLayout({
 }) {
   return (
     <ProtectedRoute>
+      <GlobalSocketListener />
       <SidebarProvider
         style={
           {
