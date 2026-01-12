@@ -95,16 +95,10 @@ export const useSocket = (options: UseSocketOptions = {}) => {
     return () => clearInterval(interval);
   }, [enabled, isAuthenticated]);
 
-  // Disconnect on unmount
-  useEffect(() => {
-    return () => {
-      if (connectAttemptedRef.current) {
-        console.log("[Socket] Disconnecting on unmount");
-        socketService.disconnect();
-        connectAttemptedRef.current = false;
-      }
-    };
-  }, []);
+  // NOTE: We intentionally do NOT disconnect on unmount because:
+  // 1. Socket is a global singleton shared across multiple useSocket instances
+  // 2. Disconnecting should only happen on logout (handled by isAuthenticated check above)
+  // 3. Each instance only removes its own listener on unmount (handled in connect effect cleanup)
 
   return {
     isConnected,
