@@ -220,12 +220,19 @@ export function useQRDraft({
         // - "pending" nếu mới được confirm
         const isPaid = receipt.status === "completed";
 
-        setCompletedReceipt(receipt);
+        // Reset QR state ngay lập tức
         resetQRState();
-        setSuccessType(isPaid ? "paid" : "manual");
-        setShowSuccessDialog(true);
 
+        // Không hiện modal nữa - chỉ callback để page reset cart
         onPaymentSuccess?.(receipt);
+
+        // Toast thông báo thành công
+        toast.success(
+          isPaid ? "Đã thanh toán thành công!" : "Đã lưu hóa đơn thành công!",
+          {
+            description: `Mã hóa đơn: ${receipt.code}`,
+          }
+        );
       } else {
         toast.error(response.message || "Lưu hóa đơn thất bại");
       }
@@ -292,7 +299,7 @@ export function useQRDraft({
       // Reset QR state (sẽ clear currentOrderCodeRef và currentReceiptCodeRef)
       resetQRState();
 
-      // Set completed receipt và show dialog
+      // Webhook thanh toán thành công → hiện modal success
       setCompletedReceipt(receipt);
       setSuccessType("paid");
       setShowSuccessDialog(true);

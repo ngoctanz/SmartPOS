@@ -92,6 +92,12 @@ export default function CreateReceiptPage() {
     branchId: selectedBranch,
     isAdmin,
     paymentMethod,
+    // Callback khi confirm thành công (bấm Hoàn thành) → reset cart luôn
+    onPaymentSuccess: () => {
+      clearCart();
+      setPaymentMethod("cash");
+      setCustomerPaid(null);
+    },
   });
 
   // === Refs for socket callback (avoid stale closure) ===
