@@ -22,11 +22,6 @@ interface SuccessDialogProps {
   receipt: Receipt | null;
   onPrint: () => void;
   onOk: () => void;
-  /**
-   * "manual" = bấm Hoàn thành thủ công (chuyển khoản) → pending
-   * "paid" = webhook báo đã thanh toán (chuyển khoản) → completed
-   * "cash" = thanh toán tiền mặt → completed
-   */
   type?: SuccessType;
 }
 
@@ -48,7 +43,7 @@ export function SuccessDialog({
 
   const isPaid = type === "paid";
   const isCash = type === "cash";
-  const isCompleted = isPaid || isCash; // Cả 2 đều là đã thanh toán xong
+  const isCompleted = isPaid || isCash;
 
   return (
     <>
