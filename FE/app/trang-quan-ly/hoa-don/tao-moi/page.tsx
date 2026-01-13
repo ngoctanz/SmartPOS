@@ -7,7 +7,6 @@ import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import receiptService, {
   CreateReceiptRequest,
-  Receipt,
 } from "@/service/receipt.service";
 import { useAuthContext } from "@/contexts/auth-context";
 import { ROUTES } from "@/configs/routes.config";
@@ -15,7 +14,6 @@ import {
   CartItemsTable,
   PaymentSummary,
   SuccessDialog,
-  CashPaymentDialog,
 } from "@/components/receipt";
 import { SmartProductInput } from "@/components/common/smart-product-input";
 import { useSocket } from "@/hooks/useSocket";
@@ -61,12 +59,7 @@ export default function CreateReceiptPage() {
   const [customerPaid, setCustomerPaid] = React.useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  // === Cash Payment Dialog State ===
-  const [showCashDialog, setShowCashDialog] = React.useState(false);
-  const [cashSuccessReceipt, setCashSuccessReceipt] =
-    React.useState<Receipt | null>(null);
-  const [showCashSuccessDialog, setShowCashSuccessDialog] =
-    React.useState(false);
+  // === Cash Payment Dialog State === (removed - no longer needed)
 
   // === Load from error receipt ===
   useErrorReceiptLoader({ setCartItems, setPaymentMethod });
@@ -147,8 +140,8 @@ export default function CreateReceiptPage() {
     enabled: true,
   });
 
-  // === Create cash receipt (called from dialog confirm) ===
-  const confirmCashPayment = React.useCallback(async () => {
+  // === Create cash receipt (called directly from handleSubmit) ===
+  const createCashReceipt = React.useCallback(async () => {
     setIsSubmitting(true);
     try {
       const receiptData: CreateReceiptRequest = {
@@ -172,9 +165,21 @@ export default function CreateReceiptPage() {
         // Hủy QR draft nếu đang có (user chuyển từ CK sang tiền mặt)
         if (showQRPreview) cancelDraft();
 
-        setShowCashDialog(false);
-        setCashSuccessReceipt(response.data);
-        setShowCashSuccessDialog(true);
+        const receipt = response.data;
+
+        // Tự động mở in bill trước
+        printReceipt(receipt);
+
+        // Delay toast 1.5s 
+        setTimeout(() => {
+          toast.success("Tạo hóa đơn thành công!", {
+            description: `Mã hóa đơn: ${receipt.code}`,
+          });
+        }, 1500);
+
+        // Reset tất cả state để sẵn sàng cho đơn mới
+        clearCart();
+        setCustomerPaid(null);
       } else {
         toast.error(response.message || "Tạo hóa đơn thất bại");
       }
@@ -191,18 +196,8 @@ export default function CreateReceiptPage() {
     customerPaid,
     showQRPreview,
     cancelDraft,
+    clearCart,
   ]);
-
-  // === Cash success dialog OK handler ===
-  const handleCashSuccessOk = React.useCallback(() => {
-    setShowCashSuccessDialog(false);
-    setCashSuccessReceipt(null);
-    setCustomerPaid(null);
-    // Reset cart để sẵn sàng cho đơn mới
-    clearCart();
-    // Reset payment method về mặc định (đảm bảo clean state)
-    setPaymentMethod("cash");
-  }, [clearCart]);
 
   // === Submit handler ===
   const handleSubmit = React.useCallback(async () => {
@@ -223,8 +218,8 @@ export default function CreateReceiptPage() {
       return;
     }
 
-    // Cash payment → show confirmation dialog
-    setShowCashDialog(true);
+    // Cash payment → tạo đơn luôn, không cần confirm
+    await createCashReceipt();
   }, [
     isAdmin,
     selectedBranch,
@@ -232,6 +227,7 @@ export default function CreateReceiptPage() {
     paymentMethod,
     showQRPreview,
     createDraft,
+    createCashReceipt,
   ]);
 
   // === Payment method change handler ===
@@ -268,10 +264,6 @@ export default function CreateReceiptPage() {
     });
   }, [draftData, cartItems, totalAmount, currentBranch, user]);
 
-  const handlePrintCashReceipt = React.useCallback(() => {
-    if (cashSuccessReceipt) printReceipt(cashSuccessReceipt);
-  }, [cashSuccessReceipt]);
-
   // === Enter Flow Hook ===
   useEnterFlow({
     paymentMethod,
@@ -281,16 +273,10 @@ export default function CreateReceiptPage() {
       !isCreatingDraft &&
       !isConfirmingDraft &&
       !(paymentMethod === "transfer" && showQRPreview) &&
-      !showCashDialog &&
       (isAdmin ? !!selectedBranch : true),
-    showCashDialog,
-    showCashSuccessDialog,
     showQRPreview,
     showTransferSuccessDialog: showSuccessDialog,
     onSubmit: handleSubmit,
-    onConfirmCash: confirmCashPayment,
-    onPrintCashReceipt: handlePrintCashReceipt,
-    onCloseCashSuccess: handleCashSuccessOk,
     onPrintDraft: handlePrintDraftReceipt,
     onConfirmQR: confirmDraft,
     onCloseTransferSuccess: handleSuccessDialogOk,
@@ -393,28 +379,6 @@ export default function CreateReceiptPage() {
           if (completedReceipt) printReceipt(completedReceipt);
         }}
         onOk={handleSuccessDialogOk}
-      />
-
-      <CashPaymentDialog
-        open={showCashDialog}
-        onClose={() => setShowCashDialog(false)}
-        onConfirm={confirmCashPayment}
-        cartItems={cartItems}
-        totalAmount={totalAmount}
-        customerPaid={customerPaid}
-        branchName={currentBranch?.branchName}
-        staffName={user?.name || user?.userName}
-        isConfirming={isSubmitting}
-      />
-
-      <SuccessDialog
-        open={showCashSuccessDialog}
-        receipt={cashSuccessReceipt}
-        type="cash"
-        onPrint={() => {
-          if (cashSuccessReceipt) printReceipt(cashSuccessReceipt);
-        }}
-        onOk={handleCashSuccessOk}
       />
     </div>
   );

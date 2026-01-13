@@ -3,28 +3,23 @@ import * as React from "react";
 /**
  * Flow phím Enter cho trang tạo hóa đơn
  *
- * Tiền mặt: IDLE → CASH_CONFIRM → CASH_SUCCESS (Enter 1: In, Enter 2: OK) → IDLE
- * Chuyển khoản: IDLE → QR_PREVIEW (Enter: In, O: Hoàn thành) → TRANSFER_SUCCESS (Enter: OK, P: In) → IDLE
+ * Tiền mặt: IDLE → Tạo đơn + In bill luôn → IDLE (cooldown 2s)
+ * Chuyển khoản: IDLE → QR_PREVIEW (Enter: In, O: Hoàn thành) → TRANSFER_SUCCESS (Enter: OK) → IDLE
  */
+
+const SUBMIT_COOLDOWN = 1000; // 1s cooldown sau khi submit để tránh spam
 
 export type EnterFlowState =
   | "IDLE"
-  | "CASH_CONFIRM"
-  | "CASH_SUCCESS"
   | "QR_PREVIEW"
   | "TRANSFER_SUCCESS";
 
 interface UseEnterFlowOptions {
   paymentMethod: "cash" | "transfer";
   canSubmit: boolean;
-  showCashDialog: boolean;
-  showCashSuccessDialog: boolean;
   showQRPreview: boolean;
   showTransferSuccessDialog: boolean;
   onSubmit: () => void | Promise<void>;
-  onConfirmCash: () => void | Promise<void>;
-  onPrintCashReceipt: () => void;
-  onCloseCashSuccess: () => void;
   onPrintDraft: () => void;
   onConfirmQR: () => void | Promise<void>;
   onCloseTransferSuccess: () => void;
@@ -46,29 +41,23 @@ function blurActiveInput(): void {
 export function useEnterFlow({
   paymentMethod,
   canSubmit,
-  showCashDialog,
-  showCashSuccessDialog,
   showQRPreview,
   showTransferSuccessDialog,
   onSubmit,
-  onConfirmCash,
-  onPrintCashReceipt,
-  onCloseCashSuccess,
   onPrintDraft,
   onConfirmQR,
   onCloseTransferSuccess,
 }: UseEnterFlowOptions): UseEnterFlowReturn {
   const [currentState, setCurrentState] = React.useState<EnterFlowState>("IDLE");
   const [isProcessing, setIsProcessing] = React.useState(false);
-  const [cashPrintCount, setCashPrintCount] = React.useState(0);
+  const [isOnCooldown, setIsOnCooldown] = React.useState(false);
 
-  const refs = React.useRef({ currentState, isProcessing, cashPrintCount });
+  const refs = React.useRef({ currentState, isProcessing, isOnCooldown });
   React.useEffect(() => {
-    refs.current = { currentState, isProcessing, cashPrintCount };
-  }, [currentState, isProcessing, cashPrintCount]);
+    refs.current = { currentState, isProcessing, isOnCooldown };
+  }, [currentState, isProcessing, isOnCooldown]);
 
   // Auto-sync state với dialog visibility
-  // Ưu tiên: Transfer success > Cash success > Cash confirm > QR preview > IDLE
   React.useEffect(() => {
     // Transfer success dialog có thể hiện kể cả khi đang ở tab tiền mặt (webhook từ đơn cũ)
     if (showTransferSuccessDialog) {
@@ -76,31 +65,19 @@ export function useEnterFlow({
       return;
     }
 
-    if (paymentMethod === "cash") {
-      if (showCashSuccessDialog) {
-        setCurrentState("CASH_SUCCESS");
-        setCashPrintCount(0);
-      } else if (showCashDialog) {
-        setCurrentState("CASH_CONFIRM");
-      } else {
-        setCurrentState("IDLE");
-        setCashPrintCount(0);
-      }
+    if (paymentMethod === "transfer" && showQRPreview) {
+      setCurrentState("QR_PREVIEW");
     } else {
-      if (showQRPreview) {
-        setCurrentState("QR_PREVIEW");
-      } else {
-        setCurrentState("IDLE");
-      }
+      setCurrentState("IDLE");
     }
-  }, [paymentMethod, showCashDialog, showCashSuccessDialog, showQRPreview, showTransferSuccessDialog]);
+  }, [paymentMethod, showQRPreview, showTransferSuccessDialog]);
 
   // Phím O: Hoàn thành QR thủ công
   React.useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== "o") return;
       if (refs.current.currentState !== "QR_PREVIEW") return;
-      if (refs.current.isProcessing) return;
+      if (refs.current.isProcessing || refs.current.isOnCooldown) return;
 
       e.preventDefault();
       blurActiveInput();
@@ -109,6 +86,9 @@ export function useEnterFlow({
         await onConfirmQR();
       } finally {
         setIsProcessing(false);
+        // Cooldown sau khi confirm QR
+        setIsOnCooldown(true);
+        setTimeout(() => setIsOnCooldown(false), SUBMIT_COOLDOWN);
       }
     };
 
@@ -120,7 +100,7 @@ export function useEnterFlow({
   React.useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
       if (e.key !== "Enter") return;
-      if (refs.current.isProcessing) return;
+      if (refs.current.isProcessing || refs.current.isOnCooldown) return;
 
       const state = refs.current.currentState;
 
@@ -134,26 +114,9 @@ export function useEnterFlow({
             await onSubmit();
           } finally {
             setIsProcessing(false);
-          }
-          break;
-
-        case "CASH_CONFIRM":
-          e.preventDefault();
-          setIsProcessing(true);
-          try {
-            await onConfirmCash();
-          } finally {
-            setIsProcessing(false);
-          }
-          break;
-
-        case "CASH_SUCCESS":
-          e.preventDefault();
-          if (refs.current.cashPrintCount === 0) {
-            onPrintCashReceipt();
-            setCashPrintCount(1);
-          } else {
-            onCloseCashSuccess();
+            // Cooldown sau khi submit (đặc biệt quan trọng cho tiền mặt)
+            setIsOnCooldown(true);
+            setTimeout(() => setIsOnCooldown(false), SUBMIT_COOLDOWN);
           }
           break;
 
@@ -166,18 +129,21 @@ export function useEnterFlow({
         case "TRANSFER_SUCCESS":
           e.preventDefault();
           onCloseTransferSuccess();
+          // Cooldown sau khi đóng dialog
+          setIsOnCooldown(true);
+          setTimeout(() => setIsOnCooldown(false), SUBMIT_COOLDOWN);
           break;
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [canSubmit, onSubmit, onConfirmCash, onPrintCashReceipt, onCloseCashSuccess, onPrintDraft, onCloseTransferSuccess]);
+  }, [canSubmit, onSubmit, onPrintDraft, onCloseTransferSuccess]);
 
   const resetFlow = React.useCallback(() => {
     setCurrentState("IDLE");
     setIsProcessing(false);
-    setCashPrintCount(0);
+    setIsOnCooldown(false);
   }, []);
 
   return { currentState, isProcessing, resetFlow };
