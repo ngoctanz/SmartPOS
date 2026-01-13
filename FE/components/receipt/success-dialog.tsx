@@ -13,6 +13,7 @@ import {
 import { CheckCircle2, Printer, Banknote, Wallet } from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import { Receipt } from "@/service/receipt.service";
+import { useHotkey } from "@/hooks/useHotkey";
 
 type SuccessType = "manual" | "paid" | "cash";
 
@@ -36,11 +37,12 @@ export function SuccessDialog({
   onOk,
   type = "manual",
 }: SuccessDialogProps) {
-  const handlePrint = () => {
-    // Chỉ gọi callback - để parent component quyết định in gì
-    // Tránh duplicate print khi parent đã handle trong onPrint
-    onPrint();
-  };
+  // Enter để in bill
+  useHotkey({
+    key: "Enter",
+    onPress: onPrint,
+    enabled: open && !!receipt,
+  });
 
   if (!receipt) return null;
 
@@ -126,9 +128,9 @@ export function SuccessDialog({
           </div>
 
           <DialogFooter className="flex gap-2 sm:gap-2">
-            <Button variant="outline" className="flex-1" onClick={handlePrint}>
+            <Button variant="outline" className="flex-1" onClick={onPrint}>
               <Printer className="h-4 w-4 mr-2" />
-              In bill
+              In bill (Enter)
             </Button>
             <Button className="flex-1" onClick={onOk}>
               OK

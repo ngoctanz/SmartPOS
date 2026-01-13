@@ -24,6 +24,7 @@ import { useCart } from "@/hooks/useCart";
 import { useBranches } from "@/hooks/useBranches";
 import { useProductSearch } from "@/hooks/useProductSearch";
 import { useErrorReceiptLoader } from "@/hooks/useErrorReceiptLoader";
+import { useHotkey } from "@/hooks/useHotkey";
 import { printDraftWithQR, printReceipt } from "@/utils/print-direct";
 import { playSuccessSound, speakPaymentSuccess } from "@/utils/audio";
 
@@ -261,40 +262,18 @@ export default function CreateReceiptPage() {
     });
   }, [draftData, cartItems, totalAmount, currentBranch, user]);
 
-  // === Keyboard shortcuts ===
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // F9: Thanh toán - chỉ hoạt động khi:
-      // - Có sản phẩm trong giỏ
-      // - Không đang xử lý
-      // - Không đang hiển thị QR (tab chuyển khoản đang pending)
-      // - Không đang mở dialog tiền mặt
-      const canSubmit =
-        cartItems.length > 0 &&
-        !isSubmitting &&
-        !isCreatingDraft &&
-        !isConfirmingDraft &&
-        !(paymentMethod === "transfer" && showQRPreview) &&
-        !showCashDialog;
-
-      if (e.key === "F9" && canSubmit) {
-        e.preventDefault();
-        handleSubmit();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [
-    cartItems.length,
-    isSubmitting,
-    isCreatingDraft,
-    isConfirmingDraft,
-    paymentMethod,
-    showQRPreview,
-    showCashDialog,
-    handleSubmit,
-  ]);
+  // === F9: Thanh toán ===
+  useHotkey({
+    key: "F9",
+    onPress: handleSubmit,
+    enabled:
+      cartItems.length > 0 &&
+      !isSubmitting &&
+      !isCreatingDraft &&
+      !isConfirmingDraft &&
+      !(paymentMethod === "transfer" && showQRPreview) &&
+      !showCashDialog,
+  });
 
   // === Render ===
   return (
