@@ -24,11 +24,7 @@ import { useCart } from "@/hooks/useCart";
 import { useBranches } from "@/hooks/useBranches";
 import { useProductSearch } from "@/hooks/useProductSearch";
 import { useErrorReceiptLoader } from "@/hooks/useErrorReceiptLoader";
-import {
-  printDraftWithQR,
-  printCashPreview,
-  printReceipt,
-} from "@/utils/print-direct";
+import { printDraftWithQR, printReceipt } from "@/utils/print-direct";
 import { playSuccessSound, speakPaymentSuccess } from "@/utils/audio";
 
 export default function CreateReceiptPage() {
@@ -48,8 +44,8 @@ export default function CreateReceiptPage() {
   } = useCart();
 
   // === Branches Hook ===
-  const { branches, selectedBranch, setSelectedBranch, getBranchName } =
-    useBranches({ defaultBranchId: user?.branchId });
+  const { branches, selectedBranch, setSelectedBranch, currentBranch } =
+    useBranches({ defaultBranchId: user?.branchId, loadAllOnMount: isAdmin });
 
   // === Product Search Hook ===
   const { searchProducts, getProductByBarcode } = useProductSearch({
@@ -164,7 +160,11 @@ export default function CreateReceiptPage() {
       const response = await receiptService.create(receiptData);
 
       if (response.success && response.data) {
-        // Close cash dialog, show success dialog
+        playSuccessSound();
+
+        // Hủy QR draft nếu đang có (user chuyển từ CK sang tiền mặt)
+        if (showQRPreview) cancelDraft();
+
         setShowCashDialog(false);
         setCashSuccessReceipt(response.data);
         setShowCashSuccessDialog(true);
@@ -176,15 +176,26 @@ export default function CreateReceiptPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [cartItems, isAdmin, selectedBranch, totalAmount, customerPaid]);
+  }, [
+    cartItems,
+    isAdmin,
+    selectedBranch,
+    totalAmount,
+    customerPaid,
+    showQRPreview,
+    cancelDraft,
+  ]);
 
   // === Cash success dialog OK handler ===
   const handleCashSuccessOk = React.useCallback(() => {
     setShowCashSuccessDialog(false);
     setCashSuccessReceipt(null);
     setCustomerPaid(null);
-    // Giữ nguyên cart items - không clear
-  }, []);
+    // Reset cart để sẵn sàng cho đơn mới
+    clearCart();
+    // Reset payment method về mặc định (đảm bảo clean state)
+    setPaymentMethod("cash");
+  }, [clearCart]);
 
   // === Submit handler ===
   const handleSubmit = React.useCallback(async () => {
@@ -199,22 +210,43 @@ export default function CreateReceiptPage() {
     }
 
     if (paymentMethod === "transfer") {
+      // Nếu đang có QR preview thì không tạo mới (user phải hủy hoặc hoàn thành trước)
+      if (showQRPreview) return;
       await createDraft();
       return;
     }
 
     // Cash payment → show confirmation dialog
     setShowCashDialog(true);
-  }, [isAdmin, selectedBranch, cartItems.length, paymentMethod, createDraft]);
+  }, [
+    isAdmin,
+    selectedBranch,
+    cartItems.length,
+    paymentMethod,
+    showQRPreview,
+    createDraft,
+  ]);
 
-  // === Success dialog handler ===
+  // === Payment method change handler ===
+  // Không hủy draft khi chuyển tab - user có thể quay lại
+  // Draft chỉ bị hủy khi: tạo đơn tiền mặt thành công, bấm Hủy, hoặc hết hạn
+  const handlePaymentMethodChange = React.useCallback(
+    (method: "cash" | "transfer") => {
+      setPaymentMethod(method);
+    },
+    []
+  );
+
+  // === Success dialog handler (Transfer payment) ===
   const handleSuccessDialogOk = React.useCallback(() => {
     resetAfterSuccess();
-  }, [resetAfterSuccess]);
+    // Reset tất cả state để sẵn sàng cho đơn mới
+    clearCart();
+    setPaymentMethod("cash");
+    setCustomerPaid(null);
+  }, [resetAfterSuccess, clearCart]);
 
   // === Print handler (direct browser print dialog) ===
-  const currentBranchName = getBranchName(selectedBranch || user?.branchId);
-
   const handlePrintDraftReceipt = React.useCallback(() => {
     if (!draftData) return;
     printDraftWithQR({
@@ -222,21 +254,30 @@ export default function CreateReceiptPage() {
       cartItems,
       totalAmount,
       paymentMethod: "transfer",
-      branchName: currentBranchName,
+      branchName: currentBranch?.branchName,
+      branchAddress: currentBranch?.address,
       staffName: user?.name || user?.userName,
       qrCode: draftData.paymentInfo?.qrCode,
     });
-  }, [draftData, cartItems, totalAmount, currentBranchName, user]);
+  }, [draftData, cartItems, totalAmount, currentBranch, user]);
 
   // === Keyboard shortcuts ===
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key === "F9" &&
+      // F9: Thanh toán - chỉ hoạt động khi:
+      // - Có sản phẩm trong giỏ
+      // - Không đang xử lý
+      // - Không đang hiển thị QR (tab chuyển khoản đang pending)
+      // - Không đang mở dialog tiền mặt
+      const canSubmit =
         cartItems.length > 0 &&
         !isSubmitting &&
-        !isCreatingDraft
-      ) {
+        !isCreatingDraft &&
+        !isConfirmingDraft &&
+        !(paymentMethod === "transfer" && showQRPreview) &&
+        !showCashDialog;
+
+      if (e.key === "F9" && canSubmit) {
         e.preventDefault();
         handleSubmit();
       }
@@ -244,7 +285,16 @@ export default function CreateReceiptPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [cartItems.length, isSubmitting, isCreatingDraft, handleSubmit]);
+  }, [
+    cartItems.length,
+    isSubmitting,
+    isCreatingDraft,
+    isConfirmingDraft,
+    paymentMethod,
+    showQRPreview,
+    showCashDialog,
+    handleSubmit,
+  ]);
 
   // === Render ===
   return (
@@ -298,7 +348,7 @@ export default function CreateReceiptPage() {
             selectedBranch={selectedBranch}
             onBranchChange={setSelectedBranch}
             paymentMethod={paymentMethod}
-            onPaymentMethodChange={setPaymentMethod}
+            onPaymentMethodChange={handlePaymentMethodChange}
             isAdmin={isAdmin}
             onSubmit={handleSubmit}
             disabled={cartItems.length === 0 || !selectedBranch}
@@ -335,20 +385,16 @@ export default function CreateReceiptPage() {
         </div>
       </div>
 
-      {/* Success Dialog (for transfer payment) */}
       <SuccessDialog
         open={showSuccessDialog}
         receipt={completedReceipt}
         type={successType}
         onPrint={() => {
-          if (completedReceipt) {
-            printReceipt(completedReceipt);
-          }
+          if (completedReceipt) printReceipt(completedReceipt);
         }}
         onOk={handleSuccessDialogOk}
       />
 
-      {/* Cash Payment Confirmation Dialog */}
       <CashPaymentDialog
         open={showCashDialog}
         onClose={() => setShowCashDialog(false)}
@@ -356,28 +402,17 @@ export default function CreateReceiptPage() {
         cartItems={cartItems}
         totalAmount={totalAmount}
         customerPaid={customerPaid}
-        branchName={currentBranchName}
+        branchName={currentBranch?.branchName}
         staffName={user?.name || user?.userName}
         isConfirming={isSubmitting}
       />
 
-      {/* Success Dialog (for cash payment) */}
       <SuccessDialog
         open={showCashSuccessDialog}
         receipt={cashSuccessReceipt}
         type="cash"
         onPrint={() => {
-          // Print cash receipt directly
-          if (cashSuccessReceipt) {
-            printCashPreview({
-              code: cashSuccessReceipt.code,
-              cartItems,
-              totalAmount,
-              paymentMethod: "cash",
-              branchName: currentBranchName,
-              staffName: user?.name || user?.userName,
-            });
-          }
+          if (cashSuccessReceipt) printReceipt(cashSuccessReceipt);
         }}
         onOk={handleCashSuccessOk}
       />

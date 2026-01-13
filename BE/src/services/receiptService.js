@@ -45,6 +45,14 @@ const cancelPayOSLinkSilently = async (orderCode, reason, credentials) => {
   }
 };
 
+// Helper: Populate receipt with branch and user info for response
+const populateReceipt = async (receiptId) => {
+  return Receipt.findById(receiptId)
+    .populate("branchId", "branchName address")
+    .populate("createdBy", "userName name")
+    .lean();
+};
+
 // Helper: Get date range for period
 const getDateRange = (period) => {
   const now = new Date();
@@ -367,8 +375,9 @@ const confirmQRPreview = async (orderCode, user) => {
       { status: "pending" },
       { new: true }
     )
-      .populate("branchId", "branchName")
-      .populate("createdBy", "userName name");
+      .populate("branchId", "branchName address")
+      .populate("createdBy", "userName name")
+      .lean();
 
     console.log(
       `[QR Preview] Confirmed receipt ${receipt.code} - now pending payment`
@@ -469,15 +478,13 @@ const create = async (data, user) => {
       totalAmount += subtotal;
     }
 
-    // For cash payment - create completed receipt directly
     if (data.paymentMethod === "cash") {
-      // customerPaid: nếu không nhập thì mặc định = totalAmount
       const customerPaid =
         data.customerPaid != null && data.customerPaid >= totalAmount
           ? data.customerPaid
           : totalAmount;
 
-      const receiptData = {
+      const receipt = await Receipt.createReceipt({
         branchId: data.branchId,
         createdBy: user.userId,
         listProduct,
@@ -485,11 +492,8 @@ const create = async (data, user) => {
         customerPaid,
         paymentMethod: "cash",
         status: "completed",
-      };
+      });
 
-      const receipt = await Receipt.createReceipt(receiptData);
-
-      // Decrease stock immediately for cash payment
       for (const item of listProduct) {
         await BranchProduct.decreaseStock(
           data.branchId,
@@ -498,11 +502,9 @@ const create = async (data, user) => {
         );
       }
 
-      return receipt;
+      return populateReceipt(receipt._id);
     }
 
-    // For transfer payment - should use createQRPreview flow
-    // But keep legacy support for direct creation
     if (data.paymentMethod === "transfer") {
       const { credentials, isConfigured } = await getBranchPayOSCredentials(
         data.branchId
@@ -550,7 +552,8 @@ const create = async (data, user) => {
         },
       };
 
-      return await Receipt.createReceipt(receiptData);
+      const receipt = await Receipt.createReceipt(receiptData);
+      return populateReceipt(receipt._id);
     }
 
     throw new ApiError(400, "Invalid payment method");
@@ -1124,7 +1127,7 @@ const markAsError = async (receiptId, userId, user, errorReason = null) => {
     await receipt.save();
 
     const populatedReceipt = await Receipt.findById(receiptId)
-      .populate("branchId", "branchName")
+      .populate("branchId", "branchName address")
       .populate("createdBy", "userName name")
       .populate("markedErrorBy", "userName name")
       .lean();
@@ -1168,7 +1171,7 @@ const getErrorReceipts = async (options, user) => {
     sortOptions[sortBy] = sortOrder === "asc" ? 1 : -1;
 
     const data = await Receipt.find(query)
-      .populate("branchId", "branchName")
+      .populate("branchId", "branchName address")
       .populate("createdBy", "userName name")
       .populate("markedErrorBy", "userName name")
       .sort(sortOptions)

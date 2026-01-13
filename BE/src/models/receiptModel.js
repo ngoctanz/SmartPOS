@@ -200,7 +200,7 @@ receiptSchema.statics = {
     // Always exclude draft from list
     const query = { ...filter, status: { $ne: "draft" } };
     return this.find(query)
-      .populate("branchId", "branchName")
+      .populate("branchId", "branchName address")
       .populate("createdBy", "userName name")
       .sort({ createdAt: -1 })
       .lean();
@@ -277,7 +277,7 @@ receiptSchema.statics = {
     const skip = (page - 1) * limit;
 
     const data = await this.find(query)
-      .populate("branchId", "branchName")
+      .populate("branchId", "branchName address")
       .populate("createdBy", "userName name")
       .populate("markedErrorBy", "userName name")
       .sort({ createdAt: -1 })
@@ -303,7 +303,7 @@ receiptSchema.statics = {
 
   async findReceiptByCode(code) {
     return this.findOne({ code })
-      .populate("branchId", "branchName")
+      .populate("branchId", "branchName address")
       .populate("createdBy", "userName name")
       .populate("markedErrorBy", "userName name")
       .lean();
@@ -311,7 +311,7 @@ receiptSchema.statics = {
 
   async findReceiptByOrderCode(orderCode) {
     return this.findOne({ "paymentInfo.orderCode": orderCode })
-      .populate("branchId", "branchName")
+      .populate("branchId", "branchName address")
       .populate("createdBy", "userName name");
   },
 
@@ -332,7 +332,7 @@ receiptSchema.statics = {
     // Always exclude draft from list
     const query = { branchId, status: { $ne: "draft" }, ...filter };
     return this.find(query)
-      .populate("branchId", "branchName")
+      .populate("branchId", "branchName address")
       .populate("createdBy", "userName name")
       .sort({ createdAt: -1 })
       .lean();
@@ -346,7 +346,7 @@ receiptSchema.statics = {
     };
     if (branchId) query.branchId = branchId;
     return this.find(query)
-      .populate("branchId", "branchName")
+      .populate("branchId", "branchName address")
       .sort({ createdAt: -1 })
       .lean();
   },

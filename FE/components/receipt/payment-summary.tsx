@@ -118,6 +118,7 @@ export function PaymentSummary({
                 onPaymentMethodChange("cash");
               }
             }}
+            disabled={isConfirmingQR}
           >
             <Banknote className="h-4 w-4 mr-2" />
             Tiền mặt
@@ -132,6 +133,7 @@ export function PaymentSummary({
                 onCustomerPaidChange(null);
               }
             }}
+            disabled={isConfirmingQR}
           >
             <Building2 className="h-4 w-4 mr-2" />
             Chuyển khoản
@@ -186,8 +188,8 @@ export function PaymentSummary({
         />
       )}
 
-      {/* Submit Button - thay đổi theo trạng thái QR preview */}
-      {showQRPreview && qrPaymentInfo ? (
+      {/* Submit Button - thay đổi theo trạng thái QR preview (chỉ khi đang ở tab chuyển khoản) */}
+      {paymentMethod === "transfer" && showQRPreview && qrPaymentInfo ? (
         <div className="flex flex-col gap-2">
           {/* Nút In hóa đơn */}
           {onPrintReceipt && (

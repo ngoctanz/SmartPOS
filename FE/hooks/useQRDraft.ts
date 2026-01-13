@@ -262,9 +262,12 @@ export function useQRDraft({
 
   const resetAfterSuccess = React.useCallback(() => {
     if (!isMountedRef.current) return;
+    // Reset dialog state
     setShowSuccessDialog(false);
     setCompletedReceipt(null);
-  }, []);
+    // Reset tất cả QR/Draft state
+    resetQRState();
+  }, [resetQRState]);
 
   const closeSuccessDialog = React.useCallback(() => {
     if (isMountedRef.current) setShowSuccessDialog(false);

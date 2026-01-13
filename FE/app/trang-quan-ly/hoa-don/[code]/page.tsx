@@ -156,11 +156,8 @@ export default function ReceiptDetailPage() {
     router.push(`/trang-quan-ly/hoa-don/tao-moi?fromError=${receipt.code}`);
   };
 
-  // Print bill - opens browser print dialog directly
   const handlePrint = () => {
-    if (receipt) {
-      printReceipt(receipt);
-    }
+    if (receipt) printReceipt(receipt);
   };
 
   if (isLoading) {

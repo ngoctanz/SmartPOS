@@ -147,7 +147,12 @@ const receiptService = {
    * Get stats for receipts
    * GET /api/v1/receipt/stats
    */
-  getStats: async (branchId?: string, period?: string, startDate?: string, endDate?: string): Promise<ApiResponse<ReceiptStats>> => {
+  getStats: async (
+    branchId?: string,
+    period?: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<ApiResponse<ReceiptStats>> => {
     const queryParams = new URLSearchParams();
     if (branchId) queryParams.append("branchId", branchId);
     if (period && period !== "custom") queryParams.append("period", period);
@@ -171,7 +176,8 @@ const receiptService = {
     if (params?.paymentMethod)
       queryParams.append("paymentMethod", params.paymentMethod);
     if (params?.search) queryParams.append("search", params.search);
-    if (params?.period && params.period !== "custom") queryParams.append("period", params.period);
+    if (params?.period && params.period !== "custom")
+      queryParams.append("period", params.period);
     if (params?.startDate) queryParams.append("startDate", params.startDate);
     if (params?.endDate) queryParams.append("endDate", params.endDate);
 
@@ -282,7 +288,9 @@ const receiptService = {
    * Tạo QR preview cho thanh toán chuyển khoản (chưa tạo hóa đơn)
    * POST /api/v1/receipt/preview-qr
    */
-  createQRPreview: async (data: QRPreviewRequest): Promise<ApiResponse<QRPreviewResponse>> => {
+  createQRPreview: async (
+    data: QRPreviewRequest
+  ): Promise<ApiResponse<QRPreviewResponse>> => {
     return apiPost<QRPreviewResponse>("/receipt/preview-qr", data);
   },
 
@@ -298,7 +306,9 @@ const receiptService = {
    * Lấy thông tin QR preview
    * GET /api/v1/receipt/preview-qr/:orderCode
    */
-  getQRPreview: async (orderCode: number): Promise<ApiResponse<QRPreviewResponse>> => {
+  getQRPreview: async (
+    orderCode: number
+  ): Promise<ApiResponse<QRPreviewResponse>> => {
     return apiGet<QRPreviewResponse>(`/receipt/preview-qr/${orderCode}`);
   },
 
@@ -318,7 +328,9 @@ const receiptService = {
    * Xác nhận QR preview - chuyển draft thành pending
    * POST /api/v1/receipt/confirm-preview
    */
-  confirmQRPreview: async (orderCode: number): Promise<ApiResponse<Receipt>> => {
+  confirmQRPreview: async (
+    orderCode: number
+  ): Promise<ApiResponse<Receipt>> => {
     return apiPost<Receipt>("/receipt/confirm-preview", { orderCode });
   },
 
@@ -395,11 +407,15 @@ const receiptService = {
    * Lấy thống kê hóa đơn lỗi
    * GET /api/v1/receipt/errors/stats
    */
-  getErrorStats: async (branchId?: string): Promise<ApiResponse<ErrorStats>> => {
+  getErrorStats: async (
+    branchId?: string
+  ): Promise<ApiResponse<ErrorStats>> => {
     const queryParams = new URLSearchParams();
     if (branchId) queryParams.append("branchId", branchId);
     return apiGet<ErrorStats>(
-      `/receipt/errors/stats${queryParams.toString() ? `?${queryParams.toString()}` : ""}`
+      `/receipt/errors/stats${
+        queryParams.toString() ? `?${queryParams.toString()}` : ""
+      }`
     );
   },
 

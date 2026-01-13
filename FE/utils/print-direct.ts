@@ -2,28 +2,71 @@ import { CartItem } from "@/components/receipt";
 import { Receipt } from "@/service/receipt.service";
 import { format } from "date-fns";
 
-// Print styles for 80mm thermal printer
-const PRINT_STYLES = `
+// === Paper Size Config ===
+// Hỗ trợ các kích thước giấy in nhiệt phổ biến: 58mm, 80mm
+type PaperSize = "58mm" | "80mm";
+
+interface PaperConfig {
+  width: string;
+  baseFontSize: number;
+  qrSize: number;
+  padding: string;
+}
+
+const PAPER_CONFIGS: Record<PaperSize, PaperConfig> = {
+  "58mm": {
+    width: "58mm",
+    baseFontSize: 11,
+    qrSize: 100,
+    padding: "2mm",
+  },
+  "80mm": {
+    width: "80mm",
+    baseFontSize: 13,
+    qrSize: 140,
+    padding: "3mm",
+  },
+};
+
+// Default paper size - có thể lấy từ localStorage hoặc config sau này
+const DEFAULT_PAPER_SIZE: PaperSize = "80mm";
+
+function getPaperConfig(): PaperConfig {
+  // TODO: Có thể đọc từ localStorage để user tự config
+  // const saved = localStorage.getItem("printer_paper_size") as PaperSize;
+  // return PAPER_CONFIGS[saved] || PAPER_CONFIGS[DEFAULT_PAPER_SIZE];
+  return PAPER_CONFIGS[DEFAULT_PAPER_SIZE];
+}
+
+// Print styles - responsive theo paper size
+function getPrintStyles(config: PaperConfig): string {
+  const { width, baseFontSize, padding } = config;
+
+  return `
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: monospace;
-    padding: 3mm;
-    width: 80mm;
+    padding: ${padding};
+    width: ${width};
     margin: 0 auto;
-    font-size: 11px;
-    line-height: 1.3;
+    font-size: ${baseFontSize}px;
+    line-height: 1.4;
   }
   img { max-width: 100%; height: auto; }
   @media print {
-    @page { size: 80mm auto; margin: 0; }
-    body { padding: 3mm; }
+    @page { size: ${width} auto; margin: 0; }
+    body { padding: ${padding}; }
   }
   .text-center { text-align: center; }
   .text-right { text-align: right; }
-  .text-xs { font-size: 9px; }
-  .text-sm { font-size: 11px; }
-  .text-base { font-size: 12px; }
-  .text-lg { font-size: 14px; }
+  .text-xs { font-size: ${Math.round(baseFontSize * 0.85)}px; }
+  .text-sm { font-size: ${baseFontSize}px; }
+  .text-base { font-size: ${Math.round(baseFontSize * 1.08)}px; }
+  .text-lg { font-size: ${Math.round(baseFontSize * 1.23)}px; }
+  .text-xl { font-size: ${Math.round(baseFontSize * 1.38)}px; }
+  .text-notice { font-size: ${Math.round(
+    baseFontSize * 0.77
+  )}px; line-height: 1.3; }
   .font-bold { font-weight: bold; }
   .font-semibold { font-weight: 600; }
   .font-medium { font-weight: 500; }
@@ -38,27 +81,35 @@ const PRINT_STYLES = `
   .border-b { border-bottom: 1px solid black; }
   .border-dashed { border-style: dashed; }
   .border-black { border-color: black; }
-  .mb-1 { margin-bottom: 3px; }
-  .mb-2 { margin-bottom: 6px; }
-  .mb-3 { margin-bottom: 9px; }
-  .mb-4 { margin-bottom: 12px; }
-  .mt-1 { margin-top: 3px; }
-  .mt-2 { margin-top: 6px; }
-  .mt-3 { margin-top: 9px; }
-  .mt-4 { margin-top: 12px; }
-  .my-2 { margin-top: 6px; margin-bottom: 6px; }
+  .mb-1 { margin-bottom: 4px; }
+  .mb-2 { margin-bottom: 8px; }
+  .mb-3 { margin-bottom: 12px; }
+  .mb-4 { margin-bottom: 16px; }
+  .mt-1 { margin-top: 4px; }
+  .mt-2 { margin-top: 8px; }
+  .mt-3 { margin-top: 12px; }
+  .mt-4 { margin-top: 16px; }
+  .my-2 { margin-top: 8px; margin-bottom: 8px; }
   .mx-auto { margin-left: auto; margin-right: auto; }
   .px-2 { padding-left: 6px; padding-right: 6px; }
-  .py-1 { padding-top: 3px; padding-bottom: 3px; }
-  .pb-1 { padding-bottom: 3px; }
+  .py-1 { padding-top: 4px; padding-bottom: 4px; }
+  .pb-1 { padding-bottom: 4px; }
   .p-3 { padding: 12px; }
-  .w-12 { width: 40px; }
-  .w-20 { width: 70px; }
+  .w-12 { width: 35px; }
+  .w-16 { width: 55px; }
+  .w-20 { width: 65px; }
   .text-gray-600 { color: #666; }
   .font-mono { font-family: monospace; }
   .bg-white { background: white; }
   .text-black { color: black; }
+  .separator { 
+    border: none; 
+    border-top: 1px dashed #000; 
+    margin: 8px 0; 
+    height: 0;
+  }
 `;
+}
 
 interface PrintData {
   code: string;
@@ -79,6 +130,7 @@ interface PrintData {
 }
 
 function generateBillHTML(data: PrintData): string {
+  const config = getPaperConfig();
   const {
     code,
     products,
@@ -86,7 +138,6 @@ function generateBillHTML(data: PrintData): string {
     paymentMethod,
     branchName = "Chi nhánh",
     branchAddress,
-    staffName,
     createdAt,
     qrCode,
     accountName,
@@ -95,43 +146,17 @@ function generateBillHTML(data: PrintData): string {
     customerPaid,
   } = data;
 
-  const paymentMethodText =
-    paymentMethod === "cash"
-      ? "Tiền mặt"
-      : paymentMethod === "card"
-      ? "Thẻ"
-      : "Chuyển khoản";
-
   const changeAmount = customerPaid ? customerPaid - totalAmount : 0;
-  const totalQty = products.reduce((sum, p) => sum + p.quantity, 0);
-
-  const productsHTML = products
-    .map(
-      (item) => `
-      <div class="mb-1">
-        <div class="font-medium truncate">${item.productName}</div>
-        <div class="flex justify-between text-xs">
-          <span class="flex-1"></span>
-          <span class="w-12 text-right">${item.quantity}</span>
-          <span class="w-20 text-right">${item.salePrice.toLocaleString(
-            "vi-VN"
-          )}</span>
-          <span class="w-20 text-right">${(
-            item.salePrice * item.quantity
-          ).toLocaleString("vi-VN")}</span>
-        </div>
-      </div>
-    `
-    )
-    .join("");
 
   const qrSectionHTML =
     paymentMethod === "transfer" && qrCode
       ? `
-      <div class="border-t border-dashed border-black my-2"></div>
+      <hr class="separator" />
       <div class="text-center">
-        <p class="font-semibold text-xs mb-2">Quét mã QR để thanh toán</p>
-        <img src="${qrCode}" alt="QR Code" class="mx-auto" style="max-width: 120px; height: auto;" />
+        <p class="font-semibold text-sm mb-2">Quét mã QR để thanh toán</p>
+        <img src="${qrCode}" alt="QR Code" class="mx-auto" style="max-width: ${
+          config.qrSize
+        }px; height: auto;" />
         ${
           accountName
             ? `<p class="text-xs mt-2 font-medium">${accountName}</p>`
@@ -147,106 +172,99 @@ function generateBillHTML(data: PrintData): string {
     `
       : "";
 
-  const cashSectionHTML =
-    paymentMethod === "cash" && customerPaid
-      ? `
-      <div class="border-t border-dashed border-black my-2"></div>
-      <div class="text-xs">
-        <div class="flex justify-between mb-1">
-          <span>Khách đưa:</span>
-          <span>${customerPaid.toLocaleString("vi-VN")} đ</span>
-        </div>
-        <div class="flex justify-between">
-          <span>Tiền thừa:</span>
-          <span>${
-            changeAmount > 0 ? changeAmount.toLocaleString("vi-VN") : 0
-          } đ</span>
-        </div>
-      </div>
-    `
-      : "";
-
   return `
-    <div class="print-bill bg-white text-black p-3" style="width: 80mm; font-family: monospace; font-size: 11px; line-height: 1.3;">
-      <!-- Header -->
-      <div class="text-center mb-4">
-        <h1 class="text-lg font-bold uppercase">SMARTPOS MINIMART</h1>
-        <p class="text-xs">${branchName}</p>
+    <div class="print-bill bg-white text-black p-3" style="width: ${
+      config.width
+    }; font-family: monospace; font-size: ${
+    config.baseFontSize
+  }px; line-height: 1.4;">
+      <!-- Header: Tên chi nhánh lớn nhất -->
+      <div class="text-center mb-3">
+        <h1 class="text-xl font-bold uppercase">${branchName}</h1>
         ${branchAddress ? `<p class="text-xs">${branchAddress}</p>` : ""}
-        <p class="text-xs">Hotline: 1900 xxxx</p>
       </div>
 
-      <div class="border-t border-dashed border-black my-2"></div>
+      <!-- Tiêu đề hóa đơn -->
+      <div class="text-center mb-2">
+        <h2 class="font-bold text-base uppercase">HÓA ĐƠN BÁN HÀNG</h2>
+        <p class="text-sm">Số HĐ: ${code}</p>
+        <p class="text-sm">Ngày ${format(createdAt, "dd")} tháng ${format(
+    createdAt,
+    "MM"
+  )} năm ${format(createdAt, "yyyy")}</p>
+      </div>
 
-      <!-- Bill Info -->
-      <div class="mb-3">
-        <h2 class="text-center font-bold text-base uppercase mb-2">HÓA ĐƠN BÁN HÀNG</h2>
-        <div class="flex justify-between text-xs">
-          <span>Số HĐ:</span>
-          <span class="font-semibold">${code}</span>
+      <hr class="separator" />
+
+      <!-- Products Header -->
+      <div class="text-sm">
+        <div class="flex justify-between font-bold pb-1 mb-1" style="border-bottom: 1px solid #000;">
+          <span class="flex-1">Đơn giá</span>
+          <span class="w-12 text-center">SL</span>
+          <span class="w-20 text-right">Thành tiền</span>
         </div>
-        <div class="flex justify-between text-xs">
-          <span>Ngày:</span>
-          <span>${format(createdAt, "dd/MM/yyyy HH:mm")}</span>
+        
+        <!-- Products List -->
+        ${products
+          .map(
+            (item) => `
+          <div class="mb-2">
+            <div class="font-medium">${item.productName}</div>
+            <div class="flex justify-between text-sm">
+              <span class="flex-1">${item.salePrice.toLocaleString(
+                "vi-VN"
+              )}</span>
+              <span class="w-12 text-center">${item.quantity}</span>
+              <span class="w-20 text-right">${(
+                item.salePrice * item.quantity
+              ).toLocaleString("vi-VN")}</span>
+            </div>
+          </div>
+        `
+          )
+          .join("")}
+      </div>
+
+      <hr class="separator" />
+
+      <!-- Total Section -->
+      <div class="text-sm">
+        <div class="flex justify-between mb-1">
+          <span class="font-bold">Tổng tiền hàng:</span>
+          <span class="font-bold">${totalAmount.toLocaleString("vi-VN")}</span>
+        </div>
+        <div class="flex justify-between mb-1">
+          <span class="font-bold">Tổng thanh toán:</span>
+          <span class="font-bold">${totalAmount.toLocaleString("vi-VN")}</span>
         </div>
         ${
-          staffName
+          paymentMethod === "cash" && customerPaid
             ? `
-        <div class="flex justify-between text-xs">
-          <span>Thu ngân:</span>
-          <span>${staffName}</span>
+        <div class="flex justify-between">
+          <span>Tiền thừa trả khách:</span>
+          <span>${
+            changeAmount > 0 ? changeAmount.toLocaleString("vi-VN") : 0
+          }</span>
         </div>
         `
             : ""
         }
       </div>
 
-      <div class="border-t border-dashed border-black my-2"></div>
-
-      <!-- Products -->
-      <div class="text-xs">
-        <div class="flex justify-between font-bold border-b pb-1 mb-1">
-          <span class="flex-1">Sản phẩm</span>
-          <span class="w-12 text-right">SL</span>
-          <span class="w-20 text-right">Đơn giá</span>
-          <span class="w-20 text-right">T.Tiền</span>
-        </div>
-        ${productsHTML}
-      </div>
-
-      <div class="border-t border-dashed border-black my-2"></div>
-
-      <!-- Total -->
-      <div class="text-sm">
-        <div class="flex justify-between mb-1">
-          <span>Số lượng SP:</span>
-          <span>${totalQty}</span>
-        </div>
-        <div class="flex justify-between font-bold text-base">
-          <span>TỔNG CỘNG:</span>
-          <span>${totalAmount.toLocaleString("vi-VN")} đ</span>
-        </div>
-        <div class="flex justify-between text-xs mt-1">
-          <span>Phương thức TT:</span>
-          <span>${paymentMethodText}</span>
-        </div>
-      </div>
-
       ${qrSectionHTML}
-      ${cashSectionHTML}
 
-      <div class="border-t border-dashed border-black my-2"></div>
+      <hr class="separator" />
+
+      <!-- Thông báo đổi trả -->
+      <div class="text-center text-notice mt-3">
+        <p style="font-style: italic;">Hàng lỗi khách đổi trả trong 3 ngày (giữ lại hóa đơn),</p>
+        <p style="font-style: italic;">khách vui lòng kiểm tra tiền và hàng trước khi rời</p>
+        <p style="font-style: italic;">khỏi shop, mọi khiếu nại shop sẽ không giải quyết.</p>
+      </div>
 
       <!-- Footer -->
-      <div class="text-center text-xs mt-4">
-        <p class="font-semibold">Cảm ơn Quý khách!</p>
-        <p>Hẹn gặp lại</p>
-        <p class="mt-2" style="font-size: 8px; color: #666;">Hóa đơn này có giá trị xuất HDDT</p>
-      </div>
-
-      <!-- Barcode -->
       <div class="text-center mt-3">
-        <div class="inline-block px-2 py-1 border border-black text-xs font-mono">${code}</div>
+        <p class="font-bold text-sm">Cảm ơn và hẹn gặp lại!</p>
       </div>
     </div>
   `;
@@ -266,6 +284,7 @@ function getOrCreateIframe(): HTMLIFrameElement {
 }
 
 function executePrint(html: string, title: string): void {
+  const config = getPaperConfig();
   const iframe = getOrCreateIframe();
   const doc = iframe.contentDocument || iframe.contentWindow?.document;
   if (!doc) return;
@@ -277,7 +296,7 @@ function executePrint(html: string, title: string): void {
     <head>
       <meta charset="UTF-8">
       <title>${title}</title>
-      <style>${PRINT_STYLES}</style>
+      <style>${getPrintStyles(config)}</style>
     </head>
     <body>${html}</body>
     </html>
@@ -323,17 +342,29 @@ function executePrint(html: string, title: string): void {
 /**
  * Print receipt directly - opens browser print dialog immediately
  */
-export function printReceipt(receipt: Receipt): void {
+export function printReceipt(
+  receipt: Receipt,
+  options?: {
+    branchName?: string;
+    branchAddress?: string;
+    staffName?: string;
+  }
+): void {
   const branchName =
-    typeof receipt.branchId === "object"
+    options?.branchName ||
+    (typeof receipt.branchId === "object"
       ? receipt.branchId.branchName
-      : undefined;
+      : undefined);
   const branchAddress =
-    typeof receipt.branchId === "object" ? receipt.branchId.address : undefined;
+    options?.branchAddress ||
+    (typeof receipt.branchId === "object"
+      ? receipt.branchId.address
+      : undefined);
   const staffName =
-    typeof receipt.createdBy === "object"
+    options?.staffName ||
+    (typeof receipt.createdBy === "object"
       ? receipt.createdBy.name || receipt.createdBy.userName
-      : undefined;
+      : undefined);
 
   const html = generateBillHTML({
     code: receipt.code,
@@ -347,6 +378,7 @@ export function printReceipt(receipt: Receipt): void {
     branchName,
     branchAddress,
     staffName,
+    customerPaid: receipt.customerPaid ?? undefined, // Dùng customerPaid từ receipt (đã có từ BE service)
     createdAt: new Date(receipt.createdAt),
     // Show QR only if transfer and pending (not paid yet)
     ...(receipt.paymentMethod === "transfer" && receipt.status === "pending"
@@ -375,6 +407,7 @@ interface DraftPrintData {
   accountNumber?: string;
   description?: string;
   branchName?: string;
+  branchAddress?: string;
   staffName?: string;
 }
 
@@ -388,6 +421,7 @@ export function printDraftWithQR(data: DraftPrintData): void {
     accountNumber,
     description,
     branchName,
+    branchAddress,
     staffName,
   } = data;
 
@@ -401,6 +435,7 @@ export function printDraftWithQR(data: DraftPrintData): void {
     totalAmount,
     paymentMethod: "transfer",
     branchName,
+    branchAddress,
     staffName,
     createdAt: new Date(),
     qrCode,
@@ -422,12 +457,20 @@ interface CashPreviewData {
   paymentMethod: string;
   customerPaid?: number;
   branchName?: string;
+  branchAddress?: string;
   staffName?: string;
 }
 
 export function printCashPreview(data: CashPreviewData): void {
-  const { code, cartItems, totalAmount, customerPaid, branchName, staffName } =
-    data;
+  const {
+    code,
+    cartItems,
+    totalAmount,
+    customerPaid,
+    branchName,
+    branchAddress,
+    staffName,
+  } = data;
 
   const html = generateBillHTML({
     code,
@@ -439,6 +482,7 @@ export function printCashPreview(data: CashPreviewData): void {
     totalAmount,
     paymentMethod: "cash",
     branchName,
+    branchAddress,
     staffName,
     createdAt: new Date(),
     customerPaid,
