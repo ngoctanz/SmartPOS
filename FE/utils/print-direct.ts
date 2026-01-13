@@ -257,7 +257,7 @@ function generateBillHTML(data: PrintData): string {
 
       <!-- Thông báo đổi trả -->
       <div class="text-center text-notice mt-3">
-        <p style="font-style: italic;">Hàng lỗi khách đổi trả trong 3 ngày (giữ lại hóa đơn),</p>
+        <p style="font-style: italic;">Hàng lỗi đổi trả trong 3 ngày (giữ lại hóa đơn),</p>
         <p style="font-style: italic;">khách vui lòng kiểm tra tiền và hàng trước khi rời</p>
         <p style="font-style: italic;">khỏi shop, mọi khiếu nại shop sẽ không giải quyết.</p>
       </div>
