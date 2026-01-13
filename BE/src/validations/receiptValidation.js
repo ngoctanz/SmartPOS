@@ -3,16 +3,17 @@ import ApiError from "../utils/apiError.js";
 
 const productItemSchema = Joi.object({
   productId: Joi.string().required().hex().length(24),
-  productName: Joi.string().allow(""), // Optional product name
+  productName: Joi.string().allow(""),
   quantity: Joi.number().integer().min(1).required(),
-  salePrice: Joi.number().min(0), // Optional custom price
+  salePrice: Joi.number().min(0),
 });
 
 const createReceiptSchema = Joi.object({
   branchId: Joi.string().required().hex().length(24),
   listProduct: Joi.array().items(productItemSchema).min(1).required(),
-  totalAmount: Joi.number().min(0), // Optional total amount
+  totalAmount: Joi.number().min(0),
   paymentMethod: Joi.string().valid("cash", "transfer").default("cash"),
+  customerPaid: Joi.number().min(0),
 });
 
 const importProductItemSchema = Joi.object({
