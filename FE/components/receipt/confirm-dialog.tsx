@@ -46,8 +46,8 @@ export function ConfirmDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
+      <AlertDialogContent className="max-h-[90vh] flex flex-col">
+        <AlertDialogHeader className="flex-shrink-0">
           <AlertDialogTitle>Xác nhận thanh toán</AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-3 pt-2">
@@ -72,7 +72,7 @@ export function ConfirmDialog({
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
+        <AlertDialogFooter className="flex-shrink-0">
           <AlertDialogCancel disabled={isSubmitting}>Hủy</AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} disabled={isSubmitting}>
             {isSubmitting ? (

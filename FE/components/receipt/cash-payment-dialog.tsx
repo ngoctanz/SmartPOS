@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import {
   Dialog,
   DialogContent,
@@ -40,28 +39,29 @@ export function CashPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="text-center text-xl">
             Xác nhận thanh toán tiền mặt
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          {/* Danh sách sản phẩm */}
-          <div className="max-h-48 overflow-y-auto space-y-2">
+        {/* Nội dung có thể scroll */}
+        <div className="flex-1 overflow-y-auto min-h-0 space-y-4 py-4">
+          {/* Danh sách sản phẩm - giới hạn chiều cao */}
+          <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
             {cartItems.map((item, index) => (
               <div
                 key={item.productId}
-                className="flex justify-between text-sm"
+                className="flex justify-between text-sm gap-2"
               >
-                <span className="flex-1 truncate">
+                <span className="flex-1 min-w-0 truncate">
                   {index + 1}. {item.productName}
                 </span>
-                <span className="text-muted-foreground ml-2">
+                <span className="text-muted-foreground flex-shrink-0">
                   x{item.quantity}
                 </span>
-                <span className="font-medium ml-4 min-w-20 text-right">
+                <span className="font-medium flex-shrink-0 min-w-16 text-right">
                   {formatCurrency(item.salePrice * item.quantity)}
                 </span>
               </div>
@@ -105,7 +105,7 @@ export function CashPaymentDialog({
           )}
         </div>
 
-        <DialogFooter className="flex gap-2 w-full">
+        <DialogFooter className="flex-shrink-0 flex gap-2 w-full">
           <Button
             variant="outline"
             className="flex-1"
@@ -128,7 +128,7 @@ export function CashPaymentDialog({
             ) : (
               <>
                 <Check className="h-4 w-4 mr-2" />
-                Xác nhận
+                Xác nhận (Enter)
               </>
             )}
           </Button>

@@ -24,7 +24,7 @@ import { useCart } from "@/hooks/useCart";
 import { useBranches } from "@/hooks/useBranches";
 import { useProductSearch } from "@/hooks/useProductSearch";
 import { useErrorReceiptLoader } from "@/hooks/useErrorReceiptLoader";
-import { useHotkey } from "@/hooks/useHotkey";
+import { useEnterFlow } from "@/hooks/useEnterFlow";
 import { printDraftWithQR, printReceipt } from "@/utils/print-direct";
 import { playSuccessSound, speakPaymentSuccess } from "@/utils/audio";
 
@@ -262,17 +262,32 @@ export default function CreateReceiptPage() {
     });
   }, [draftData, cartItems, totalAmount, currentBranch, user]);
 
-  // === F9: Thanh toán ===
-  useHotkey({
-    key: "F9",
-    onPress: handleSubmit,
-    enabled:
+  const handlePrintCashReceipt = React.useCallback(() => {
+    if (cashSuccessReceipt) printReceipt(cashSuccessReceipt);
+  }, [cashSuccessReceipt]);
+
+  // === Enter Flow Hook ===
+  useEnterFlow({
+    paymentMethod,
+    canSubmit:
       cartItems.length > 0 &&
       !isSubmitting &&
       !isCreatingDraft &&
       !isConfirmingDraft &&
       !(paymentMethod === "transfer" && showQRPreview) &&
-      !showCashDialog,
+      !showCashDialog &&
+      (isAdmin ? !!selectedBranch : true),
+    showCashDialog,
+    showCashSuccessDialog,
+    showQRPreview,
+    showTransferSuccessDialog: showSuccessDialog,
+    onSubmit: handleSubmit,
+    onConfirmCash: confirmCashPayment,
+    onPrintCashReceipt: handlePrintCashReceipt,
+    onCloseCashSuccess: handleCashSuccessOk,
+    onPrintDraft: handlePrintDraftReceipt,
+    onConfirmQR: confirmDraft,
+    onCloseTransferSuccess: handleSuccessDialogOk,
   });
 
   // === Render ===

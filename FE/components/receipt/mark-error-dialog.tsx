@@ -45,11 +45,11 @@ export function MarkErrorDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent className="max-w-md">
-        <AlertDialogHeader>
+      <AlertDialogContent className="max-w-md max-h-[90vh] flex flex-col">
+        <AlertDialogHeader className="flex-shrink-0">
           <AlertDialogTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-            Đánh dấu hóa đơn lỗi
+            <AlertTriangle className="h-5 w-5 text-destructive flex-shrink-0" />
+            <span>Đánh dấu hóa đơn lỗi</span>
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-3 pt-2">
@@ -84,13 +84,13 @@ export function MarkErrorDialog({
               />
 
               <p className="text-xs text-destructive flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                Hành động này không thể hoàn tác
+                <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+                <span>Hành động này không thể hoàn tác</span>
               </p>
             </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
+        <AlertDialogFooter className="flex-shrink-0">
           <AlertDialogCancel disabled={isSubmitting}>Hủy</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConfirm}
