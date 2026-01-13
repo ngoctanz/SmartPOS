@@ -47,7 +47,7 @@ export const PrintBill = React.forwardRef<HTMLDivElement, PrintBillProps>(
         className="print-bill bg-white text-black p-3"
         style={{
           width: "80mm",
-          fontFamily: "monospace",
+          fontFamily: "Arial, 'Helvetica Neue', Helvetica, sans-serif",
           fontSize: "11px",
           lineHeight: "1.3",
         }}
@@ -55,13 +55,13 @@ export const PrintBill = React.forwardRef<HTMLDivElement, PrintBillProps>(
         {/* Header */}
         <div className="text-center mb-4">
           <h1 className="text-lg font-bold uppercase">{storeName}</h1>
-          <p className="text-xs">{branchName}</p>
-          {branchAddress && <p className="text-xs">{branchAddress}</p>}
-          <p className="text-xs">{storePhone}</p>
+          <p className="text-sm">{branchName}</p>
+          {branchAddress && <p className="text-sm">{branchAddress}</p>}
+          <p className="text-sm">{storePhone}</p>
         </div>
 
-        {/* Divider */}
-        <div className="border-t border-dashed border-black my-2" />
+        {/* Divider - nét liền */}
+        <div className="border-t border-black my-2" />
 
         {/* Bill Info */}
         <div className="mb-3">
@@ -84,32 +84,38 @@ export const PrintBill = React.forwardRef<HTMLDivElement, PrintBillProps>(
           </div>
         </div>
 
-        {/* Divider */}
-        <div className="border-t border-dashed border-black my-2" />
+        {/* Divider - nét liền trước header sản phẩm */}
+        <div style={{ borderTop: "1.5px solid #000", margin: "8px 0" }} />
 
         {/* Product List Header */}
         <div className="text-xs">
-          <div className="flex justify-between font-bold border-b pb-1 mb-1">
+          <div className="flex font-bold pb-1 mb-1" style={{ borderBottom: "1.5px solid #000" }}>
             <span className="flex-1">Sản phẩm</span>
-            <span className="w-12 text-right">SL</span>
-            <span className="w-20 text-right">Đơn giá</span>
-            <span className="w-20 text-right">T.Tiền</span>
+            <span style={{ width: 30, textAlign: "center" }}>SL</span>
+            <span style={{ width: 60, textAlign: "right" }}>Đơn giá</span>
+            <span style={{ width: 85, textAlign: "right", whiteSpace: "nowrap" }}>Thành tiền</span>
           </div>
 
           {/* Product Items */}
           {receipt.listProduct.map((item, index) => (
-            <div key={index} className="mb-1">
-              <div className="font-medium truncate">{item.productName}</div>
-              <div className="flex justify-between text-xs">
-                <span className="flex-1"></span>
-                <span className="w-12 text-right">{item.quantity}</span>
-                <span className="w-20 text-right">
-                  {item.salePrice.toLocaleString("vi-VN")}
-                </span>
-                <span className="w-20 text-right">
-                  {(item.salePrice * item.quantity).toLocaleString("vi-VN")}
-                </span>
+            <div key={index}>
+              <div className="mb-1">
+                <div className="font-medium truncate">{item.productName}</div>
+                <div className="flex text-xs">
+                  <span className="flex-1"></span>
+                  <span style={{ width: 30, textAlign: "center" }}>{item.quantity}</span>
+                  <span style={{ width: 60, textAlign: "right" }}>
+                    {item.salePrice.toLocaleString("vi-VN")}
+                  </span>
+                  <span style={{ width: 85, textAlign: "right" }}>
+                    {(item.salePrice * item.quantity).toLocaleString("vi-VN")}
+                  </span>
+                </div>
               </div>
+              {/* Đường nét đứt giữa các sản phẩm (không có ở item cuối) */}
+              {index < receipt.listProduct.length - 1 && (
+                <div className="border-t border-dashed border-black my-1" />
+              )}
             </div>
           ))}
         </div>
@@ -138,13 +144,16 @@ export const PrintBill = React.forwardRef<HTMLDivElement, PrintBillProps>(
         {/* Divider */}
         <div className="border-t border-dashed border-black my-2" />
 
+        {/* Thông báo đổi trả */}
+        <div className="text-center text-xs mt-3" style={{ fontStyle: "italic" }}>
+          <p>Hàng lỗi đổi trả trong 3 ngày (giữ lại hóa đơn),</p>
+          <p>khách vui lòng kiểm tra tiền và hàng trước khi rời</p>
+          <p>khỏi shop, mọi khiếu nại shop sẽ không giải quyết.</p>
+        </div>
+
         {/* Footer */}
-        <div className="text-center text-xs mt-4">
-          <p className="font-semibold">Cảm ơn Quý khách!</p>
-          <p>Hẹn gặp lại</p>
-          <p className="mt-2 text-[10px] text-gray-600">
-            Hóa đơn này có giá trị xuất HDDT
-          </p>
+        <div className="text-center mt-3">
+          <p className="font-bold text-sm">Cảm ơn và hẹn gặp lại!</p>
         </div>
 
         {/* Barcode placeholder */}

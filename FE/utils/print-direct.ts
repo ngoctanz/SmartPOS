@@ -45,7 +45,7 @@ function getPrintStyles(config: PaperConfig): string {
   return `
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    font-family: monospace;
+    font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
     padding: ${padding};
     width: ${width};
     margin: 0 auto;
@@ -95,16 +95,25 @@ function getPrintStyles(config: PaperConfig): string {
   .py-1 { padding-top: 4px; padding-bottom: 4px; }
   .pb-1 { padding-bottom: 4px; }
   .p-3 { padding: 12px; }
+  .w-6 { width: 24px; }
+  .w-8 { width: 32px; }
   .w-12 { width: 35px; }
   .w-16 { width: 55px; }
   .w-20 { width: 65px; }
+  .w-24 { width: 80px; }
   .text-gray-600 { color: #666; }
-  .font-mono { font-family: monospace; }
+  .font-mono { font-family: "Courier New", Courier, monospace; }
   .bg-white { background: white; }
   .text-black { color: black; }
   .separator { 
     border: none; 
     border-top: 1px dashed #000; 
+    margin: 8px 0; 
+    height: 0;
+  }
+  .separator-solid { 
+    border: none; 
+    border-top: 1.5px solid #000; 
     margin: 8px 0; 
     height: 0;
   }
@@ -175,13 +184,13 @@ function generateBillHTML(data: PrintData): string {
   return `
     <div class="print-bill bg-white text-black p-3" style="width: ${
       config.width
-    }; font-family: monospace; font-size: ${
+    }; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: ${
     config.baseFontSize
   }px; line-height: 1.4;">
       <!-- Header: Tên chi nhánh lớn nhất -->
       <div class="text-center mb-3">
         <h1 class="text-xl font-bold uppercase">${branchName}</h1>
-        ${branchAddress ? `<p class="text-xs">${branchAddress}</p>` : ""}
+        ${branchAddress ? `<p class="text-sm">${branchAddress}</p>` : ""}
       </div>
 
       <!-- Tiêu đề hóa đơn -->
@@ -194,31 +203,40 @@ function generateBillHTML(data: PrintData): string {
   )} năm ${format(createdAt, "yyyy")}</p>
       </div>
 
-      <hr class="separator" />
+      <hr class="separator-solid" />
 
       <!-- Products Header -->
       <div class="text-sm">
-        <div class="flex justify-between font-bold pb-1 mb-1" style="border-bottom: 1px solid #000;">
+        <div class="flex font-bold pb-1 mb-1" style="border-bottom: 1.5px solid #000;">
           <span class="flex-1">Đơn giá</span>
-          <span class="w-12 text-center">SL</span>
-          <span class="w-20 text-right">Thành tiền</span>
+          <span style="width: 40px; text-align: center;">SL</span>
+          <span style="width: 85px; text-align: right; white-space: nowrap;">Thành tiền</span>
         </div>
         
         <!-- Products List -->
         ${products
           .map(
-            (item) => `
-          <div class="mb-2">
-            <div class="font-medium">${item.productName}</div>
-            <div class="flex justify-between text-sm">
-              <span class="flex-1">${item.salePrice.toLocaleString(
-                "vi-VN"
-              )}</span>
-              <span class="w-12 text-center">${item.quantity}</span>
-              <span class="w-20 text-right">${(
-                item.salePrice * item.quantity
-              ).toLocaleString("vi-VN")}</span>
+            (item, idx) => `
+          <div>
+            <div class="mb-2">
+              <div class="font-medium">${item.productName}</div>
+              <div class="flex text-sm">
+                <span class="flex-1">${item.salePrice.toLocaleString(
+                  "vi-VN"
+                )}</span>
+                <span style="width: 40px; text-align: center;">${
+                  item.quantity
+                }</span>
+                <span style="width: 85px; text-align: right;">${(
+                  item.salePrice * item.quantity
+                ).toLocaleString("vi-VN")}</span>
+              </div>
             </div>
+            ${
+              idx < products.length - 1
+                ? '<hr class="separator" />'
+                : ""
+            }
           </div>
         `
           )
@@ -240,7 +258,7 @@ function generateBillHTML(data: PrintData): string {
         ${
           paymentMethod === "cash" && customerPaid
             ? `
-        <div class="flex justify-between">
+        <div class="flex justify-between font-bold mb-1">
           <span>Tiền thừa trả khách:</span>
           <span>${
             changeAmount > 0 ? changeAmount.toLocaleString("vi-VN") : 0
@@ -256,7 +274,7 @@ function generateBillHTML(data: PrintData): string {
       <hr class="separator" />
 
       <!-- Thông báo đổi trả -->
-      <div class="text-center text-notice mt-3">
+      <div class="text-center text-xs mt-3">
         <p style="font-style: italic;">Hàng lỗi đổi trả trong 3 ngày (giữ lại hóa đơn),</p>
         <p style="font-style: italic;">khách vui lòng kiểm tra tiền và hàng trước khi rời</p>
         <p style="font-style: italic;">khỏi shop, mọi khiếu nại shop sẽ không giải quyết.</p>
