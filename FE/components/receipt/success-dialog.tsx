@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,11 +21,6 @@ interface SuccessDialogProps {
   receipt: Receipt | null;
   onPrint: () => void;
   onOk: () => void;
-  /**
-   * "manual" = bấm Hoàn thành thủ công (chuyển khoản) → pending
-   * "paid" = webhook báo đã thanh toán (chuyển khoản) → completed
-   * "cash" = thanh toán tiền mặt → completed
-   */
   type?: SuccessType;
 }
 
@@ -37,107 +31,93 @@ export function SuccessDialog({
   onOk,
   type = "manual",
 }: SuccessDialogProps) {
-  // Enter để in bill
-  useHotkey({
-    key: "Enter",
-    onPress: onPrint,
-    enabled: open && !!receipt,
-  });
+  const isCash = type === "cash";
+  const isTransfer = !isCash;
+  const isCompleted = type === "paid" || type === "cash";
+
+  // Phím P: In bill - chỉ cho Transfer (Cash dùng Enter)
+  useHotkey({ key: "p", onPress: onPrint, enabled: open && !!receipt && isTransfer });
+  useHotkey({ key: "P", onPress: onPrint, enabled: open && !!receipt && isTransfer });
 
   if (!receipt) return null;
 
-  const isPaid = type === "paid";
-  const isCash = type === "cash";
-  const isCompleted = isPaid || isCash; // Cả 2 đều là đã thanh toán xong
-
   return (
-    <>
-      <Dialog open={open} onOpenChange={() => {}}>
-        <DialogContent
-          className="sm:max-w-md"
-          onPointerDownOutside={(e) => e.preventDefault()}
-          onEscapeKeyDown={(e) => e.preventDefault()}
-          showCloseButton={false}
-        >
-          <DialogHeader>
-            <DialogTitle
-              className={`flex items-center justify-center gap-2 ${
-                isCompleted ? "text-green-600" : "text-blue-600"
-              }`}
-            >
-              {isCash ? (
-                <>
-                  <Wallet className="h-6 w-6" />
-                  Thanh toán tiền mặt thành công!
-                </>
-              ) : isPaid ? (
-                <>
-                  <Banknote className="h-6 w-6" />
-                  Thanh toán chuyển khoản thành công!
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="h-6 w-6" />
-                  Hoàn thành đơn hàng
-                </>
-              )}
-            </DialogTitle>
-            <DialogDescription className="text-center">
-              {isCompleted ? (
-                <>
-                  Đơn hàng <span className="font-semibold">{receipt.code}</span>{" "}
-                  đã được thanh toán thành công!
-                </>
-              ) : (
-                <>
-                  Đơn hàng <span className="font-semibold">{receipt.code}</span>{" "}
-                  đang chờ khách hàng thanh toán
-                </>
-              )}
-            </DialogDescription>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={() => {}}>
+      <DialogContent
+        className="sm:max-w-md max-h-[90vh] flex flex-col"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        showCloseButton={false}
+      >
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle
+            className={`flex items-center justify-center gap-2 ${
+              isCompleted ? "text-green-600" : "text-blue-600"
+            }`}
+          >
+            {isCash ? (
+              <>
+                <Wallet className="h-6 w-6 flex-shrink-0" />
+                <span>Thanh toán tiền mặt thành công!</span>
+              </>
+            ) : type === "paid" ? (
+              <>
+                <Banknote className="h-6 w-6 flex-shrink-0" />
+                <span>Thanh toán chuyển khoản thành công!</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="h-6 w-6 flex-shrink-0" />
+                <span>Hoàn thành đơn hàng</span>
+              </>
+            )}
+          </DialogTitle>
+          <DialogDescription className="text-center">
+            {isCompleted ? (
+              <>
+                Đơn hàng <span className="font-semibold">{receipt.code}</span> đã được thanh toán thành công!
+              </>
+            ) : (
+              <>
+                Đơn hàng <span className="font-semibold">{receipt.code}</span> đang chờ khách hàng thanh toán
+              </>
+            )}
+          </DialogDescription>
+        </DialogHeader>
 
-          {/* Thông tin đơn hàng */}
-          <div className="py-4 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Mã hóa đơn:</span>
-              <span className="font-medium">{receipt.code}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Số sản phẩm:</span>
-              <span>{receipt.listProduct.length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Tổng tiền:</span>
-              <span className="font-bold text-primary">
-                {formatCurrency(receipt.totalAmount)}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Trạng thái:</span>
-              {isCompleted ? (
-                <span className="text-green-600 font-medium">
-                  Đã thanh toán
-                </span>
-              ) : (
-                <span className="text-yellow-600 font-medium">
-                  Chờ thanh toán
-                </span>
-              )}
-            </div>
+        <div className="flex-1 overflow-y-auto min-h-0 py-4 space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Mã hóa đơn:</span>
+            <span className="font-medium">{receipt.code}</span>
           </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Số sản phẩm:</span>
+            <span>{receipt.listProduct.length}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Tổng tiền:</span>
+            <span className="font-bold text-primary">{formatCurrency(receipt.totalAmount)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Trạng thái:</span>
+            {isCompleted ? (
+              <span className="text-green-600 font-medium">Đã thanh toán</span>
+            ) : (
+              <span className="text-yellow-600 font-medium">Chờ thanh toán</span>
+            )}
+          </div>
+        </div>
 
-          <DialogFooter className="flex gap-2 sm:gap-2">
-            <Button variant="outline" className="flex-1" onClick={onPrint}>
-              <Printer className="h-4 w-4 mr-2" />
-              In bill (Enter)
-            </Button>
-            <Button className="flex-1" onClick={onOk}>
-              OK
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+        <DialogFooter className="flex-shrink-0 flex gap-2 sm:gap-2">
+          <Button variant="outline" className="flex-1" onClick={onPrint}>
+            <Printer className="h-4 w-4 mr-2 flex-shrink-0" />
+            <span className="truncate">{isCash ? "In bill (Enter)" : "In bill (P)"}</span>
+          </Button>
+          <Button className="flex-1" onClick={onOk}>
+            OK (Enter)
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

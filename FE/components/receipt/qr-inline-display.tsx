@@ -289,17 +289,17 @@ export function QRInlineDisplay({
 
       {/* Full QR Modal */}
       <Dialog open={showFullModal} onOpenChange={setShowFullModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0">
             <DialogTitle className="text-center">Mã QR thanh toán</DialogTitle>
             <DialogDescription className="text-center">
               Quét mã để thanh toán {formatCurrency(totalAmount)}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col items-center gap-4 py-4">
+          <div className="flex-1 overflow-y-auto min-h-0 flex flex-col items-center gap-4 py-4">
             {/* QR Code lớn */}
-            <div className="p-3 bg-white rounded-xl border-2 shadow-sm">
+            <div className="p-3 bg-white rounded-xl border-2 shadow-sm flex-shrink-0">
               {qrImageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -372,7 +372,7 @@ export function QRInlineDisplay({
             </div>
 
             {/* Amount */}
-            <div className="text-center">
+            <div className="text-center flex-shrink-0">
               <p className="text-sm text-muted-foreground">Số tiền</p>
               <p className="text-2xl font-bold text-primary">
                 {formatCurrency(totalAmount)}
@@ -381,7 +381,7 @@ export function QRInlineDisplay({
 
             {/* Remaining time */}
             {remainingTime && (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-sm text-muted-foreground flex-shrink-0">
                 {isExpired ? (
                   <span className="text-destructive">Mã QR đã hết hạn</span>
                 ) : (

@@ -3,6 +3,10 @@ import * as React from "react";
 type KeyCombo =
   | "Enter"
   | "Escape"
+  | "o"
+  | "O"
+  | "p"
+  | "P"
   | "F1"
   | "F2"
   | "F3"

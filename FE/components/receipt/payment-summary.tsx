@@ -23,7 +23,6 @@ import { Branch } from "@/service/branch.service";
 import { formatCurrency } from "@/utils/format.utils";
 import { CashPaymentInput } from "./cash-payment-input";
 import { QRInlineDisplay, QRPaymentInfo } from "./qr-inline-display";
-import { useHotkey } from "@/hooks/useHotkey";
 
 interface PaymentSummaryProps {
   items: CartItem[];
@@ -86,17 +85,7 @@ export function PaymentSummary({
     0
   );
 
-  // Enter để in bill khi đang hiện QR preview
-  useHotkey({
-    key: "Enter",
-    onPress: () => onPrintReceipt?.(),
-    enabled:
-      paymentMethod === "transfer" &&
-      showQRPreview &&
-      !!qrPaymentInfo &&
-      !isConfirmingQR &&
-      !!onPrintReceipt,
-  });
+  // Enter được quản lý bởi useEnterFlow ở page level
 
   return (
     <div className="flex flex-col gap-4 h-fit lg:sticky lg:top-4">
@@ -243,7 +232,7 @@ export function PaymentSummary({
               ) : (
                 <>
                   <Check className="h-5 w-5 mr-2" />
-                  Hoàn thành
+                  Hoàn thành (O)
                 </>
               )}
             </Button>
@@ -262,7 +251,7 @@ export function PaymentSummary({
           ) : (
             <>
               <ShoppingCart className="h-5 w-5 mr-2" />
-              THANH TOÁN (F9)
+              THANH TOÁN (Enter)
             </>
           )}
         </Button>
