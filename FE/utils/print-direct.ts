@@ -28,13 +28,9 @@ const PAPER_CONFIGS: Record<PaperSize, PaperConfig> = {
   },
 };
 
-// Default paper size - có thể lấy từ localStorage hoặc config sau này
 const DEFAULT_PAPER_SIZE: PaperSize = "80mm";
 
 function getPaperConfig(): PaperConfig {
-  // TODO: Có thể đọc từ localStorage để user tự config
-  // const saved = localStorage.getItem("printer_paper_size") as PaperSize;
-  // return PAPER_CONFIGS[saved] || PAPER_CONFIGS[DEFAULT_PAPER_SIZE];
   return PAPER_CONFIGS[DEFAULT_PAPER_SIZE];
 }
 
@@ -46,16 +42,24 @@ function getPrintStyles(config: PaperConfig): string {
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
-    padding: ${padding};
+    padding: 0;
     width: ${width};
-    margin: 0 auto;
+    margin: 0;
     font-size: ${baseFontSize}px;
     line-height: 1.4;
   }
   img { max-width: 100%; height: auto; }
   @media print {
     @page { size: ${width} auto; margin: 0; }
-    body { padding: ${padding}; }
+    body { 
+      padding: 0;
+      margin: 0;
+    }
+  }
+  .print-bill {
+    padding: ${padding} !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
   .text-center { text-align: center; }
   .text-right { text-align: right; }
@@ -182,9 +186,7 @@ function generateBillHTML(data: PrintData): string {
       : "";
 
   return `
-    <div class="print-bill bg-white text-black p-3" style="width: ${
-      config.width
-    }; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: ${
+    <div class="print-bill bg-white text-black" style="font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: ${
     config.baseFontSize
   }px; line-height: 1.4;">
       <!-- Header: Tên chi nhánh lớn nhất -->
@@ -209,8 +211,8 @@ function generateBillHTML(data: PrintData): string {
       <div class="text-sm">
         <div class="flex font-bold pb-1 mb-1" style="border-bottom: 1.5px solid #000;">
           <span class="flex-1">Đơn giá</span>
-          <span style="width: 40px; text-align: center;">SL</span>
-          <span style="width: 85px; text-align: right; white-space: nowrap;">Thành tiền</span>
+          <span style="width: 15%; text-align: center; flex-shrink: 0;">SL</span>
+          <span style="width: 35%; text-align: right; flex-shrink: 0;">Thành tiền</span>
         </div>
         
         <!-- Products List -->
@@ -219,15 +221,15 @@ function generateBillHTML(data: PrintData): string {
             (item, idx) => `
           <div>
             <div class="mb-2">
-              <div class="font-medium">${item.productName}</div>
+              <div class="font-medium" style="word-wrap: break-word; overflow-wrap: break-word;">${item.productName}</div>
               <div class="flex text-sm">
                 <span class="flex-1">${item.salePrice.toLocaleString(
                   "vi-VN"
                 )}</span>
-                <span style="width: 40px; text-align: center;">${
+                <span style="width: 15%; text-align: center; flex-shrink: 0;">${
                   item.quantity
                 }</span>
-                <span style="width: 85px; text-align: right;">${(
+                <span style="width: 35%; text-align: right; flex-shrink: 0;">${(
                   item.salePrice * item.quantity
                 ).toLocaleString("vi-VN")}</span>
               </div>
