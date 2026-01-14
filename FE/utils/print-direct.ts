@@ -46,16 +46,24 @@ function getPrintStyles(config: PaperConfig): string {
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
-    padding: ${padding};
+    padding: 0;
     width: ${width};
-    margin: 0 auto;
+    margin: 0;
     font-size: ${baseFontSize}px;
     line-height: 1.4;
   }
   img { max-width: 100%; height: auto; }
   @media print {
     @page { size: ${width} auto; margin: 0; }
-    body { padding: ${padding}; }
+    body { 
+      padding: 0;
+      margin: 0;
+    }
+  }
+  .print-bill {
+    padding: ${padding} !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
   .text-center { text-align: center; }
   .text-right { text-align: right; }
@@ -182,9 +190,7 @@ function generateBillHTML(data: PrintData): string {
       : "";
 
   return `
-    <div class="print-bill bg-white text-black p-3" style="width: ${
-      config.width
-    }; font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: ${
+    <div class="print-bill bg-white text-black" style="font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif; font-size: ${
     config.baseFontSize
   }px; line-height: 1.4;">
       <!-- Header: Tên chi nhánh lớn nhất -->
