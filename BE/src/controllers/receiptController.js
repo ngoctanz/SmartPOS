@@ -454,6 +454,77 @@ const deleteErrorReceipt = async (req, res, next) => {
   }
 };
 
+/**
+ * Delete a single receipt - Admin and Manager only
+ * DELETE /receipt/:id
+ */
+const deleteReceipt = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const user = req.user;
+
+    const result = await receiptService.deleteReceipt(id, user);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: result.message,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Delete multiple receipts - Admin and Manager only
+ * POST /receipt/delete-many
+ */
+const deleteManyReceipts = async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    const user = req.user;
+
+    const result = await receiptService.deleteManyReceipts(ids, user);
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: result.message,
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Delete receipts by month - Admin and Manager only
+ * POST /receipt/delete-by-month
+ */
+const deleteReceiptsByMonth = async (req, res, next) => {
+  try {
+    const { month, year, branchId } = req.body;
+    const user = req.user;
+
+    const result = await receiptService.deleteReceiptsByMonth(
+      month,
+      year,
+      branchId,
+      user
+    );
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: result.message,
+      data: {
+        deletedCount: result.deletedCount,
+        month: result.month,
+        year: result.year,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const receiptController = {
   getStats,
   create,
@@ -478,4 +549,7 @@ export const receiptController = {
   getErrors,
   getErrorStats,
   deleteErrorReceipt,
+  deleteReceipt,
+  deleteManyReceipts,
+  deleteReceiptsByMonth,
 };

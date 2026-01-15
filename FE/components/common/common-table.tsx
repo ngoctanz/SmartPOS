@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { BulkActions } from "./bulk-actions";
+import { BulkActions, AdditionalBulkAction } from "./bulk-actions";
 
 export interface ServerPagination {
   page: number;
@@ -44,6 +44,7 @@ interface CommonTableProps<TData, TValue> {
   canSelectRow?: (row: TData) => boolean;
   bulkActionLabel?: string;
   bulkActionIcon?: "trash" | "lock" | "printer";
+  additionalBulkActions?: AdditionalBulkAction[];
   // Server-side pagination props
   serverPagination?: ServerPagination;
   onPageChange?: (page: number) => void;
@@ -61,6 +62,7 @@ export function CommonTable<TData, TValue>({
   canSelectRow,
   bulkActionLabel,
   bulkActionIcon,
+  additionalBulkActions,
   onSelectionChange,
   // Server-side pagination
   serverPagination,
@@ -199,6 +201,7 @@ export function CommonTable<TData, TValue>({
           onClearSelection={clearSelection}
           actionLabel={bulkActionLabel}
           actionIcon={bulkActionIcon}
+          additionalActions={additionalBulkActions}
         />
       )}
 

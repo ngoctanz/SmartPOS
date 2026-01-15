@@ -9,6 +9,7 @@ import { ChartLeastSellingProducts } from "@/components/ui/chart-least-selling"
 import { ChartRevenueByBranch } from "@/components/ui/chart-revenue-by-branch"
 import { ChartSalesByCategory } from "@/components/ui/chart-sales-by-category"
 import { TableTopProducts } from "@/components/ui/table-top-products"
+import { PaymentMethodStats } from "@/components/receipt"
 import dashboardService, {
   DashboardSummary,
   DailyStats,
@@ -16,6 +17,7 @@ import dashboardService, {
   BranchRevenue,
   CategorySales,
 } from "@/service/dashboard.service"
+import receiptService, { ReceiptStats } from "@/service/receipt.service"
 import branchService, { Branch } from "@/service/branch.service"
 import { useAuth } from "@/hooks/useAuth"
 import { eventBus, Events } from "@/lib/data-events"
@@ -67,6 +69,7 @@ export default function DashboardPage() {
   const [leastSellingProducts, setLeastSellingProducts] = React.useState<TopProduct[]>([])
   const [revenueByBranch, setRevenueByBranch] = React.useState<BranchRevenue[]>([])
   const [salesByCategory, setSalesByCategory] = React.useState<CategorySales[]>([])
+  const [receiptStats, setReceiptStats] = React.useState<ReceiptStats | undefined>()
 
   // Fetch branches (admin only)
   React.useEffect(() => {
@@ -99,6 +102,7 @@ export default function DashboardPage() {
         dashboardService.getLeastSellingProducts({ period, limit: 10, branchId: effectiveBranchId }),
         isAdmin ? dashboardService.getRevenueByBranch({ period }) : Promise.resolve(null),
         dashboardService.getSalesByCategory({ period, branchId: effectiveBranchId }),
+        receiptService.getStats(effectiveBranchId, period),
       ])
 
       // Process results
@@ -119,6 +123,9 @@ export default function DashboardPage() {
       }
       if (results[5].status === "fulfilled" && results[5].value?.data) {
         setSalesByCategory(results[5].value.data)
+      }
+      if (results[6].status === "fulfilled" && results[6].value?.data) {
+        setReceiptStats(results[6].value.data)
       }
     } catch (error) {
       console.error("Error fetching dashboard data:", error)
@@ -203,6 +210,18 @@ export default function DashboardPage() {
           period={period}
           onPeriodChange={(p) => setPeriod(p as PeriodType)}
         />
+
+        {/* Payment Method Statistics */}
+        <div className="px-4 lg:px-6">
+          <PaymentMethodStats
+            cashCount={receiptStats?.cashCount || 0}
+            cashAmount={receiptStats?.cashAmount || 0}
+            transferCount={receiptStats?.transferCount || 0}
+            transferAmount={receiptStats?.transferAmount || 0}
+            cardCount={receiptStats?.cardCount}
+            cardAmount={receiptStats?.cardAmount}
+          />
+        </div>
 
         {/* Daily Revenue Chart */}
         <div className="px-4 lg:px-6">

@@ -124,6 +124,12 @@ export interface ReceiptStats {
   completedCount: number;
   cancelledCount: number;
   totalRevenue: number;
+  cashCount: number;
+  cashAmount: number;
+  transferCount: number;
+  transferAmount: number;
+  cardCount: number;
+  cardAmount: number;
 }
 
 export interface ErrorStats {
@@ -426,6 +432,42 @@ const receiptService = {
   deleteErrorReceipt: async (id: string): Promise<ApiResponse<void>> => {
     const { apiDelete } = await import("./api.service");
     return apiDelete<void>(`/receipt/errors/${id}`);
+  },
+
+  /**
+   * Xóa một hóa đơn (Admin/Manager only)
+   * DELETE /api/v1/receipt/:id
+   */
+  deleteReceipt: async (id: string): Promise<ApiResponse<void>> => {
+    const { apiDelete } = await import("./api.service");
+    return apiDelete<void>(`/receipt/${id}`);
+  },
+
+  /**
+   * Xóa nhiều hóa đơn (Admin/Manager only)
+   * POST /api/v1/receipt/delete-many
+   */
+  deleteManyReceipts: async (
+    ids: string[]
+  ): Promise<ApiResponse<{ deletedCount: number }>> => {
+    return apiPost<{ deletedCount: number }>("/receipt/delete-many", { ids });
+  },
+
+  /**
+   * Xóa hóa đơn theo tháng (Admin/Manager only)
+   * POST /api/v1/receipt/delete-by-month
+   */
+  deleteReceiptsByMonth: async (
+    month: number,
+    year: number,
+    branchId?: string
+  ): Promise<
+    ApiResponse<{ deletedCount: number; month: number; year: number }>
+  > => {
+    return apiPost<{ deletedCount: number; month: number; year: number }>(
+      "/receipt/delete-by-month",
+      { month, year, branchId }
+    );
   },
 };
 

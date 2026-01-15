@@ -63,6 +63,37 @@ Router.delete(
   receiptController.deleteErrorReceipt
 );
 
+// Delete multiple receipts - Admin and Manager only
+Router.post(
+  "/delete-many",
+  authMiddleware,
+  authorize("admin", "manager"),
+  injectUserBranch({ requireBranchForWrite: false }),
+  receiptController.deleteManyReceipts
+);
+
+// Delete receipts by month - Admin and Manager only
+Router.post(
+  "/delete-by-month",
+  authMiddleware,
+  authorize("admin", "manager"),
+  injectUserBranch({ requireBranchForWrite: false }),
+  receiptController.deleteReceiptsByMonth
+);
+
+// Delete single receipt - Admin and Manager only
+Router.delete(
+  "/:id",
+  authMiddleware,
+  authorize("admin", "manager"),
+  injectUserBranch({ requireBranchForWrite: false }),
+  validateRecordBranchAccess(async (req) => {
+    const receipt = await receiptService.getById(req.params.id);
+    return receipt?.branchId;
+  }),
+  receiptController.deleteReceipt
+);
+
 // Update receipt - Admin and Manager only
 Router.patch(
   "/:id",

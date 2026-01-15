@@ -1222,6 +1222,150 @@ const deleteErrorReceipt = async (id, user) => {
   }
 };
 
+/**
+ * Delete a single receipt (Admin and Manager only)
+ */
+const deleteReceipt = async (id, user) => {
+  try {
+    const receipt = await Receipt.findById(id);
+
+    if (!receipt) {
+      throw new ApiError(404, "Không tìm thấy hóa đơn");
+    }
+
+    const branchId = receipt.branchId._id || receipt.branchId;
+
+    // Validate access
+    if (user.role === "manager") {
+      if (!user.branchId || user.branchId.toString() !== branchId.toString()) {
+        throw new ApiError(
+          403,
+          "Bạn không có quyền xóa hóa đơn của chi nhánh khác"
+        );
+      }
+    } else if (user.role === "staff") {
+      throw new ApiError(403, "Nhân viên không có quyền xóa hóa đơn");
+    }
+
+    await Receipt.findByIdAndDelete(id);
+    return { success: true, message: "Xóa hóa đơn thành công" };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new Error(error.message || error);
+  }
+};
+
+/**
+ * Delete multiple receipts (Admin and Manager only)
+ */
+const deleteManyReceipts = async (ids, user) => {
+  try {
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      throw new ApiError(400, "Danh sách ID không hợp lệ");
+    }
+
+    // Get all receipts to validate access
+    const receipts = await Receipt.find({ _id: { $in: ids } });
+
+    if (receipts.length === 0) {
+      throw new ApiError(404, "Không tìm thấy hóa đơn nào");
+    }
+
+    // Validate access for each receipt
+    if (user.role === "manager") {
+      for (const receipt of receipts) {
+        const branchId = receipt.branchId._id || receipt.branchId;
+        if (
+          !user.branchId ||
+          user.branchId.toString() !== branchId.toString()
+        ) {
+          throw new ApiError(
+            403,
+            "Bạn không có quyền xóa hóa đơn của chi nhánh khác"
+          );
+        }
+      }
+    } else if (user.role === "staff") {
+      throw new ApiError(403, "Nhân viên không có quyền xóa hóa đơn");
+    }
+
+    // Delete all receipts
+    const result = await Receipt.deleteMany({ _id: { $in: ids } });
+
+    return {
+      success: true,
+      message: `Đã xóa ${result.deletedCount} hóa đơn`,
+      deletedCount: result.deletedCount,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new Error(error.message || error);
+  }
+};
+
+/**
+ * Delete receipts by month (Admin and Manager only)
+ */
+const deleteReceiptsByMonth = async (month, year, branchId, user) => {
+  try {
+    // Validate month (1-12)
+    if (!month || month < 1 || month > 12) {
+      throw new ApiError(400, "Tháng không hợp lệ (1-12)");
+    }
+
+    // Validate year
+    if (!year || year < 2000 || year > 2100) {
+      throw new ApiError(400, "Năm không hợp lệ");
+    }
+
+    // Calculate date range for the month
+    const startDate = new Date(year, month - 1, 1); // First day of month
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999); // Last day of month
+
+    const query = {
+      createdAt: { $gte: startDate, $lte: endDate },
+      status: { $ne: "draft" }, // Don't delete drafts
+    };
+
+    // Apply branch filter based on user role
+    if (user.role === "manager") {
+      if (!user.branchId) {
+        throw new ApiError(403, "Không tìm thấy chi nhánh của bạn");
+      }
+      query.branchId = user.branchId;
+    } else if (user.role === "admin" && branchId) {
+      query.branchId = branchId;
+    } else if (user.role === "staff") {
+      throw new ApiError(403, "Nhân viên không có quyền xóa hóa đơn");
+    }
+
+    // Count receipts to be deleted
+    const count = await Receipt.countDocuments(query);
+
+    if (count === 0) {
+      return {
+        success: true,
+        message: "Không có hóa đơn nào trong tháng này",
+        deletedCount: 0,
+      };
+    }
+
+    // Delete receipts
+    const result = await Receipt.deleteMany(query);
+
+    return {
+      success: true,
+      message: `Đã xóa ${result.deletedCount} hóa đơn của tháng ${month}/${year}`,
+      deletedCount: result.deletedCount,
+      month,
+      year,
+    };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new Error(error.message || error);
+  }
+};
+
 // ============================================================================
 // EXPORTS
 // ============================================================================
@@ -1263,4 +1407,9 @@ export const receiptService = {
   getErrorReceipts,
   getErrorStats,
   deleteErrorReceipt,
+
+  // Delete operations
+  deleteReceipt,
+  deleteManyReceipts,
+  deleteReceiptsByMonth,
 };

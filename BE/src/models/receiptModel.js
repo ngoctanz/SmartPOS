@@ -166,6 +166,91 @@ receiptSchema.statics = {
               $cond: [{ $eq: ["$status", "completed"] }, "$totalAmount", 0],
             },
           },
+          // Payment method statistics
+          cashCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "completed"] },
+                    { $eq: ["$paymentMethod", "cash"] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          cashAmount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "completed"] },
+                    { $eq: ["$paymentMethod", "cash"] },
+                  ],
+                },
+                "$totalAmount",
+                0,
+              ],
+            },
+          },
+          transferCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "completed"] },
+                    { $eq: ["$paymentMethod", "transfer"] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          transferAmount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "completed"] },
+                    { $eq: ["$paymentMethod", "transfer"] },
+                  ],
+                },
+                "$totalAmount",
+                0,
+              ],
+            },
+          },
+          cardCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "completed"] },
+                    { $eq: ["$paymentMethod", "card"] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          cardAmount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$status", "completed"] },
+                    { $eq: ["$paymentMethod", "card"] },
+                  ],
+                },
+                "$totalAmount",
+                0,
+              ],
+            },
+          },
         },
       },
     ]);
@@ -177,6 +262,12 @@ receiptSchema.statics = {
         completedCount: 0,
         cancelledCount: 0,
         totalRevenue: 0,
+        cashCount: 0,
+        cashAmount: 0,
+        transferCount: 0,
+        transferAmount: 0,
+        cardCount: 0,
+        cardAmount: 0,
       }
     );
   },

@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Trash2, X, Lock, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+export interface AdditionalBulkAction {
+  label: string;
+  icon: "trash" | "lock" | "printer";
+  variant?: "default" | "destructive" | "outline";
+  onClick: () => void;
+}
+
 interface BulkActionsProps {
   selectedCount: number;
   onAction?: () => void;
@@ -12,6 +19,7 @@ interface BulkActionsProps {
   className?: string;
   actionLabel?: string;
   actionIcon?: "trash" | "lock" | "printer";
+  additionalActions?: AdditionalBulkAction[];
 }
 
 export function BulkActions({
@@ -21,9 +29,20 @@ export function BulkActions({
   className,
   actionLabel = "Khóa đã chọn",
   actionIcon = "lock",
+  additionalActions,
 }: BulkActionsProps) {
-  const ActionIcon =
-    actionIcon === "lock" ? Lock : actionIcon === "printer" ? Printer : Trash2;
+  const getIcon = (icon: "trash" | "lock" | "printer") => {
+    switch (icon) {
+      case "lock":
+        return Lock;
+      case "printer":
+        return Printer;
+      case "trash":
+        return Trash2;
+    }
+  };
+
+  const ActionIcon = getIcon(actionIcon);
   const buttonVariant = actionIcon === "printer" ? "default" : "destructive";
 
   if (selectedCount === 0) return null;
@@ -51,6 +70,21 @@ export function BulkActions({
             {actionLabel}
           </Button>
         )}
+
+        {additionalActions?.map((action, index) => {
+          const Icon = getIcon(action.icon);
+          return (
+            <Button
+              key={index}
+              variant={action.variant || "default"}
+              size="sm"
+              onClick={action.onClick}
+            >
+              <Icon className="mr-2 h-4 w-4" />
+              {action.label}
+            </Button>
+          );
+        })}
 
         <Button variant="outline" size="sm" onClick={onClearSelection}>
           <X className="mr-2 h-4 w-4" />

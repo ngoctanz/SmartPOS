@@ -23,6 +23,7 @@ import {
   CheckCircle,
   DollarSign,
   AlertTriangle,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import receiptService, {
@@ -50,6 +51,7 @@ import {
   printStyles,
   ErrorReceiptList,
   MarkErrorDialog,
+  PaymentMethodStats,
 } from "@/components/receipt";
 import { formatCurrency } from "@/utils/format.utils";
 import { StatsCard } from "@/components/common/stats-card";
@@ -149,6 +151,23 @@ export default function Page() {
     totalPages: 0,
   });
   const [errorSearch, setErrorSearch] = React.useState("");
+
+  // Delete operations state
+  const [selectedRows, setSelectedRows] = React.useState<Receipt[]>([]);
+  const [showDeleteDialog, setShowDeleteDialog] = React.useState(false);
+  const [showBulkDeleteDialog, setShowBulkDeleteDialog] = React.useState(false);
+  const [showDeleteByMonthDialog, setShowDeleteByMonthDialog] =
+    React.useState(false);
+  const [deleteMonth, setDeleteMonth] = React.useState<number>(
+    new Date().getMonth() + 1
+  );
+  const [deleteYear, setDeleteYear] = React.useState<number>(
+    new Date().getFullYear()
+  );
+  const [deleteBranchId, setDeleteBranchId] = React.useState<string | undefined>(
+    undefined
+  );
+  const [isDeleting, setIsDeleting] = React.useState(false);
 
   // Real-time payment notifications via WebSocket
   useSocket({
@@ -312,6 +331,95 @@ export default function Page() {
       document.head.removeChild(styleSheet);
       setShowMultiplePrintDialog(false);
     }, 1000);
+  };
+
+  // Delete handlers
+  const handleDeleteReceipt = async (receipt: Receipt) => {
+    setSelectedItem(receipt);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteReceipt = async () => {
+    if (!selectedItem) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await receiptService.deleteReceipt(selectedItem._id);
+      if (response.success) {
+        toast.success("Đã xóa hóa đơn thành công!");
+        setShowDeleteDialog(false);
+        setSelectedItem(null);
+        refetch();
+      } else {
+        toast.error(response.message || "Không thể xóa hóa đơn");
+      }
+    } catch (error) {
+      toast.error((error as Error).message || "Lỗi khi xóa hóa đơn");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedRows.length === 0) {
+      toast.error("Vui lòng chọn ít nhất 1 hóa đơn");
+      return;
+    }
+    setShowBulkDeleteDialog(true);
+  };
+
+  const confirmBulkDelete = async () => {
+    if (selectedRows.length === 0) return;
+
+    setIsDeleting(true);
+    try {
+      const ids = selectedRows.map((r) => r._id);
+      const response = await receiptService.deleteManyReceipts(ids);
+      if (response.success) {
+        toast.success(
+          `Đã xóa ${response.data?.deletedCount || selectedRows.length} hóa đơn!`
+        );
+        setShowBulkDeleteDialog(false);
+        setSelectedRows([]);
+        refetch();
+      } else {
+        toast.error(response.message || "Không thể xóa hóa đơn");
+      }
+    } catch (error) {
+      toast.error((error as Error).message || "Lỗi khi xóa hóa đơn");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleDeleteByMonth = () => {
+    setShowDeleteByMonthDialog(true);
+  };
+
+  const confirmDeleteByMonth = async () => {
+    setIsDeleting(true);
+    try {
+      const response = await receiptService.deleteReceiptsByMonth(
+        deleteMonth,
+        deleteYear,
+        isAdmin ? deleteBranchId : undefined
+      );
+      if (response.success) {
+        toast.success(
+          `Đã xóa ${response.data?.deletedCount || 0} hóa đơn của tháng ${deleteMonth}/${deleteYear}!`
+        );
+        setShowDeleteByMonthDialog(false);
+        // Reset delete branch selection
+        setDeleteBranchId(undefined);
+        refetch();
+      } else {
+        toast.error(response.message || "Không thể xóa hóa đơn");
+      }
+    } catch (error) {
+      toast.error((error as Error).message || "Lỗi khi xóa hóa đơn");
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const getBranchName = (
@@ -502,6 +610,19 @@ export default function Page() {
                       </DropdownMenuItem>
                     </>
                   )}
+                {/* Chỉ admin và manager mới có quyền xóa */}
+                {(isAdmin || isManager) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => handleDeleteReceipt(row.original)}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Xóa hóa đơn
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           );
@@ -565,6 +686,16 @@ export default function Page() {
         onChange={handleDateRangeChange}
         className="w-[160px]"
       />
+      {(isAdmin || isManager) && (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleDeleteByMonth}
+        >
+          <Trash2 className="h-4 w-4 mr-2" />
+          Xóa theo tháng
+        </Button>
+      )}
     </>
   );
 
@@ -618,6 +749,16 @@ export default function Page() {
         />
       </div>
 
+      {/* Payment Method Statistics */}
+      <PaymentMethodStats
+        cashCount={stats?.cashCount || 0}
+        cashAmount={stats?.cashAmount || 0}
+        transferCount={stats?.transferCount || 0}
+        transferAmount={stats?.transferAmount || 0}
+        cardCount={stats?.cardCount}
+        cardAmount={stats?.cardAmount}
+      />
+
       {/* Tabs for Normal and Error Receipts */}
       <Tabs
         value={activeTab}
@@ -650,6 +791,19 @@ export default function Page() {
             onBulkAction={handleBulkPrint}
             bulkActionLabel="In hóa đơn"
             bulkActionIcon="printer"
+            onSelectionChange={setSelectedRows}
+            additionalBulkActions={
+              isAdmin || isManager
+                ? [
+                    {
+                      label: "Xóa hóa đơn đã chọn",
+                      icon: "trash",
+                      variant: "destructive" as const,
+                      onClick: handleBulkDelete,
+                    },
+                  ]
+                : undefined
+            }
           />
         </TabsContent>
 
@@ -990,6 +1144,185 @@ export default function Page() {
         onConfirm={handleMarkError}
         isSubmitting={isMarkingError}
       />
+
+      {/* Delete Single Receipt Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xác nhận xóa hóa đơn</DialogTitle>
+            <DialogDescription>
+              Bạn có chắc chắn muốn xóa hóa đơn{" "}
+              <span className="font-semibold">{selectedItem?.code}</span>?
+              <br />
+              Hành động này không thể hoàn tác.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={isDeleting}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteReceipt}
+              disabled={isDeleting}
+            >
+              {isDeleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Xóa hóa đơn
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Dialog */}
+      <Dialog open={showBulkDeleteDialog} onOpenChange={setShowBulkDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xác nhận xóa nhiều hóa đơn</DialogTitle>
+            <DialogDescription>
+              Bạn có chắc chắn muốn xóa{" "}
+              <span className="font-semibold">{selectedRows.length}</span> hóa
+              đơn đã chọn?
+              <br />
+              Hành động này không thể hoàn tác.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowBulkDeleteDialog(false)}
+              disabled={isDeleting}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmBulkDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Xóa {selectedRows.length} hóa đơn
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete by Month Dialog */}
+      <Dialog
+        open={showDeleteByMonthDialog}
+        onOpenChange={setShowDeleteByMonthDialog}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Xóa hóa đơn theo tháng</DialogTitle>
+            <DialogDescription>
+              Chọn tháng và năm để xóa tất cả hóa đơn trong tháng đó.
+              <br />
+              Hành động này không thể hoàn tác.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="delete-month">Tháng</Label>
+                <Select
+                  value={deleteMonth.toString()}
+                  onValueChange={(value) => setDeleteMonth(parseInt(value))}
+                >
+                  <SelectTrigger id="delete-month">
+                    <SelectValue placeholder="Chọn tháng" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
+                      <SelectItem key={month} value={month.toString()}>
+                        Tháng {month}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="delete-year">Năm</Label>
+                <Select
+                  value={deleteYear.toString()}
+                  onValueChange={(value) => setDeleteYear(parseInt(value))}
+                >
+                  <SelectTrigger id="delete-year">
+                    <SelectValue placeholder="Chọn năm" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from(
+                      { length: 5 },
+                      (_, i) => new Date().getFullYear() - i
+                    ).map((year) => (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {isAdmin && (
+              <div className="space-y-2">
+                <Label htmlFor="delete-branch">Chi nhánh (tùy chọn)</Label>
+                <Select
+                  value={deleteBranchId || "all"}
+                  onValueChange={(value) =>
+                    setDeleteBranchId(value === "all" ? undefined : value)
+                  }
+                >
+                  <SelectTrigger id="delete-branch">
+                    <SelectValue placeholder="Tất cả chi nhánh" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tất cả chi nhánh</SelectItem>
+                    {branches.map((branch) => (
+                      <SelectItem key={branch._id} value={branch._id}>
+                        {branch.branchName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+              <p className="text-sm text-destructive font-medium">
+                Cảnh báo: Tất cả hóa đơn của tháng {deleteMonth}/{deleteYear}{" "}
+                {isAdmin && !deleteBranchId
+                  ? "ở tất cả chi nhánh"
+                  : isAdmin && deleteBranchId
+                  ? `tại ${
+                      branches.find((b) => b._id === deleteBranchId)
+                        ?.branchName || "chi nhánh đã chọn"
+                    }`
+                  : "tại chi nhánh của bạn"}{" "}
+                sẽ bị xóa vĩnh viễn.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteByMonthDialog(false)}
+              disabled={isDeleting}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteByMonth}
+              disabled={isDeleting}
+            >
+              {isDeleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Xóa hóa đơn tháng {deleteMonth}/{deleteYear}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

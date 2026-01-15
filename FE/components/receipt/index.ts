@@ -6,6 +6,7 @@ export { CashPaymentInput } from "./cash-payment-input";
 export { PrintBill, MultiplePrintBill, printStyles } from "./print-bill";
 export { MarkErrorDialog } from "./mark-error-dialog";
 export { ErrorReceiptList } from "./error-receipt-list";
+export { PaymentMethodStats } from "./payment-method-stats";
 export {
   QRInlineDisplay,
   type QRPaymentInfo,
