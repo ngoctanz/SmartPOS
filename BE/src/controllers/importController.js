@@ -69,7 +69,57 @@ const importProducts = async (req, res, next) => {
   }
 };
 
+/**
+ * Import Receipt from Excel file
+ */
+import { importReceiptService } from "../services/importReceiptService.js";
+
+const importReceipt = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      throw new ApiError(400, "Vui lòng tải lên file Excel");
+    }
+
+    const userId = req.user.userId;
+    let branchId;
+
+    // Determine branchId based on role
+    if (req.user.role === "admin") {
+      branchId = req.body.branchId;
+      if (!branchId) {
+        throw new ApiError(400, "Admin cần chọn chi nhánh để tạo phiếu nhập");
+      }
+    } else {
+      // For branch users, use their assigned branch
+      // Assuming middleware or previous logic populates user's branchId
+      // Or we can fetch it from user model if not in token
+      // Here assuming req.user.branchId exists as per typical jwt payload
+      branchId = req.user.branch_id || req.user.branchId; 
+      
+      if (!branchId) {
+        throw new ApiError(403, "Tài khoản của bạn chưa được gán vào chi nhánh nào");
+      }
+    }
+
+    const result = await importReceiptService.importReceiptFromExcel(
+      req.file.buffer, 
+      branchId, 
+      userId
+    );
+
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Tạo phiếu nhập từ Excel thành công",
+      data: result
+    });
+
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const importController = {
   preview,
   importProducts,
+  importReceipt,
 };

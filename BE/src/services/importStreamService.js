@@ -1,12 +1,8 @@
+import { normalizeString, getCellValue } from "../utils/excelParser.js";
 import xlsx from "xlsx";
 import { Product } from "../models/productModel.js";
 import { Category } from "../models/categoryModel.js";
 import ApiError from "../utils/apiError.js";
-
-/**
- * Stream-based import service for very large Excel files
- * Processes data in chunks to minimize memory usage
- */
 
 const CHUNK_SIZE = 1000; // Process 1000 rows at a time
 const BULK_BATCH_SIZE = 500; // BulkWrite batch size
@@ -62,65 +58,32 @@ const processChunk = (worksheet, startRow, endRow, headers) => {
 };
 
 /**
- * Normalize string for flexible matching
- */
-const normalizeString = (str) => {
-  if (!str) return "";
-  return String(str)
-    .toLowerCase()
-    .replace(/[^\w\s]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-};
-
-/**
  * Map Excel row to product object
  */
 const mapRowToProduct = (row) => {
-  const getCellValue = (possibleHeaders) => {
-    for (const header of possibleHeaders) {
-      const value = row[header];
-      if (value !== undefined && value !== null && value !== "") {
-        return String(value).trim();
-      }
-    }
-    
-    const normalizedHeaders = possibleHeaders.map(h => normalizeString(h));
-    for (const [actualHeader, actualValue] of Object.entries(row)) {
-      const normalizedActual = normalizeString(actualHeader);
-      if (normalizedHeaders.some(nh => normalizedActual.includes(nh) || nh.includes(normalizedActual))) {
-        if (actualValue !== undefined && actualValue !== null && actualValue !== "") {
-          return String(actualValue).trim();
-        }
-      }
-    }
-    
-    return "";
-  };
-
-  const categoryName = getCellValue([
+  const categoryName = getCellValue(row, [
     "nhom hang", "nhóm hàng",
     "loai san pham", "loại sản phẩm", 
     "loai", "category"
   ]);
   
-  const barcode = getCellValue([
+  const barcode = getCellValue(row, [
     "ma vach", "mã vạch",
     "barcode"
   ]);
   
-  const name = getCellValue([
+  const name = getCellValue(row, [
     "ten hang", "tên hàng",
     "ten san pham", "tên sản phẩm",
     "name", "product name"
   ]);
   
-  const price = getCellValue([
+  const price = getCellValue(row, [
     "gia ban", "giá bán",
     "price", "sale price"
   ]);
   
-  const images = getCellValue([
+  const images = getCellValue(row, [
     "hinh anh", "hình ảnh",
     "images", "image"
   ]);

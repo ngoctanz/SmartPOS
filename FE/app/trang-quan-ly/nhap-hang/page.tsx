@@ -16,12 +16,14 @@ import Barcode from "react-barcode";
 import { DetailModal } from "@/components/common/detail-modal";
 import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
 import { ImportReceiptFormModal } from "@/components/forms/import-receipt-form-modal";
+import { ImportReceiptExcelModal } from "@/components/forms/import-receipt-excel-modal";
 import { toast } from "sonner";
-import { Loader2, Plus, Check, X, FileText, CheckCircle, Clock, DollarSign, AlertTriangle } from "lucide-react";
+import { Loader2, Plus, Check, X, FileText, CheckCircle, Clock, DollarSign, AlertTriangle, FileSpreadsheet } from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import { useAuth } from "@/hooks/useAuth";
 import importReceiptService, { CreateImportReceiptRequest } from "@/service/import-receipt.service";
 import branchService, { Branch } from "@/service/branch.service";
+import { ImportReceiptDetailTable } from "@/components/import-receipt/import-receipt-detail-table";
 import { StatsCard } from "@/components/common/stats-card";
 import {
   Select,
@@ -109,6 +111,7 @@ export default function Page() {
 
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
+  const [isImportExcelOpen, setIsImportExcelOpen] = React.useState(false); // New State
   const [isConfirmOpen, setIsConfirmOpen] = React.useState(false);
   const [isCancelOpen, setIsCancelOpen] = React.useState(false);
   const [isBulkCancelOpen, setIsBulkCancelOpen] = React.useState(false);
@@ -444,10 +447,17 @@ export default function Page() {
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight text-primary">Quản lý nhập hàng</h1>
-        <Button onClick={handleCreate}>
-          <Plus className="mr-2 h-4 w-4" />
-          Tạo phiếu nhập
-        </Button>
+        <div className="flex gap-2">
+          {/* New Import Button */}
+          <Button variant="outline" onClick={() => setIsImportExcelOpen(true)}>
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            Nhập từ Excel
+          </Button>
+          <Button onClick={handleCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Tạo phiếu nhập
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -525,6 +535,19 @@ export default function Page() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Import Excel Modal - Added here */}
+      <ImportReceiptExcelModal
+        open={isImportExcelOpen}
+        onOpenChange={setIsImportExcelOpen}
+        onSuccess={() => {
+          setIsImportExcelOpen(false);
+          refetch();
+        }}
+        branches={branches}
+        userBranchId={user?.branchId}
+        isAdmin={isAdmin}
+      />
 
       {/* Create Form Modal */}
       <ImportReceiptFormModal
@@ -736,59 +759,21 @@ export default function Page() {
               <h4 className="mb-3 font-medium">
                 Danh sách sản phẩm ({selectedItem.listProduct.length})
               </h4>
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="p-3 text-left font-medium min-w-[140px]">Mã vạch</th>
-                      <th className="p-3 text-left font-medium">Tên sản phẩm</th>
-                      <th className="p-3 text-right font-medium">SL</th>
-                      <th className="p-3 text-right font-medium">Đơn giá</th>
-                      <th className="p-3 text-right font-medium">Thành tiền</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedItem.listProduct.map((p, index) => (
-                      <tr key={index} className="border-b last:border-0 hover:bg-muted/50">
-                        <td className="p-3 py-4">
-                          {p.barcode ? (
-                            <div className="flex">
-                              <Barcode
-                                value={p.barcode}
-                                width={1.2}
-                                height={40}
-                                fontSize={11}
-                                displayValue={true}
-                                margin={0}
-                              />
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">---</span>
-                          )}
-                        </td>
-                        <td className="p-3 py-4 align-middle">{p.productName}</td>
-                        <td className="p-3 py-4 text-right align-middle">{p.quantity}</td>
-                        <td className="p-3 py-4 text-right align-middle">
-                          {formatCurrency(p.importPrice)}
-                        </td>
-                        <td className="p-3 py-4 text-right font-medium align-middle">
-                          {formatCurrency(p.subtotal)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-muted/50">
-                    <tr>
-                      <td colSpan={4} className="p-3 text-right font-medium">
-                        Tổng cộng:
-                      </td>
-                      <td className="p-3 text-right text-lg font-bold text-primary">
-                        {formatCurrency(selectedItem.totalAmount)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+              {selectedItem.listProduct.length > 100 ? (
+                <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-center">
+                  <p className="text-yellow-800 font-medium">
+                    Danh sách sản phẩm quá dài ({selectedItem.listProduct.length} sản phẩm).
+                  </p>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    Vui lòng xem chi tiết trong file Excel gốc hoặc xuất dữ liệu để kiểm tra.
+                  </p>
+                </div>
+              ) : (
+                <ImportReceiptDetailTable 
+                  products={selectedItem.listProduct} 
+                  totalAmount={selectedItem.totalAmount}
+                />
+              )}
             </div>
           </div>
         )}

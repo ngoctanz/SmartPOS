@@ -120,6 +120,15 @@ const importReceiptService = {
   },
 
   /**
+   * Alias for getAll (for compatibility)
+   */
+  getAllPaginated: async (
+    params?: GetImportReceiptParams
+  ): Promise<ApiResponse<ImportReceipt[]> & { pagination?: Pagination }> => {
+    return importReceiptService.getAll(params);
+  },
+
+  /**
    * Lấy phiếu nhập theo khoảng thời gian
    * GET /api/v1/import-receipt/date-range
    */
@@ -265,6 +274,22 @@ const importReceiptService = {
    */
   deleteErrorReceipt: async (id: string): Promise<ApiResponse<void>> => {
     return apiDelete<void>(`/import-receipt/errors/${id}`);
+  },
+
+  /**
+   * Import phiếu nhập từ Excel
+   * POST /api/v1/import/receipt
+   */
+  importExcel: async (
+    file: File,
+    branchId?: string
+  ): Promise<any> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    if (branchId) {
+      formData.append("branchId", branchId);
+    }
+    return apiPost<any>("/import/receipt", formData);
   },
 };
 

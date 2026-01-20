@@ -72,6 +72,9 @@ export type {
   CreateImportReceiptRequest,
   GetImportReceiptParams,
   TotalImportData,
+  ImportReceiptStats,
+  ErrorReceiptStats,
+  Pagination,
 } from "./import-receipt.service";
 
 // Export types from stock

@@ -464,6 +464,126 @@ branchProductSchema.statics = {
   // Remove product from all branches (if needed for cleanup)
   async removeProductFromAllBranches(productId) {
     await this.updateMany({}, { $pull: { products: { productId } } });
+  },
+
+  // ============ BULK OPERATIONS ============
+
+  async bulkIncreaseStock(branchId, items) {
+    let doc = await this.findOne({ branchId });
+    if (!doc) doc = new this({ branchId, products: [] });
+
+    // 1. Aggregate input items by ProductId in memory first
+    // This handles duplicates in the input array securely
+    const aggregatedItems = new Map(); // ProductId -> Quantity
+    items.forEach(item => {
+      const pid = item.productId.toString();
+      const currentQty = aggregatedItems.get(pid) || 0;
+      aggregatedItems.set(pid, currentQty + item.quantity);
+    });
+
+    // 2. Map existing products for O(1) lookup
+    const existingProductMap = new Map();
+    doc.products.forEach(p => existingProductMap.set(p.productId.toString(), p));
+
+    // 3. Identify missing products to fetch prices
+    const missingProductIds = [];
+    for (const [pid] of aggregatedItems) {
+      if (!existingProductMap.has(pid)) {
+        missingProductIds.push(pid);
+      }
+    }
+
+    let priceMap = new Map();
+    if (missingProductIds.length > 0) {
+        const { Product } = await import("./productModel.js");
+        const products = await Product.find({ _id: { $in: missingProductIds } }).select("currentSalePrice");
+        products.forEach(p => priceMap.set(p._id.toString(), p.currentSalePrice || 0));
+    }
+
+    // 4. Apply Updates
+    const newProductsToPush = [];
+    
+    for (const [pid, quantity] of aggregatedItems) {
+      if (existingProductMap.has(pid)) {
+        // Update existing
+        const product = existingProductMap.get(pid);
+        product.stock += quantity;
+      } else {
+        // Prepare new
+        const salePrice = priceMap.get(pid) || 0;
+        newProductsToPush.push({
+             productId: pid,
+             stock: quantity,
+             minStock: 10,
+             salePrice: salePrice
+        });
+      }
+    }
+
+    // 5. Push all new products at once
+    if (newProductsToPush.length > 0) {
+      doc.products.push(...newProductsToPush);
+    }
+    
+    await doc.save();
+    return doc;
+  },
+
+  async bulkDecreaseStock(branchId, items) {
+    let doc = await this.findOne({ branchId });
+    if (!doc) doc = new this({ branchId, products: [] });
+
+    // 1. Aggregate input items
+    const aggregatedItems = new Map(); 
+    items.forEach(item => {
+      const pid = item.productId.toString();
+      const currentQty = aggregatedItems.get(pid) || 0;
+      aggregatedItems.set(pid, currentQty + item.quantity);
+    });
+
+    // 2. Map existing
+    const existingProductMap = new Map();
+    doc.products.forEach(p => existingProductMap.set(p.productId.toString(), p));
+
+    // 3. Missing IDs (for price if we need to create neg stock)
+    const missingProductIds = [];
+    for (const [pid] of aggregatedItems) {
+      if (!existingProductMap.has(pid)) {
+        missingProductIds.push(pid);
+      }
+    }
+
+    let priceMap = new Map();
+    if (missingProductIds.length > 0) {
+        const { Product } = await import("./productModel.js");
+        const products = await Product.find({ _id: { $in: missingProductIds } }).select("currentSalePrice");
+        products.forEach(p => priceMap.set(p._id.toString(), p.currentSalePrice || 0));
+    }
+
+    // 4. Update
+    const newProductsToPush = [];
+
+    for (const [pid, quantity] of aggregatedItems) {
+      if (existingProductMap.has(pid)) {
+        const product = existingProductMap.get(pid);
+        product.stock -= quantity;
+      } else {
+         const salePrice = priceMap.get(pid) || 0;
+         newProductsToPush.push({
+             productId: pid,
+             stock: -quantity,
+             minStock: 10,
+             salePrice: salePrice
+        });
+      }
+    }
+
+    if (newProductsToPush.length > 0) {
+      doc.products.push(...newProductsToPush);
+    }
+
+    await doc.save();
+    return doc;
   }
 };
 

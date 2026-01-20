@@ -1,119 +1,57 @@
-import xlsx from "xlsx";
+import { parseExcelFile, getCellValue } from "../utils/excelParser.js";
 import { Product } from "../models/productModel.js";
 import { Category } from "../models/categoryModel.js";
 import ApiError from "../utils/apiError.js";
-
-/**
- * Parse Excel file buffer and extract product data
- * @param {Buffer} fileBuffer - Excel file buffer
- * @returns {Array} - Array of parsed product objects
- */
-const parseExcelFile = (fileBuffer) => {
-  try {
-    const workbook = xlsx.read(fileBuffer, { type: "buffer" });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    
-    // Convert to JSON with header row
-    const rawData = xlsx.utils.sheet_to_json(worksheet, { 
-      raw: false,
-      defval: "",
-      blankrows: false // Skip completely blank rows
-    });
-
-    if (!rawData || rawData.length === 0) {
-      throw new ApiError(400, "File Excel không có dữ liệu");
-    }
-
-    return rawData;
-  } catch (error) {
-    throw new ApiError(400, `Lỗi đọc file Excel: ${error.message}`);
-  }
-};
-
-/**
- * Normalize string for flexible matching
- * Removes special characters, extra spaces, and converts to lowercase
- */
-const normalizeString = (str) => {
-  if (!str) return "";
-  return String(str)
-    .toLowerCase()
-    .replace(/[^\w\s]/g, "") // Remove special characters
-    .replace(/\s+/g, " ") // Replace multiple spaces with single space
-    .trim();
-};
 
 /**
  * Map Excel row to product object
  * Handles various column name formats with flexible matching
  */
 const mapRowToProduct = (row, rowIndex) => {
-  // Find column values with flexible header matching
-  const getCellValue = (possibleHeaders) => {
-    // First try exact match
-    for (const header of possibleHeaders) {
-      const value = row[header];
-      if (value !== undefined && value !== null && value !== "") {
-        return String(value).trim();
-      }
-    }
-    
-    // Then try normalized match (for headers like "Nhóm hàng(3 Cấp)")
-    const normalizedHeaders = possibleHeaders.map(h => normalizeString(h));
-    for (const [actualHeader, actualValue] of Object.entries(row)) {
-      const normalizedActual = normalizeString(actualHeader);
-      if (normalizedHeaders.some(nh => normalizedActual.includes(nh) || nh.includes(normalizedActual))) {
-        if (actualValue !== undefined && actualValue !== null && actualValue !== "") {
-          return String(actualValue).trim();
-        }
-      }
-    }
-    
-    return "";
-  };
-
   // Extract data with multiple possible column names
-  const categoryName = getCellValue([
+  const categoryName = getCellValue(row, [
     "nhom hang", "nhóm hàng",
     "loai san pham", "loại sản phẩm", 
     "loai", "category"
   ]);
   
-  const barcode = getCellValue([
+  const barcode = getCellValue(row, [
     "ma vach", "mã vạch",
     "barcode"
   ]);
   
-  const name = getCellValue([
+  const name = getCellValue(row, [
     "ten hang", "tên hàng",
     "ten san pham", "tên sản phẩm",
     "name", "product name"
   ]);
   
-  const price = getCellValue([
+  const price = getCellValue(row, [
     "gia ban", "giá bán",
     "price", "sale price"
   ]);
   
-  const images = getCellValue([
+  const images = getCellValue(row, [
     "hinh anh", "hình ảnh",
     "images", "image"
+  ]);
+  
+  const desc = getCellValue(row, [
+    "mo ta", "mô tả",
+    "description", "desc"
   ]);
 
   return {
     categoryName,
-    barcode: barcode || undefined, // undefined if empty to avoid unique constraint
+    barcode: barcode || undefined, 
     name,
     price: price ? parseFloat(String(price).replace(/[^\d.-]/g, "")) : 0,
     images: images ? images.split(",").map(url => url.trim()).filter(url => url) : [],
-    _rowIndex: rowIndex, // Track original row for debugging
+    desc,
+    _rowIndex: rowIndex, 
   };
 };
 
-/**
- * Validate product data
- */
 const validateProductData = (product, rowIndex) => {
   const errors = [];
 
@@ -136,49 +74,8 @@ const validateProductData = (product, rowIndex) => {
   return errors;
 };
 
-/**
- * Get or create category by name (optimized)
- */
-const getOrCreateCategory = async (categoryName, categoryCache) => {
-  // Check cache first
-  if (categoryCache.has(categoryName)) {
-    return categoryCache.get(categoryName);
-  }
 
-  // Normalize for case-insensitive comparison
-  const normalizedName = categoryName.trim();
-  
-  // Try to find existing category with exact match (case-insensitive)
-  let category = await Category.findOne({ 
-    name: { $regex: new RegExp(`^${normalizedName}$`, "i") } 
-  });
-
-  // Create if not exists
-  if (!category) {
-    try {
-      category = await Category.createCategory({ name: normalizedName });
-    } catch (error) {
-      // Handle duplicate key error (race condition)
-      if (error.code === 11000) {
-        category = await Category.findOne({ 
-          name: { $regex: new RegExp(`^${normalizedName}$`, "i") } 
-        });
-      } else {
-        throw error;
-      }
-    }
-  }
-
-  // Cache it
-  categoryCache.set(categoryName, category);
-  return category;
-};
-
-/**
- * Create all categories in bulk before importing products (optimized)
- */
 const createCategoriesInBulk = async (products) => {
-  // Get unique category names
   const uniqueCategoryNames = [...new Set(
     products
       .map(p => p.categoryName)
@@ -187,17 +84,12 @@ const createCategoriesInBulk = async (products) => {
   )];
 
   const categoryCache = new Map();
-
-  // Step 1: Fetch all existing categories in one query
   const existingCategories = await Category.find({
     name: { 
       $in: uniqueCategoryNames.map(name => new RegExp(`^${name}$`, "i"))
     }
   }).lean();
-
-  // Build cache from existing categories
   existingCategories.forEach(cat => {
-    // Find matching name (case-insensitive)
     const matchingName = uniqueCategoryNames.find(
       name => name.toLowerCase() === cat.name.toLowerCase()
     );
@@ -205,14 +97,11 @@ const createCategoriesInBulk = async (products) => {
       categoryCache.set(matchingName, cat);
     }
   });
-
-  // Step 2: Create missing categories
   const missingCategoryNames = uniqueCategoryNames.filter(
     name => !categoryCache.has(name)
   );
 
   if (missingCategoryNames.length > 0) {
-    // Use insertMany for bulk creation
     try {
       const newCategories = await Category.insertMany(
         missingCategoryNames.map(name => ({ 
@@ -220,17 +109,13 @@ const createCategoriesInBulk = async (products) => {
           createdAt: new Date(),
           updatedAt: new Date(),
         })),
-        { ordered: false } // Continue on duplicate errors
+        { ordered: false }
       );
-
-      // Add to cache
       newCategories.forEach((cat, index) => {
         categoryCache.set(missingCategoryNames[index], cat);
       });
     } catch (error) {
-      // Handle duplicate key errors (race condition)
       if (error.code === 11000 && error.writeErrors) {
-        // Fetch the categories that failed to insert
         const failedNames = error.writeErrors.map((err, idx) => 
           missingCategoryNames[err.index]
         );
@@ -254,15 +139,10 @@ const createCategoriesInBulk = async (products) => {
   return categoryCache;
 };
 
-/**
- * Import products from Excel file with optimized bulk operations
- */
 const importProducts = async (fileBuffer) => {
   try {
-    // Parse Excel
     const rawData = parseExcelFile(fileBuffer);
     
-    // Map and validate
     const products = rawData.map((row, index) => mapRowToProduct(row, index));
     
     const validationErrors = [];
@@ -271,7 +151,6 @@ const importProducts = async (fileBuffer) => {
     products.forEach((product, index) => {
       const errors = validateProductData(product, index);
       if (errors.length > 0) {
-        // Store as objects for consistency
         errors.forEach(errMsg => {
           validationErrors.push({
             row: product._rowIndex + 2,
@@ -285,10 +164,8 @@ const importProducts = async (fileBuffer) => {
       }
     });
 
-    // Step 1: Create all categories first
     const categoryCache = await createCategoriesInBulk(validProducts);
 
-    // Step 2: Get all existing products by barcode in one query
     const barcodes = validProducts
       .map(p => p.barcode)
       .filter(barcode => barcode && barcode.trim());
@@ -301,7 +178,6 @@ const importProducts = async (fileBuffer) => {
       existingProducts.map(p => [p.barcode, p._id])
     );
 
-    // Step 3: Prepare bulk operations
     const bulkOps = [];
     const results = {
       total: rawData.length,
@@ -313,7 +189,6 @@ const importProducts = async (fileBuffer) => {
       errors: [...validationErrors],
     };
 
-    // Track duplicate handling
     const processedBarcodes = new Set();
 
     validProducts.forEach((productData) => {
@@ -331,7 +206,6 @@ const importProducts = async (fileBuffer) => {
           return;
         }
 
-        // Check if this barcode was already processed (duplicate in file)
         if (productData.barcode && processedBarcodes.has(productData.barcode)) {
           results.skipped++;
           results.errors.push({
@@ -343,7 +217,6 @@ const importProducts = async (fileBuffer) => {
           return;
         }
 
-        // Mark barcode as processed
         if (productData.barcode) {
           processedBarcodes.add(productData.barcode);
         }
@@ -359,11 +232,9 @@ const importProducts = async (fileBuffer) => {
           updatedAt: new Date(),
         };
 
-        // Check if product exists
         const existingId = productData.barcode ? existingBarcodeMap.get(productData.barcode) : null;
 
         if (existingId) {
-          // Update existing product
           bulkOps.push({
             updateOne: {
               filter: { _id: existingId },
@@ -372,7 +243,6 @@ const importProducts = async (fileBuffer) => {
           });
           results.updated++;
         } else {
-          // Insert new product
           bulkOps.push({
             insertOne: {
               document: {
@@ -394,7 +264,6 @@ const importProducts = async (fileBuffer) => {
       }
     });
 
-    // Step 4: Execute bulk operations in batches
     if (bulkOps.length > 0) {
       const BATCH_SIZE = 500;
       
@@ -406,13 +275,10 @@ const importProducts = async (fileBuffer) => {
             ordered: false,
           });
         } catch (error) {
-          // Handle bulk write errors
           if (error.writeErrors) {
             error.writeErrors.forEach((writeError) => {
               const opIndex = writeError.index + i;
               const productData = validProducts[opIndex];
-              
-              // Adjust counts
               if (bulkOps[opIndex].insertOne) {
                 results.created--;
               } else if (bulkOps[opIndex].updateOne) {
@@ -443,27 +309,21 @@ const importProducts = async (fileBuffer) => {
   }
 };
 
-/**
- * Preview Excel data without importing
- */
 const previewExcelData = async (fileBuffer) => {
   try {
     const rawData = parseExcelFile(fileBuffer);
     const products = rawData.map((row, index) => mapRowToProduct(row, index));
-    
-    // Validate
     const validationErrors = [];
     products.forEach((product, index) => {
       const errors = validateProductData(product, index);
       validationErrors.push(...errors);
     });
 
-    // Get unique categories
     const uniqueCategories = [...new Set(products.map(p => p.categoryName).filter(Boolean))];
 
     return {
       total: products.length,
-      preview: products.slice(0, 10), // First 10 rows
+      preview: products.slice(0, 10),
       categories: uniqueCategories,
       validationErrors,
       isValid: validationErrors.length === 0,

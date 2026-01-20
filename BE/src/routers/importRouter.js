@@ -14,4 +14,7 @@ router.post("/preview", uploadMiddleware.single("file"), importController.previe
 // Import products from Excel
 router.post("/products", uploadMiddleware.single("file"), importController.importProducts);
 
+// Import receipt from Excel (Create Import Receipt & optional Product creation)
+router.post("/receipt", uploadMiddleware.single("file"), importController.importReceipt);
+
 export const importRouter = router;
