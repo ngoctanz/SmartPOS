@@ -2,12 +2,11 @@ import * as React from "react";
 
 /**
  * Flow phím Enter cho trang tạo hóa đơn
- *
- * Tiền mặt: IDLE → Tạo đơn + In bill luôn → IDLE (cooldown 2s)
- * Chuyển khoản: IDLE → QR_PREVIEW (Enter: In, O: Hoàn thành) → TRANSFER_SUCCESS (Enter: OK) → IDLE
+ * - Tiền mặt: IDLE → Tạo đơn + In → IDLE (cooldown 2s)
+ * - Chuyển khoản: IDLE → QR_PREVIEW (Enter: In, O: Hoàn thành) → TRANSFER_SUCCESS (Enter: OK) → IDLE
  */
 
-const SUBMIT_COOLDOWN = 1000; // 1s cooldown sau khi submit để tránh spam
+const SUBMIT_COOLDOWN = 2000;
 
 export type EnterFlowState =
   | "IDLE"
@@ -57,9 +56,7 @@ export function useEnterFlow({
     refs.current = { currentState, isProcessing, isOnCooldown };
   }, [currentState, isProcessing, isOnCooldown]);
 
-  // Auto-sync state với dialog visibility
   React.useEffect(() => {
-    // Transfer success dialog có thể hiện kể cả khi đang ở tab tiền mặt (webhook từ đơn cũ)
     if (showTransferSuccessDialog) {
       setCurrentState("TRANSFER_SUCCESS");
       return;
@@ -72,7 +69,6 @@ export function useEnterFlow({
     }
   }, [paymentMethod, showQRPreview, showTransferSuccessDialog]);
 
-  // Phím O: Hoàn thành QR thủ công
   React.useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== "o") return;
@@ -86,7 +82,6 @@ export function useEnterFlow({
         await onConfirmQR();
       } finally {
         setIsProcessing(false);
-        // Cooldown sau khi confirm QR
         setIsOnCooldown(true);
         setTimeout(() => setIsOnCooldown(false), SUBMIT_COOLDOWN);
       }
@@ -96,11 +91,16 @@ export function useEnterFlow({
     return () => window.removeEventListener("keydown", handler);
   }, [onConfirmQR]);
 
-  // Phím Enter
   React.useEffect(() => {
     const handler = async (e: KeyboardEvent) => {
       if (e.key !== "Enter") return;
       if (refs.current.isProcessing || refs.current.isOnCooldown) return;
+
+      const target = e.target as HTMLElement;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+        const inputValue = target.value?.trim() || "";
+        if (inputValue.length > 0) return;
+      }
 
       const state = refs.current.currentState;
 
@@ -114,7 +114,6 @@ export function useEnterFlow({
             await onSubmit();
           } finally {
             setIsProcessing(false);
-            // Cooldown sau khi submit (đặc biệt quan trọng cho tiền mặt)
             setIsOnCooldown(true);
             setTimeout(() => setIsOnCooldown(false), SUBMIT_COOLDOWN);
           }
@@ -129,7 +128,6 @@ export function useEnterFlow({
         case "TRANSFER_SUCCESS":
           e.preventDefault();
           onCloseTransferSuccess();
-          // Cooldown sau khi đóng dialog
           setIsOnCooldown(true);
           setTimeout(() => setIsOnCooldown(false), SUBMIT_COOLDOWN);
           break;

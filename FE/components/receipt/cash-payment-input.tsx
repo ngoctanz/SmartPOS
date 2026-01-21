@@ -16,12 +16,14 @@ interface CashPaymentInputProps {
   totalAmount: number;
   customerPaid: number | null;
   onCustomerPaidChange: (amount: number | null) => void;
+  onEnterPress?: () => void;
 }
 
 export function CashPaymentInput({
   totalAmount,
   customerPaid,
   onCustomerPaidChange,
+  onEnterPress,
 }: CashPaymentInputProps) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [inputValue, setInputValue] = React.useState<string>("");
@@ -62,10 +64,13 @@ export function CashPaymentInput({
     }
   };
 
-  // Handle key down - ngăn event bubble lên parent
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Ngăn các phím đặc biệt bubble lên (tránh trigger barcode scanner)
     e.stopPropagation();
+    
+    if (e.key === "Enter" && onEnterPress) {
+      e.preventDefault();
+      onEnterPress();
+    }
   };
 
   // Handle suggestion click

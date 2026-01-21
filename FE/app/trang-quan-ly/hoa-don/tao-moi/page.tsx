@@ -30,6 +30,7 @@ export default function CreateReceiptPage() {
   const router = useRouter();
   const { user } = useAuthContext();
   const isAdmin = user?.role === "admin";
+  const barcodeInputRef = React.useRef<HTMLInputElement>(null);
 
   // === Cart Hook ===
   const {
@@ -52,14 +53,9 @@ export default function CreateReceiptPage() {
     isAdmin,
   });
 
-  // === Payment State ===
-  const [paymentMethod, setPaymentMethod] = React.useState<"cash" | "transfer">(
-    "cash"
-  );
+  const [paymentMethod, setPaymentMethod] = React.useState<"cash" | "transfer">("cash");
   const [customerPaid, setCustomerPaid] = React.useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
-
-  // === Cash Payment Dialog State === (removed - no longer needed)
 
   // === Load from error receipt ===
   useErrorReceiptLoader({ setCartItems, setPaymentMethod });
@@ -140,8 +136,12 @@ export default function CreateReceiptPage() {
     enabled: true,
   });
 
-  // === Create cash receipt (called directly from handleSubmit) ===
   const createCashReceipt = React.useCallback(async () => {
+    if (isSubmitting) {
+      console.warn("⚠️ Duplicate submit blocked");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const receiptData: CreateReceiptRequest = {
@@ -162,24 +162,29 @@ export default function CreateReceiptPage() {
       if (response.success && response.data) {
         playSuccessSound();
 
-        // Hủy QR draft nếu đang có (user chuyển từ CK sang tiền mặt)
         if (showQRPreview) cancelDraft();
 
         const receipt = response.data;
 
-        // Tự động mở in bill trước
         printReceipt(receipt);
 
-        // Delay toast 1.5s 
         setTimeout(() => {
           toast.success("Tạo hóa đơn thành công!", {
             description: `Mã hóa đơn: ${receipt.code}`,
           });
         }, 1500);
 
-        // Reset tất cả state để sẵn sàng cho đơn mới
         clearCart();
         setCustomerPaid(null);
+        
+        // Focus lại input để sẵn sàng quét tiếp
+        // Delay nhỏ để tránh conflict với dialog in
+        setTimeout(() => {
+          const hasOpenDialog = document.querySelector('[role="dialog"]');
+          if (!hasOpenDialog) {
+            barcodeInputRef.current?.focus();
+          }
+        }, 200);
       } else {
         toast.error(response.message || "Tạo hóa đơn thất bại");
       }
@@ -189,6 +194,7 @@ export default function CreateReceiptPage() {
       setIsSubmitting(false);
     }
   }, [
+    isSubmitting,
     cartItems,
     isAdmin,
     selectedBranch,
@@ -199,8 +205,12 @@ export default function CreateReceiptPage() {
     clearCart,
   ]);
 
-  // === Submit handler ===
   const handleSubmit = React.useCallback(async () => {
+    if (isSubmitting || isCreatingDraft || isConfirmingDraft) {
+      console.warn("⚠️ Duplicate submit blocked");
+      return;
+    }
+
     if (isAdmin && !selectedBranch) {
       toast.error("Vui lòng chọn chi nhánh");
       return;
@@ -212,15 +222,16 @@ export default function CreateReceiptPage() {
     }
 
     if (paymentMethod === "transfer") {
-      // Nếu đang có QR preview thì không tạo mới (user phải hủy hoặc hoàn thành trước)
       if (showQRPreview) return;
       await createDraft();
       return;
     }
 
-    // Cash payment → tạo đơn luôn, không cần confirm
     await createCashReceipt();
   }, [
+    isSubmitting,
+    isCreatingDraft,
+    isConfirmingDraft,
     isAdmin,
     selectedBranch,
     cartItems.length,
@@ -314,6 +325,7 @@ export default function CreateReceiptPage() {
               getByBarcodeFn={getProductByBarcode}
               placeholder="Quét mã barcode hoặc nhập tên sản phẩm..."
               autoFocus
+              inputRef={barcodeInputRef}
             />
           </div>
 
