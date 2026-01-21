@@ -17,6 +17,8 @@ interface SmartProductInputProps {
   onBarcodeNotFound?: (barcode: string) => void;
   /** If true, disables auto-refocus behavior (useful when editing prices/quantities) */
   disableAutoRefocus?: boolean;
+  /** Expose focus method to parent */
+  inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 export function SmartProductInput({
@@ -27,6 +29,7 @@ export function SmartProductInput({
   autoFocus = true,
   onBarcodeNotFound,
   disableAutoRefocus = false,
+  inputRef: externalInputRef,
 }: SmartProductInputProps) {
   const [inputValue, setInputValue] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<Product[]>([]);
@@ -35,68 +38,59 @@ export function SmartProductInput({
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [selectedIndex, setSelectedIndex] = React.useState(-1);
 
-  const inputRef = React.useRef<HTMLInputElement>(null);
+  const internalInputRef = React.useRef<HTMLInputElement>(null);
+  const inputRef = externalInputRef || internalInputRef;
   const keystrokeTimesRef = React.useRef<number[]>([]);
   const dropdownRef = React.useRef<HTMLDivElement>(null);
+  const justProcessedBarcodeRef = React.useRef(false);
+  const lastProcessTimeRef = React.useRef(0);
+  const SCANNER_ENTER_BLOCK_TIME = 500;
 
-  // Auto focus on mount and when window gains focus
   React.useEffect(() => {
     if (!autoFocus) return;
 
-    const focusInput = () => {
-      // Delay to ensure other elements don't steal focus
-      setTimeout(() => inputRef.current?.focus(), 50);
-    };
+    setTimeout(() => inputRef.current?.focus(), 50);
 
-    focusInput();
-
-    // Only add window focus listener if auto-refocus is enabled
     if (!disableAutoRefocus) {
-      window.addEventListener("focus", focusInput);
-    }
+      const handleWindowFocus = () => {
+        setTimeout(() => inputRef.current?.focus(), 50);
+      };
+      window.addEventListener("focus", handleWindowFocus);
 
-    // Refocus periodically to ensure always focused (only if not disabled)
-    const interval = disableAutoRefocus
-      ? null
-      : setInterval(() => {
-          // Không refocus nếu đang focus vào input khác (vd: input tiền khách đưa)
-          const activeElement = document.activeElement;
-          const isInputFocused = activeElement?.tagName === "INPUT" || 
-                                  activeElement?.tagName === "TEXTAREA" ||
-                                  activeElement?.tagName === "SELECT" ||
-                                  activeElement?.tagName === "BUTTON" ||
-                                  activeElement?.closest("[data-no-autofocus]"); // Custom attribute to prevent autofocus
-          
-          if (!isInputFocused && document.activeElement !== inputRef.current && !showDropdown) {
-            inputRef.current?.focus();
-          }
-        }, 1000);
+      const interval = setInterval(() => {
+        const activeElement = document.activeElement;
+        
+        // CHỈ block khi user đang tương tác với input/textarea/select khác hoặc có dialog
+        const shouldNotFocus = 
+          (activeElement?.tagName === "INPUT" && activeElement !== inputRef.current) || 
+          activeElement?.tagName === "TEXTAREA" ||
+          activeElement?.tagName === "SELECT" ||
+          activeElement?.closest("[role='dialog']") ||
+          showDropdown;
+        
+        if (!shouldNotFocus && activeElement !== inputRef.current) {
+          inputRef.current?.focus();
+        }
+      }, 1000);
 
-    return () => {
-      if (!disableAutoRefocus) {
-        window.removeEventListener("focus", focusInput);
-      }
-      if (interval) {
+      return () => {
+        window.removeEventListener("focus", handleWindowFocus);
         clearInterval(interval);
-      }
-    };
-  }, [autoFocus, showDropdown, disableAutoRefocus]);
+      };
+    }
+  }, [autoFocus, disableAutoRefocus, showDropdown]);
 
-  // Check if input looks like a barcode (all digits, >= 8 chars)
   const looksLikeBarcode = React.useCallback((value: string) => {
     return /^\d{8,}$/.test(value.trim());
   }, []);
 
-  // Detect scanner input (rapid keystrokes)
   const isFromScanner = React.useCallback(() => {
     const times = keystrokeTimesRef.current;
     if (times.length < 3) return false;
-    const avgInterval =
-      (times[times.length - 1] - times[0]) / (times.length - 1);
-    return avgInterval < 50; // Scanner typically < 50ms between keystrokes
+    const avgInterval = (times[times.length - 1] - times[0]) / (times.length - 1);
+    return avgInterval < 50;
   }, []);
 
-  // Process barcode - call API to get product
   const processBarcode = React.useCallback(
     async (barcode: string) => {
       if (!barcode.trim()) return;
@@ -104,6 +98,9 @@ export function SmartProductInput({
       setIsSearching(true);
       setErrorMessage(null);
       setShowDropdown(false);
+      
+      justProcessedBarcodeRef.current = true;
+      lastProcessTimeRef.current = Date.now();
 
       try {
         const product = await getByBarcodeFn(barcode.trim());
@@ -111,14 +108,11 @@ export function SmartProductInput({
           onProductSelect(product);
           setInputValue("");
         } else {
-          // If callback provided, call it instead of showing error
           if (onBarcodeNotFound) {
             onBarcodeNotFound(barcode.trim());
             setInputValue("");
           } else {
-            setErrorMessage(
-              `Sản phẩm với mã "${barcode}" chưa có trong hệ thống`
-            );
+            setErrorMessage(`Sản phẩm với mã "${barcode}" chưa có trong hệ thống`);
             setTimeout(() => setErrorMessage(null), 3000);
           }
         }
@@ -127,20 +121,20 @@ export function SmartProductInput({
           onBarcodeNotFound(barcode.trim());
           setInputValue("");
         } else {
-          setErrorMessage(
-            `Sản phẩm với mã "${barcode}" chưa có trong hệ thống`
-          );
+          setErrorMessage(`Sản phẩm với mã "${barcode}" chưa có trong hệ thống`);
           setTimeout(() => setErrorMessage(null), 3000);
         }
       } finally {
         setIsSearching(false);
         inputRef.current?.focus();
+        setTimeout(() => {
+          justProcessedBarcodeRef.current = false;
+        }, SCANNER_ENTER_BLOCK_TIME);
       }
     },
-    [getByBarcodeFn, onProductSelect, onBarcodeNotFound]
+    [getByBarcodeFn, onProductSelect, onBarcodeNotFound, SCANNER_ENTER_BLOCK_TIME]
   );
 
-  // Search products by name
   const searchProducts = React.useCallback(
     async (term: string) => {
       if (!term.trim() || term.length < 2) {
@@ -165,7 +159,6 @@ export function SmartProductInput({
     [searchFn]
   );
 
-  // Debounced search
   React.useEffect(() => {
     if (!inputValue.trim()) {
       setSearchResults([]);
@@ -173,25 +166,19 @@ export function SmartProductInput({
       return;
     }
 
-    // If input is >= 5 characters, check if it's an exact barcode match first
     if (inputValue.trim().length >= 5) {
       const timer = setTimeout(async () => {
-        // Try exact barcode match first
         try {
           const product = await getByBarcodeFn(inputValue.trim());
           if (product) {
-            // Exact match found - auto add
             onProductSelect(product);
             setInputValue("");
             setSearchResults([]);
             setShowDropdown(false);
             return;
           }
-        } catch {
-          // Not found, continue with search
-        }
+        } catch {}
 
-        // If not exact barcode match, search by name
         if (!looksLikeBarcode(inputValue)) {
           searchProducts(inputValue);
         }
@@ -200,7 +187,6 @@ export function SmartProductInput({
       return () => clearTimeout(timer);
     }
 
-    // For shorter inputs, only search if it's not a barcode pattern
     if (!looksLikeBarcode(inputValue)) {
       const timer = setTimeout(() => {
         searchProducts(inputValue);
@@ -208,19 +194,11 @@ export function SmartProductInput({
 
       return () => clearTimeout(timer);
     }
-  }, [
-    inputValue,
-    searchProducts,
-    looksLikeBarcode,
-    getByBarcodeFn,
-    onProductSelect,
-  ]);
+  }, [inputValue, searchProducts, looksLikeBarcode, getByBarcodeFn, onProductSelect]);
 
-  // Handle keydown
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     const now = Date.now();
 
-    // Track keystroke timing for scanner detection
     if (e.key.length === 1) {
       keystrokeTimesRef.current.push(now);
       if (keystrokeTimesRef.current.length > 5) {
@@ -228,20 +206,15 @@ export function SmartProductInput({
       }
     }
 
-    // Arrow navigation in dropdown
     if (showDropdown && searchResults.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setSelectedIndex((prev) =>
-          prev < searchResults.length - 1 ? prev + 1 : 0
-        );
+        setSelectedIndex((prev) => (prev < searchResults.length - 1 ? prev + 1 : 0));
         return;
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setSelectedIndex((prev) =>
-          prev > 0 ? prev - 1 : searchResults.length - 1
-        );
+        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : searchResults.length - 1));
         return;
       }
       if (e.key === "Escape") {
@@ -251,63 +224,73 @@ export function SmartProductInput({
       }
     }
 
-    // Enter key
     if (e.key === "Enter") {
-      e.preventDefault();
-
-      // If dropdown is open and item is selected, select that item
-      if (showDropdown && selectedIndex >= 0 && searchResults[selectedIndex]) {
-        handleSelectProduct(searchResults[selectedIndex]);
+      const timeSinceLastProcess = now - lastProcessTimeRef.current;
+      
+      if (justProcessedBarcodeRef.current || timeSinceLastProcess < SCANNER_ENTER_BLOCK_TIME) {
+        e.preventDefault();
+        e.stopPropagation();
         return;
       }
+      
+      const hasValue = inputValue.trim().length > 0;
+      
+      if (hasValue) {
+        e.preventDefault();
+        e.stopPropagation();
 
-      // If input looks like barcode, process it
-      if (inputValue.trim() && looksLikeBarcode(inputValue)) {
-        processBarcode(inputValue);
-        return;
-      }
+        if (showDropdown && selectedIndex >= 0 && searchResults[selectedIndex]) {
+          handleSelectProduct(searchResults[selectedIndex]);
+          return;
+        }
 
-      // If scanner input (rapid typing), process as barcode
-      if (inputValue.trim() && isFromScanner()) {
-        processBarcode(inputValue);
-        return;
-      }
+        if (looksLikeBarcode(inputValue)) {
+          processBarcode(inputValue);
+          return;
+        }
 
-      // Otherwise, if dropdown has results, select first one
-      if (showDropdown && searchResults.length > 0) {
-        handleSelectProduct(searchResults[0]);
+        if (isFromScanner()) {
+          processBarcode(inputValue);
+          return;
+        }
+
+        if (showDropdown && searchResults.length > 0) {
+          handleSelectProduct(searchResults[0]);
+        }
       }
     }
   };
 
-  // Handle input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setInputValue(value);
     setErrorMessage(null);
 
-    // Auto-detect scanner input and process barcode
-    if (isFromScanner() && value.length >= 8) {
-      // Scanner detected, wait a bit then process
+    if (isFromScanner() && value.length >= 8 && looksLikeBarcode(value)) {
       setTimeout(() => {
         if (inputRef.current?.value === value) {
           processBarcode(value);
         }
-      }, 150);
+      }, 100);
     }
   };
 
-  // Handle product selection
   const handleSelectProduct = (product: Product) => {
     onProductSelect(product);
     setInputValue("");
     setSearchResults([]);
     setShowDropdown(false);
     setSelectedIndex(-1);
+    
+    justProcessedBarcodeRef.current = true;
+    lastProcessTimeRef.current = Date.now();
+    setTimeout(() => {
+      justProcessedBarcodeRef.current = false;
+    }, SCANNER_ENTER_BLOCK_TIME);
+    
     inputRef.current?.focus();
   };
 
-  // Handle clear input
   const handleClear = () => {
     setInputValue("");
     setSearchResults([]);
@@ -316,7 +299,6 @@ export function SmartProductInput({
     inputRef.current?.focus();
   };
 
-  // Click outside to close dropdown
   React.useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (

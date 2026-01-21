@@ -142,13 +142,13 @@ export function PaymentSummary({
           </Button>
         </div>
 
-        {/* Cash Payment Input - chỉ hiện khi chọn tiền mặt */}
         {paymentMethod === "cash" && totalAmount > 0 && (
           <div className="mt-4 pt-4 border-t">
             <CashPaymentInput
               totalAmount={totalAmount}
               customerPaid={customerPaid}
               onCustomerPaidChange={onCustomerPaidChange}
+              onEnterPress={onSubmit}
             />
           </div>
         )}
