@@ -19,17 +19,14 @@ const importProductSchema = new mongoose.Schema(
     quantity: {
       type: Number,
       default: 0,
-      min: [0, "Quantity cannot be negative"],
     },
     importPrice: {
       type: Number,
       required: true,
-      min: [0, "Import price cannot be negative"],
     },
     subtotal: {
       type: Number,
-      required: true,
-      min: [0, "Subtotal cannot be negative"],
+      required: true
     },
   },
   { _id: false }

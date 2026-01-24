@@ -11,46 +11,27 @@ import { validateBranchAccess } from "../utils/branchSecurity.js";
  * Map Excel row to Receive Receipt Item (Product + Quantity + ImportPrice)
  */
 const mapRowToReceiptItem = (row, rowIndex) => {
-  // Use shared util to extract basic product info
-  const categoryName = getCellValue(row, [
-    "nhom hang", "nhóm hàng",
-    "loai san pham", "loại sản phẩm", 
-    "category"
-  ]);
+  // Use exact column names from Excel file
+  const categoryName = row["Nhóm hàng(3 Cấp)"] || "";
+  const barcode = row["Mã vạch"] || "";
+  const name = row["Tên hàng"] || "";
+  const salePrice = row["Giá bán"] || "";
+  const images = row["Hình ảnh (url1, url2...)"] || "";
   
-  const barcode = getCellValue(row, [
-    "ma vach", "mã vạch",
-    "barcode"
-  ]);
-  
-  const name = getCellValue(row, [
-    "ten hang", "tên hàng",
-    "ten san pham", "tên sản phẩm",
-    "name", "product name"
-  ]);
-  
-  const salePrice = getCellValue(row, [
-    "gia ban", "giá bán",
-    "price", "sale price"
-  ]);
-  
-  const images = getCellValue(row, [
-    "hinh anh", "hình ảnh",
-    "images", "image"
-  ]);
-
   // Specific fields for Import Receipt
-  const quantity = getCellValue(row, [
-    "so luong", "số lượng",
-    "ton kho", "tồn kho",
-    "quantity", "qty", "stock"
-  ]);
+  const quantity = row["Tồn kho"] || "";
+  const importPrice = row["Giá vốn"] || "";
 
-  const importPrice = getCellValue(row, [
-    "gia von", "giá vốn",
-    "gia nhap", "giá nhập",
-    "import price", "cost"
-  ]);
+  // Parse numeric values
+  const parsedSalePrice = salePrice ? parseFloat(String(salePrice).replace(/[^\d.-]/g, "")) : 0;
+  const parsedQuantity = quantity ? parseFloat(String(quantity).replace(/[^\d.-]/g, "")) : 0;
+  const parsedImportPrice = importPrice ? parseFloat(String(importPrice).replace(/[^\d.-]/g, "")) : 0;
+
+  // Debug logging
+  console.log(`Row ${rowIndex + 2}: ${name}`);
+  console.log(`  - Quantity raw: "${quantity}" -> parsed: ${parsedQuantity}`);
+  console.log(`  - ImportPrice raw: "${importPrice}" -> parsed: ${parsedImportPrice}`);
+  console.log(`  - Subtotal: ${parsedQuantity * parsedImportPrice}`);
 
   return {
     // Info for verifying/creating product
@@ -60,9 +41,9 @@ const mapRowToReceiptItem = (row, rowIndex) => {
     images: images ? images.split(",").map(url => url.trim()).filter(url => url) : [],
     
     // Receipt numeric fields
-    salePrice: salePrice ? parseFloat(String(salePrice).replace(/[^\d.-]/g, "")) : 0,
-    quantity: quantity ? parseInt(String(quantity).replace(/[^\d]/g, ""), 10) : 0,
-    importPrice: importPrice ? parseFloat(String(importPrice).replace(/[^\d.-]/g, "")) : 0,
+    salePrice: parsedSalePrice,
+    quantity: parsedQuantity,
+    importPrice: parsedImportPrice,
     
     _rowIndex: rowIndex,
   };
@@ -75,7 +56,6 @@ const validateItemData = (item, rowIndex) => {
   const errors = [];
   if (!item.name) errors.push(`Dòng ${rowIndex + 2}: Thiếu tên sản phẩm`);
   if (!item.categoryName) errors.push(`Dòng ${rowIndex + 2}: Thiếu nhóm hàng`);
-  if (item.quantity < 0) errors.push(`Dòng ${rowIndex + 2}: Số lượng không được âm`);
   if (item.importPrice < 0) errors.push(`Dòng ${rowIndex + 2}: Giá vốn không được âm`);
   return errors;
 };
@@ -104,7 +84,8 @@ const importReceiptFromExcel = async (fileBuffer, branchId, userId) => {
     if (validationErrors.length > 0) {
       // If too many errors, abort early
       if (validationErrors.length > 20) {
-        throw new ApiError(400, "File có quá nhiều lỗi. Vui lòng kiểm tra lại định dạng.");
+        const firstErrors = validationErrors.slice(0, 3).join("; ");
+        throw new ApiError(400, `File có quá nhiều lỗi (${validationErrors.length} lỗi). Ví dụ: ${firstErrors}...`);
       }
     }
 
@@ -133,13 +114,6 @@ const importReceiptFromExcel = async (fileBuffer, branchId, userId) => {
       newCats.forEach(c => categoryCache.set(c.name.toLowerCase(), c));
     }
 
-    // 1.2 Identify Products (Map by Barcode OR Name)
-    // We need to know which products already exist to get their ID, 
-    // and which ones need to be created.
-    
-    // Strategy: 
-    // - Map 1: Barcode -> Product
-    // - Map 2: Name -> Product (fallback)
     
     const barcodes = validItems.map(i => i.barcode).filter(Boolean);
     const names = validItems.map(i => i.name).filter(Boolean);
