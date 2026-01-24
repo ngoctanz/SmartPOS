@@ -6,14 +6,12 @@ import { CommonTable } from "@/components/common/common-table";
 import { ImportReceipt, ErrorReceiptStats } from "@/service/import-receipt.service";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { RowActions } from "@/components/common/row-actions";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import Barcode from "react-barcode";
 import { DetailModal } from "@/components/common/detail-modal";
 import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
 import { toast } from "sonner";
@@ -22,6 +20,7 @@ import { formatCurrency } from "@/utils/format.utils";
 import importReceiptService from "@/service/import-receipt.service";
 import { Branch } from "@/service/branch.service";
 import { StatsCard } from "@/components/common/stats-card";
+import { ImportReceiptDetailTable } from "@/components/import-receipt/import-receipt-detail-table";
 import {
   Select,
   SelectContent,
@@ -247,13 +246,14 @@ export function ErrorReceiptsTab({ isAdmin, isManager = false, branches, userBra
         cell: ({ row, table }) => {
           const item = row.original;
           const isAnyRowSelected = table.getFilteredSelectedRowModel().rows.length > 0;
+          const hasTooManyItems = item.listProduct.length > 50;
 
           return (
             <RowActions
               onView={() => handleView(item)}
-              onAction={() => handleRecreate(item)}
-              actionLabel="Tạo lại"
-              actionIcon="check" // Dùng check thay vì refresh
+              onAction={!hasTooManyItems ? () => handleRecreate(item) : undefined}
+              actionLabel={hasTooManyItems ? undefined : "Tạo lại"}
+              actionIcon="check"
               onDelete={canDelete ? () => handleDelete(item) : undefined}
               disabled={isAnyRowSelected}
             />
@@ -354,16 +354,18 @@ export function ErrorReceiptsTab({ isAdmin, isManager = false, branches, userBra
         className="max-w-4xl"
         footer={
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsDetailOpen(false);
-                if (selectedItem) handleRecreate(selectedItem);
-              }}
-            >
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Tạo lại phiếu
-            </Button>
+            {selectedItem && selectedItem.listProduct.length <= 50 && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsDetailOpen(false);
+                  handleRecreate(selectedItem);
+                }}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Tạo lại phiếu
+              </Button>
+            )}
             {canDelete && (
               <Button
                 variant="destructive"
@@ -447,59 +449,21 @@ export function ErrorReceiptsTab({ isAdmin, isManager = false, branches, userBra
               <h4 className="mb-2 font-medium">
                 Danh sách sản phẩm ({selectedItem.listProduct.length})
               </h4>
-              <div className="border rounded-md overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="p-3 text-left font-medium min-w-[140px]">Mã vạch</th>
-                      <th className="p-3 text-left font-medium">Tên sản phẩm</th>
-                      <th className="p-3 text-right font-medium">SL</th>
-                      <th className="p-3 text-right font-medium">Đơn giá</th>
-                      <th className="p-3 text-right font-medium">Thành tiền</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selectedItem.listProduct.map((p, index) => (
-                      <tr key={index} className="border-b last:border-0 hover:bg-muted/50">
-                        <td className="p-3 py-4">
-                          {p.barcode ? (
-                            <div className="flex">
-                              <Barcode
-                                value={p.barcode}
-                                width={1.2}
-                                height={40}
-                                fontSize={11}
-                                displayValue={true}
-                                margin={0}
-                              />
-                            </div>
-                          ) : (
-                            "---"
-                          )}
-                        </td>
-                        <td className="p-3 py-4 align-middle">{p.productName}</td>
-                        <td className="p-3 py-4 text-right align-middle">{p.quantity}</td>
-                        <td className="p-3 py-4 text-right align-middle">
-                          {formatCurrency(p.importPrice)}
-                        </td>
-                        <td className="p-3 py-4 text-right font-medium align-middle">
-                          {formatCurrency(p.subtotal)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-muted/50 font-medium">
-                    <tr>
-                      <td colSpan={4} className="p-3 text-right">
-                        Tổng cộng:
-                      </td>
-                      <td className="p-3 text-right text-lg">
-                        {formatCurrency(selectedItem.totalAmount)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
+              {selectedItem.listProduct.length > 100 ? (
+                <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-4 text-center">
+                  <p className="text-yellow-800 font-medium">
+                    Danh sách sản phẩm quá dài ({selectedItem.listProduct.length} sản phẩm).
+                  </p>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    Vui lòng xem chi tiết trong file Excel gốc hoặc xuất dữ liệu để kiểm tra.
+                  </p>
+                </div>
+              ) : (
+                <ImportReceiptDetailTable 
+                  products={selectedItem.listProduct} 
+                  totalAmount={selectedItem.totalAmount}
+                />
+              )}
             </div>
           </div>
         )}
