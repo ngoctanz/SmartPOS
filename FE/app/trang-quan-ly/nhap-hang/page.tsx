@@ -20,6 +20,7 @@ import { ImportReceiptExcelModal } from "@/components/forms/import-receipt-excel
 import { toast } from "sonner";
 import { Loader2, Plus, Check, X, FileText, CheckCircle, Clock, DollarSign, AlertTriangle, FileSpreadsheet } from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
+import { formatSmartCurrency } from "@/utils/number.utils";
 import { useAuth } from "@/hooks/useAuth";
 import importReceiptService, { CreateImportReceiptRequest } from "@/service/import-receipt.service";
 import branchService, { Branch } from "@/service/branch.service";
@@ -498,7 +499,7 @@ export default function Page() {
             />
             <StatsCard
               title="Tổng giá trị nhập"
-              value={formatCurrency(stats?.totalValue || 0)}
+              value={formatSmartCurrency(stats?.totalValue || 0)}
               icon={DollarSign}
               description="Giá trị hàng đã nhập kho"
             />

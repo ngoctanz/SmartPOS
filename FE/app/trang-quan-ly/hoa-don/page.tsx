@@ -433,8 +433,9 @@ export default function Page() {
   };
 
   const getCashierName = (
-    cashier: string | { _id: string; userName: string; name?: string }
+    cashier: string | { _id: string; userName: string; name?: string } | null
   ) => {
+    if (!cashier) return "N/A";
     if (typeof cashier === "object") return cashier.name || cashier.userName;
     return cashier;
   };

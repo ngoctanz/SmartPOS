@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatSmartCurrency, formatNumber } from "@/utils/number.utils";
 
 interface SectionCardsProps {
   stats?: DashboardSummary;
@@ -32,23 +33,12 @@ const periodLabels: Record<string, string> = {
 };
 
 export function SectionCards({ stats, loading, period = "month", onPeriodChange }: SectionCardsProps) {
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-    }).format(value);
-  };
-
-  const formatNumber = (value: number) => {
-    return new Intl.NumberFormat("vi-VN").format(value);
-  };
-
   const periodLabel = periodLabels[period] || "Tháng này";
 
   const cards = [
     {
       title: "Tổng doanh thu",
-      value: formatCurrency(stats?.revenue || 0),
+      value: formatSmartCurrency(stats?.revenue || 0),
       subtitle: `Doanh thu ${periodLabel.toLowerCase()}`,
       icon: IconCurrencyDollar,
       iconBg: "bg-primary/10",
@@ -64,7 +54,7 @@ export function SectionCards({ stats, loading, period = "month", onPeriodChange 
     },
     {
       title: "Chi phí nhập hàng",
-      value: formatCurrency(stats?.totalImportCost || 0),
+      value: formatSmartCurrency(stats?.totalImportCost || 0),
       subtitle: `${formatNumber(stats?.totalImportReceipts || 0)} phiếu nhập ${periodLabel.toLowerCase()}`,
       icon: IconShoppingCart,
       iconBg: "bg-primary/10",

@@ -102,9 +102,8 @@ export default function ReceiptDetailPage() {
     return "—";
   };
 
-  // Get cashier name
   const getCashierName = () => {
-    if (!receipt) return "";
+    if (!receipt || !receipt.createdBy) return "N/A";
     if (typeof receipt.createdBy === "object")
       return receipt.createdBy.name || receipt.createdBy.userName;
     return receipt.createdBy;
