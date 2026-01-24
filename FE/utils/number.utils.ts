@@ -11,7 +11,7 @@ export function formatCompactNumber(value: number, decimals: number = 1): string
   const sign = value < 0 ? "-" : "";
   
   if (absValue >= 1_000_000_000) {
-    return `${sign}${(absValue / 1_000_000_000).toFixed(decimals)} tỷ`;
+    return `${sign}${(absValue / 1_000_000_000).toFixed(6)} tỷ`;
   }
   if (absValue >= 1_000_000) {
     return `${sign}${(absValue / 1_000_000).toFixed(decimals)} triệu`;
