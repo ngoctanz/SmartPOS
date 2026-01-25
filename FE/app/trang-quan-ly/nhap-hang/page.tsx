@@ -16,9 +16,8 @@ import Barcode from "react-barcode";
 import { DetailModal } from "@/components/common/detail-modal";
 import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
 import { ImportReceiptFormModal } from "@/components/forms/import-receipt-form-modal";
-import { ImportReceiptExcelModal } from "@/components/forms/import-receipt-excel-modal";
 import { toast } from "sonner";
-import { Loader2, Plus, Check, X, FileText, CheckCircle, Clock, DollarSign, AlertTriangle, FileSpreadsheet } from "lucide-react";
+import { Loader2, Plus, Check, X, FileText, CheckCircle, Clock, DollarSign, AlertTriangle } from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import { formatSmartCurrency } from "@/utils/number.utils";
 import { useAuth } from "@/hooks/useAuth";
@@ -112,7 +111,6 @@ export default function Page() {
 
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [isFormOpen, setIsFormOpen] = React.useState(false);
-  const [isImportExcelOpen, setIsImportExcelOpen] = React.useState(false); // New State
   const [isConfirmOpen, setIsConfirmOpen] = React.useState(false);
   const [isCancelOpen, setIsCancelOpen] = React.useState(false);
   const [isBulkCancelOpen, setIsBulkCancelOpen] = React.useState(false);
@@ -448,17 +446,10 @@ export default function Page() {
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight text-primary">Quản lý nhập hàng</h1>
-        <div className="flex gap-2">
-          {/* New Import Button */}
-          <Button variant="outline" onClick={() => setIsImportExcelOpen(true)}>
-            <FileSpreadsheet className="mr-2 h-4 w-4" />
-            Nhập từ Excel
-          </Button>
-          <Button onClick={handleCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Tạo phiếu nhập
-          </Button>
-        </div>
+        <Button onClick={handleCreate}>
+          <Plus className="mr-2 h-4 w-4" />
+          Tạo phiếu nhập
+        </Button>
       </div>
 
       {/* Tabs */}
@@ -536,19 +527,6 @@ export default function Page() {
           />
         </TabsContent>
       </Tabs>
-
-      {/* Import Excel Modal - Added here */}
-      <ImportReceiptExcelModal
-        open={isImportExcelOpen}
-        onOpenChange={setIsImportExcelOpen}
-        onSuccess={() => {
-          setIsImportExcelOpen(false);
-          refetch();
-        }}
-        branches={branches}
-        userBranchId={user?.branchId}
-        isAdmin={isAdmin}
-      />
 
       {/* Create Form Modal */}
       <ImportReceiptFormModal

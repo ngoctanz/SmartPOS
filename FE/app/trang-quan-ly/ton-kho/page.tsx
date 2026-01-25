@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Package, AlertTriangle, LayoutGrid, Boxes, FileEdit } from "lucide-react";
+import { Loader2, Package, AlertTriangle, LayoutGrid, Boxes, FileEdit, FileSpreadsheet } from "lucide-react";
 import { formatCurrency } from "@/utils/format.utils";
 import { StatsCard } from "@/components/common/stats-card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ImportReceiptExcelModal } from "@/components/forms/import-receipt-excel-modal";
 
 export default function Page() {
   const { user } = useAuth();
@@ -70,6 +71,7 @@ export default function Page() {
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
   const [isEditPriceModalOpen, setIsEditPriceModalOpen] = React.useState(false);
   const [isNoteModalOpen, setIsNoteModalOpen] = React.useState(false);
+  const [isImportExcelOpen, setIsImportExcelOpen] = React.useState(false);
   const [salePriceValue, setSalePriceValue] = React.useState(0);
   const [minStockValue, setMinStockValue] = React.useState(0);
   const [noteValue, setNoteValue] = React.useState("");
@@ -520,6 +522,10 @@ export default function Page() {
       {/* Header */}
       <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight text-primary">Quản lý tồn kho</h1>
+          <Button onClick={() => setIsImportExcelOpen(true)}>
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            Nhập kho bằng Excel
+          </Button>
       </div>
       
       {/* Stats Cards */}
@@ -828,6 +834,19 @@ export default function Page() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Import Excel Modal */}
+      <ImportReceiptExcelModal
+        open={isImportExcelOpen}
+        onOpenChange={setIsImportExcelOpen}
+        onSuccess={() => {
+          setIsImportExcelOpen(false);
+          fetchData();
+        }}
+        branches={branches}
+        userBranchId={user?.branchId}
+        isAdmin={isAdmin}
+      />
     </div>
   );
 }

@@ -131,10 +131,10 @@ export function ImportReceiptExcelModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-green-700" />
-            Nhập hàng từ Excel
+            Nhập kho bằng Excel
           </DialogTitle>
           <DialogDescription>
-            Tạo phiếu nhập hàng và thêm sản phẩm mới tự động từ file Excel
+            Tạo phiếu nhập hàng và cập nhật tồn kho tự động từ file Excel
           </DialogDescription>
         </DialogHeader>
 
