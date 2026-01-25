@@ -104,78 +104,102 @@ const getCategoryStats = async () => {
 
 const getById = async (id, branchId = null) => {
   try {
-    if (!id || id.trim() === "") {
+    if (!id?.trim()) {
       throw new ApiError(400, "Product ID is required!");
     }
-    const product = await Product.findProductById(id);
     
-    // Map salePrice from branchProduct if branchId provided
-    if (branchId && product) {
-      const branchProductInfo = await BranchProduct.getProductInfo(branchId, product._id);
+    const product = await Product.findProductById(id);
+    if (!product) {
+      throw new ApiError(404, "Product not found");
+    }
+    
+    // Nếu có branchId, lấy thông tin giá và tồn kho từ BranchProduct
+    if (branchId?.trim()) {
+      const branchProductInfo = await BranchProduct.getProductInfo(
+        branchId,
+        product._id,
+      );
       return {
-        ...product.toObject ? product.toObject() : product,
-        salePrice: branchProductInfo.salePrice || product.currentSalePrice,
+        ...(product.toObject ? product.toObject() : product),
+        salePrice: branchProductInfo.salePrice || product.currentSalePrice || 0,
         stock: branchProductInfo.stock || 0,
+        lastImportPrice: branchProductInfo.lastImportPrice || 0,
+        // Override with branch-specific status
+        status: branchProductInfo.status || product.status || "active",
       };
     }
     
     return product;
   } catch (error) {
-    throw new Error(error.message || error);
+    throw error instanceof ApiError ? error : new Error(error.message || error);
   }
 };
 
 const getByBarcode = async (barcode, branchId = null) => {
   try {
-    if (!barcode || barcode.trim() === "") {
+    if (!barcode?.trim()) {
       throw new ApiError(400, "Barcode is required!");
     }
+    
     const product = await Product.findProductByBarcode(barcode);
     if (!product) {
       throw new ApiError(404, "Product not found with this barcode");
     }
     
-    // Map salePrice from branchProduct if branchId provided
-    if (branchId) {
-      const branchProductInfo = await BranchProduct.getProductInfo(branchId, product._id);
+    // Nếu có branchId, lấy thông tin giá và tồn kho từ BranchProduct
+    if (branchId?.trim()) {
+      const branchProductInfo = await BranchProduct.getProductInfo(
+        branchId,
+        product._id,
+      );
       return {
-        ...product.toObject ? product.toObject() : product,
-        salePrice: branchProductInfo.salePrice || product.currentSalePrice,
+        ...(product.toObject ? product.toObject() : product),
+        salePrice: branchProductInfo.salePrice || product.currentSalePrice || 0,
         stock: branchProductInfo.stock || 0,
+        lastImportPrice: branchProductInfo.lastImportPrice || 0,
+        // Override with branch-specific status
+        status: branchProductInfo.status || product.status || "active",
       };
     }
     
     return product;
   } catch (error) {
-    throw new Error(error.message || error);
+    throw error instanceof ApiError ? error : new Error(error.message || error);
   }
 };
 
 const getByName = async (name, branchId = null) => {
   try {
-    if (!name || name.trim() === "") {
+    if (!name?.trim()) {
       throw new ApiError(400, "Search name is required!");
     }
-    const products = await Product.findProductsByName(name);
     
-    // Map salePrice from branchProduct if branchId provided
-    if (branchId && products.length > 0) {
+    const products = await Product.findProductsByName(name, branchId);
+    
+    // Nếu có branchId, lấy thông tin giá và tồn kho từ BranchProduct
+    if (branchId?.trim() && products.length > 0) {
       const productsWithPrice = await Promise.all(
         products.map(async (product) => {
-          const branchProductInfo = await BranchProduct.getProductInfo(branchId, product._id);
+          const branchProductInfo = await BranchProduct.getProductInfo(
+            branchId,
+            product._id,
+          );
           return {
-            ...product.toObject ? product.toObject() : product,
-            salePrice: branchProductInfo.salePrice || product.currentSalePrice,
+            ...(product.toObject ? product.toObject() : product),
+            salePrice: branchProductInfo.salePrice || product.currentSalePrice || 0,
             stock: branchProductInfo.stock || 0,
+            lastImportPrice: branchProductInfo.lastImportPrice || 0,
+            // Override with branch-specific status
+            status: branchProductInfo.status || product.status || "active",
           };
-        })
+        }),
       );
       return productsWithPrice;
     }
     
     return products;
   } catch (error) {
-    throw new Error(error.message || error);
+    throw error instanceof ApiError ? error : new Error(error.message || error);
   }
 };
 
@@ -192,18 +216,32 @@ const getByCategory = async (categoryId) => {
 
 const update = async (id, data) => {
   try {
+    // Security: Ensure no one can update pricing fields via product API
+    // Pricing should be updated via stock API for branch-specific prices
+    if (data.currentSalePrice !== undefined) {
+      console.warn(`Warning: Updating currentSalePrice via product API for product ${id}`);
+    }
+
+    // Strip out any branch-specific fields that shouldn't be here
+    const { branchId, productCode, importPrice, ...cleanData } = data;
+
     // Validate category if updating
-    if (data.categoryId) {
-      await Category.findCategoryById(data.categoryId);
+    if (cleanData.categoryId) {
+      await Category.findCategoryById(cleanData.categoryId);
+    }
+
+    // Validate status if provided
+    if (cleanData.status && !["active", "inactive"].includes(cleanData.status)) {
+      throw new ApiError(400, "Invalid status value. Must be 'active' or 'inactive'");
     }
 
     // Check if images are being updated
-    if (data.images && Array.isArray(data.images)) {
+    if (cleanData.images && Array.isArray(cleanData.images)) {
       const oldProduct = await Product.findById(id);
       if (oldProduct && oldProduct.images && oldProduct.images.length > 0) {
         // Find images that were removed (exist in old but not in new)
         const removedImages = oldProduct.images.filter(
-          (oldImg) => !data.images.includes(oldImg)
+          (oldImg) => !cleanData.images.includes(oldImg)
         );
         
         // Delete removed images from Cloudinary
@@ -219,7 +257,21 @@ const update = async (id, data) => {
       }
     }
 
-    return await Product.updateProduct(id, data);
+    // Update product
+    const updatedProduct = await Product.updateProduct(id, cleanData);
+
+    // CRITICAL: If Product.status (global status) is being updated,
+    // cascade the change to ALL BranchProduct.status (branch-specific statuses)
+    if (cleanData.status !== undefined) {
+      console.log(`Cascading Product.status update to all branches for product ${id}: ${cleanData.status}`);
+      await BranchProduct.updateMany(
+        { "products.productId": id },
+        { $set: { "products.$[elem].status": cleanData.status } },
+        { arrayFilters: [{ "elem.productId": id }] }
+      );
+    }
+
+    return updatedProduct;
   } catch (error) {
     throw new Error(error.message || error);
   }

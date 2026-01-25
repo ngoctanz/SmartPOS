@@ -1,37 +1,35 @@
 "use client";
 
 import * as React from "react";
-import { CommonTable } from "@/components/common/common-table";
-import { Product } from "@/service/product.service";
-import { Category } from "@/service/category.service";
-import { ColumnDef } from "@tanstack/react-table";
-import { Checkbox } from "@/components/ui/checkbox";
+import {
+  CommonTable,
+  ServerPagination,
+} from "@/components/common/common-table";
+import {
+  BranchProduct as IBranchProduct,
+  BranchProductStats,
+} from "@/service/stock.service";
+import { ColumnDef, VisibilityState } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RowActions } from "@/components/common/row-actions";
 import { ConfirmDeleteDialog } from "@/components/common/confirm-delete-dialog";
-import { DetailModal } from "@/components/common/detail-modal";
-import { ProductFormModal } from "@/components/forms/product-form-modal";
-import { ImportExcelModal } from "@/components/forms/import-excel-modal";
-import { ExportProductsButton } from "@/components/common/export-products-button";
-import { ProductStats } from "@/components/common/product-stats";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
-import { format } from "date-fns";
+import { ProductDetailModal, ProductNoteModal } from "@/components/product";
 import {
-  Loader2,
-  Plus,
-  Package,
-  Barcode as BarcodeIcon,
-  ChartBar,
-  FileUp,
-} from "lucide-react";
-import { formatCurrency } from "@/utils/format.utils";
+  ProductFormModal,
+  InventoryProductFormData,
+} from "@/components/forms/product-form-modal";
+import { format } from "date-fns";
+import stockService from "@/service/stock.service";
+import branchService, { Branch } from "@/service/branch.service";
+import categoryService, { Category } from "@/service/category.service";
 import productService, {
   CreateProductRequest,
   UpdateProductRequest,
+  Product,
 } from "@/service/product.service";
-import categoryService from "@/service/category.service";
-import Barcode from "react-barcode";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -39,146 +37,365 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import Lightbox from "yet-another-react-lightbox";
-import "yet-another-react-lightbox/styles.css";
-import { useFilteredTableData } from "@/hooks/useFilteredTableData";
+import {
+  Package,
+  AlertTriangle,
+  LayoutGrid,
+  Boxes,
+  FileEdit,
+  FileSpreadsheet,
+  ChartBar,
+  Plus,
+} from "lucide-react";
+import { formatCurrency } from "@/utils/format.utils";
+import { StatsCard } from "@/components/common/stats-card";
+import { Button } from "@/components/ui/button";
+import Barcode from "react-barcode";
+import { ImportReceiptExcelModal } from "@/components/forms/import-receipt-excel-modal";
+import { ExportProductsButton } from "@/components/common/export-products-button";
 import { eventBus, Events } from "@/lib/data-events";
 
-const getCategoryName = (categoryId: Product["categoryId"]): string => {
-  if (typeof categoryId === "object" && categoryId?.name) {
-    return categoryId.name;
-  }
-  return String(categoryId || "---");
-};
-
 export default function Page() {
-  // Use custom hooks
-  const { 
-    data, 
-    loading, 
-    searchTerm, 
-    pagination, 
-    filters,
-    handlePageChange, 
-    handleSearch,
-    updateFilter,
-    refetch 
-  } = useFilteredTableData<Product, { status?: string; categoryId?: string }>({
-    fetchFn: productService.getAll,
-    initialFilters: { status: undefined, categoryId: undefined },
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const canEditProduct = isAdmin || user?.role === "manager";
+
+  // Data state
+  const [data, setData] = React.useState<IBranchProduct[]>([]);
+  const [branches, setBranches] = React.useState<Branch[]>([]);
+  const [categories, setCategories] = React.useState<Category[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [stats, setStats] = React.useState<BranchProductStats>({
+    totalItems: 0,
+    totalQuantity: 0,
+    lowStockCount: 0,
   });
 
-  const [categories, setCategories] = React.useState<Category[]>([]);
-  const [selectedItem, setSelectedItem] = React.useState<Product | null>(null);
-  const [selectedItems, setSelectedItems] = React.useState<Product[]>([]);
+  // Filter state
+  const [filterBranchId, setFilterBranchId] = React.useState<string>("all");
+  const [filterLowStock, setFilterLowStock] = React.useState<string>("all");
+  const [searchTerm, setSearchTerm] = React.useState("");
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [showStats, setShowStats] = React.useState(true);
-  
-  // Lightbox state
-  const [lightboxOpen, setLightboxOpen] = React.useState(false);
-  const [lightboxIndex, setLightboxIndex] = React.useState(0);
 
+  // Pagination state
+  const [pagination, setPagination] = React.useState<ServerPagination>({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+  });
+
+  // Modal state
+  const [selectedItem, setSelectedItem] = React.useState<IBranchProduct | null>(null);
+  const [selectedItems, setSelectedItems] = React.useState<IBranchProduct[]>([]);
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
-  const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
-  const [isImportOpen, setIsImportOpen] = React.useState(false);
+  const [isNoteModalOpen, setIsNoteModalOpen] = React.useState(false);
+  const [isImportStockExcelOpen, setIsImportStockExcelOpen] = React.useState(false);
+  const [isProductFormOpen, setIsProductFormOpen] = React.useState(false);
+  const [editingProduct, setEditingProduct] = React.useState<Product | null>(null);
+  const [editingBranchProductId, setEditingBranchProductId] = React.useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  // Fetch categories
+  // Column visibility state
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({
+    "productId.categoryId": false,
+    "productId.unit": false,
+    minStock: false,
+    lastImportPrice: false,
+  });
+
+  // Debounce search
   React.useEffect(() => {
-    const fetchCategories = async () => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+      setPagination((prev) => ({ ...prev, page: 1 }));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Reset page when filter changes
+  React.useEffect(() => {
+    setPagination((prev) => ({ ...prev, page: 1 }));
+  }, [filterBranchId, filterLowStock]);
+
+  // Fetch data
+  const fetchData = React.useCallback(async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+
+      const effectiveBranchId = isAdmin
+        ? filterBranchId !== "all" ? filterBranchId : undefined
+        : user.branchId;
+
+      const params = {
+        search: debouncedSearch || undefined,
+        page: pagination.page,
+        limit: pagination.limit,
+        lowStockOnly: filterLowStock === "low",
+      };
+
+      const stockPromise = isAdmin && filterBranchId === "all"
+        ? stockService.getAggregatedByProduct(params)
+        : effectiveBranchId
+          ? stockService.getByBranch(effectiveBranchId, params)
+          : stockService.getAll(params);
+
+      const [res, statsRes] = await Promise.all([
+        stockPromise,
+        stockService.getStats(effectiveBranchId),
+      ]);
+
+      if (res.data) setData(res.data);
+      if (res.pagination) {
+        setPagination((prev) => ({
+          ...prev,
+          total: res.pagination!.total,
+          totalPages: res.pagination!.totalPages,
+        }));
+      }
+      if (statsRes.data) setStats(statsRes.data);
+    } catch (error) {
+      console.error(error);
+      toast.error("Không thể tải dữ liệu tồn kho");
+    } finally {
+      setLoading(false);
+    }
+  }, [isAdmin, filterBranchId, debouncedSearch, pagination.page, pagination.limit, filterLowStock, user]);
+
+  // Fetch branches and categories
+  React.useEffect(() => {
+    const fetchInitialData = async () => {
       try {
-        const res = await categoryService.getAll();
-        if (res.data) {
-          setCategories(res.data);
-        }
+        const [categoriesRes, branchesRes] = await Promise.all([
+          categoryService.getAll(),
+          isAdmin ? branchService.getAll() : Promise.resolve({ data: [] }),
+        ]);
+        if (categoriesRes.data) setCategories(categoriesRes.data);
+        if (branchesRes.data) setBranches(branchesRes.data);
       } catch (error) {
-        console.error("Failed to fetch categories:", error);
+        console.error("Failed to fetch initial data", error);
       }
     };
-    fetchCategories();
-  }, []);
+    fetchInitialData();
+  }, [isAdmin]);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Handlers
-  const handleView = (item: Product) => {
+  const handleView = (item: IBranchProduct) => {
     setSelectedItem(item);
     setIsDetailOpen(true);
   };
 
-  const handleCreate = () => {
-    setSelectedItem(null);
-    setIsFormOpen(true);
-  };
-
-  const handleEdit = (item: Product) => {
+  const handleEditNote = (item: IBranchProduct) => {
     setSelectedItem(item);
-    setIsFormOpen(true);
+    setIsNoteModalOpen(true);
   };
 
-  const handleDelete = (item: Product) => {
-    setSelectedItem(item);
-    setIsDeleteOpen(true);
+  const handleSaveNote = async (note: string) => {
+    if (!selectedItem) return;
+
+    try {
+      setIsSubmitting(true);
+      
+      // Determine branchId based on context
+      let branchId: string | undefined;
+      
+      if (isAdmin) {
+        // Admin: use filter branchId if specific branch selected, otherwise extract from item
+        if (filterBranchId !== "all") {
+          branchId = filterBranchId;
+        } else if (selectedItem.branchId) {
+          // Extract branchId from populated or string format
+          branchId = typeof selectedItem.branchId === "string" 
+            ? selectedItem.branchId 
+            : selectedItem.branchId._id;
+        }
+      }
+      // Staff/Manager: branchId will be injected by middleware, no need to send
+
+      await stockService.updateNote(selectedItem._id, note, branchId);
+      toast.success("Đã cập nhật ghi chú");
+      setIsNoteModalOpen(false);
+      setSelectedItem(null);
+      fetchData();
+      eventBus.emit(Events.DATA_CHANGED);
+    } catch (error) {
+      console.error("Update note error:", error);
+      toast.error("Không thể cập nhật ghi chú");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDeleteMany = (items: Product[]) => {
-    setSelectedItems(items);
-    setSelectedItem(null);
-    setIsDeleteOpen(true);
+  const handleCreateProduct = () => {
+    setEditingProduct(null);
+    setEditingBranchProductId(null);
+    setIsProductFormOpen(true);
   };
 
-  // Form submit
-  const handleFormSubmit = async (
-    formData: CreateProductRequest | UpdateProductRequest
+  const handleEditProduct = (item: IBranchProduct) => {
+    const isAggregated = item.isAggregated;
+
+    // Extract branchId safely from populated or string format
+    const extractedBranchId = item.branchId 
+      ? (typeof item.branchId === "string" ? item.branchId : item.branchId._id)
+      : "";
+
+    const productData = {
+      ...item.productId,
+      currentSalePrice: isAggregated ? item.productId.currentSalePrice : item.salePrice,
+      lastImportPrice: isAggregated ? 0 : (item.lastImportPrice || 0),
+      productCode: isAggregated ? "" : (item.productCode || ""),
+      branchId: isAggregated ? "" : extractedBranchId,
+      // CRITICAL: Status logic
+      // - Aggregated mode: use Product.status (global status) - CANNOT EDIT
+      // - Branch mode: use BranchProduct.status (branch-specific status) - CAN EDIT
+      status: isAggregated 
+        ? (item.productId.status || "active") 
+        : (item.status || "active"),
+    };
+
+    setEditingProduct(productData as Product);
+    setEditingBranchProductId(isAggregated ? null : item._id);
+    // Store branchId for later use in update
+    if (!isAggregated && extractedBranchId) {
+      (productData as any)._editingBranchId = extractedBranchId;
+    }
+    setIsProductFormOpen(true);
+  };
+
+  const handleProductFormSubmit = async (
+    formData: CreateProductRequest | UpdateProductRequest | InventoryProductFormData,
   ) => {
     try {
       setIsSubmitting(true);
-      if (selectedItem) {
-        await productService.update(selectedItem._id, formData);
-        toast.success("Cập nhật sản phẩm thành công!");
+
+      if (editingProduct) {
+        // EDIT MODE
+        const productUpdateData: UpdateProductRequest = {
+          name: formData.name,
+          categoryId: formData.categoryId,
+          unit: formData.unit,
+          barcode: formData.barcode,
+          desc: formData.desc,
+          images: formData.images,
+          // CRITICAL: Only update Product.status if NOT editing branch-specific
+          // Product.status = global status, only updated when editing product itself (not branch)
+          status: editingBranchProductId ? undefined : formData.status,
+        };
+
+        // Remove undefined fields
+        Object.keys(productUpdateData).forEach((key) => {
+          const typedKey = key as keyof UpdateProductRequest;
+          if (productUpdateData[typedKey] === undefined) {
+            delete productUpdateData[typedKey];
+          }
+        });
+
+        await productService.update(editingProduct._id, productUpdateData);
+
+        if (editingBranchProductId) {
+          // BRANCH-SPECIFIC UPDATE
+          const invData = formData as InventoryProductFormData;
+          const updateData: any = {
+            salePrice: invData.currentSalePrice,
+            lastImportPrice: invData.importPrice,
+            productCode: invData.productCode,
+          };
+          
+          // Admin needs to send branchId for write operations
+          const branchIdForUpdate = isAdmin && (editingProduct as any)._editingBranchId 
+            ? (editingProduct as any)._editingBranchId 
+            : undefined;
+          
+          if (branchIdForUpdate) {
+            updateData.branchId = branchIdForUpdate;
+          }
+          
+          await stockService.update(editingBranchProductId, updateData);
+          
+          // CRITICAL: Update BranchProduct.status separately (branch-specific status)
+          if (formData.status) {
+            await stockService.updateStatus(
+              editingBranchProductId,
+              formData.status,
+              branchIdForUpdate
+            );
+          }
+          
+          toast.success("Cập nhật sản phẩm & cấu hình chi nhánh thành công!");
+        } else {
+          // PRODUCT-ONLY UPDATE (global status was updated above)
+          toast.success("Cập nhật thông tin sản phẩm thành công!");
+        }
       } else {
-        await productService.create(formData as CreateProductRequest);
-        toast.success("Thêm sản phẩm thành công!");
+        // CREATE MODE
+        const inventoryData = formData as InventoryProductFormData;
+        if (isAdmin && inventoryData.branchId) {
+          await stockService.createProductWithStock({
+            name: inventoryData.name,
+            barcode: inventoryData.barcode,
+            categoryId: inventoryData.categoryId,
+            unit: inventoryData.unit,
+            currentSalePrice: inventoryData.currentSalePrice,
+            status: inventoryData.status,
+            desc: inventoryData.desc,
+            images: inventoryData.images,
+            branchId: inventoryData.branchId,
+            productCode: inventoryData.productCode,
+            salePrice: inventoryData.currentSalePrice,
+            importPrice: inventoryData.importPrice,
+          });
+          toast.success("Thêm sản phẩm vào kho chi nhánh thành công!");
+        } else {
+          await productService.create(formData as CreateProductRequest);
+          toast.success("Thêm sản phẩm thành công!");
+        }
       }
-      setIsFormOpen(false);
-      setSelectedItem(null);
-      refetch();
+
+      setIsProductFormOpen(false);
+      fetchData();
       eventBus.emit(Events.DATA_CHANGED);
     } catch (error: unknown) {
       console.error("Form submit error:", error);
-      const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
-      toast.error(errMsg);
+      toast.error(error instanceof Error ? error.message : "Có lỗi xảy ra");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Delete confirm
+  const handleDeleteMany = (items: IBranchProduct[]) => {
+    setSelectedItems(items);
+    setIsDeleteOpen(true);
+  };
+
   const confirmDelete = async () => {
     try {
       setIsSubmitting(true);
-      if (selectedItem) {
-        await productService.remove(selectedItem._id);
-        toast.success("Đã xóa sản phẩm thành công");
-      } else if (selectedItems.length > 0) {
-        const ids = selectedItems.map((item) => item._id);
-        await productService.removeMany(ids);
-        toast.success(`Đã xóa ${selectedItems.length} sản phẩm thành công`);
-        setSelectedItems([]);
-      }
+      await Promise.all(selectedItems.map((item) => stockService.delete(item._id)));
+      toast.success(`Đã xóa ${selectedItems.length} sản phẩm khỏi kho`);
+      setSelectedItems([]);
       setIsDeleteOpen(false);
-      setSelectedItem(null);
-      refetch();
+      fetchData();
       eventBus.emit(Events.DATA_CHANGED);
-    } catch (error: unknown) {
+    } catch (error) {
       console.error("Delete error:", error);
-
-      const errMsg = error instanceof Error ? error.message : "Có lỗi xảy ra";
-      toast.error(errMsg);
+      toast.error("Có lỗi xảy ra khi xóa");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const columns = React.useMemo<ColumnDef<Product>[]>(
+  const showBranchCountColumn = isAdmin && filterBranchId === "all";
+
+  const columns = React.useMemo<ColumnDef<IBranchProduct>[]>(
     () => [
       {
         id: "select",
@@ -188,7 +405,9 @@ export default function Page() {
               table.getIsAllPageRowsSelected() ||
               (table.getIsSomePageRowsSelected() && "indeterminate")
             }
-            onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+            onCheckedChange={(value) =>
+              table.toggleAllPageRowsSelected(!!value)
+            }
             aria-label="Select all"
           />
         ),
@@ -204,44 +423,41 @@ export default function Page() {
         size: 40,
       },
       {
-        accessorKey: "images",
-        header: "Hình ảnh",
+        accessorKey: "productId",
+        header: "Sản phẩm",
         cell: ({ row }) => {
-          const images = row.getValue("images") as string[] | undefined;
-          const firstImage = images && images.length > 0 ? images[0] : null;
-          
-          if (!firstImage) {
-            return (
-              <div className="flex h-10 w-10 items-center justify-center rounded bg-muted">
-                <Package className="h-5 w-5 text-muted-foreground" />
-              </div>
-            );
-          }
+          const product = row.original.productId;
+          const imageUrl = product?.images?.[0] || product?.image;
           return (
-            <div className="relative">
-              <img
-                src={firstImage}
-                alt="Product"
-                className="h-10 w-10 rounded object-cover"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
-              {images && images.length > 1 && (
-                <div className="absolute -bottom-1 -right-1 bg-primary text-primary-foreground text-[10px] px-1 rounded-full">
-                  +{images.length - 1}
+            <div className="flex items-start gap-3 min-w-[220px] max-w-[350px]">
+              {imageUrl ? (
+                <img
+                  src={imageUrl}
+                  alt=""
+                  className="w-10 h-10 rounded object-cover flex-shrink-0"
+                />
+              ) : (
+                <div className="w-10 h-10 bg-muted rounded flex items-center justify-center flex-shrink-0">
+                  <Package className="h-4 w-4 text-muted-foreground" />
                 </div>
               )}
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm leading-tight whitespace-normal break-words">
+                  {product?.name || "N/A"}
+                </p>
+              </div>
             </div>
           );
         },
-        size: 60,
+        enableHiding: false,
+        size: 300,
       },
       {
-        accessorKey: "barcode",
+        id: "productId.barcode",
+        accessorFn: (row) => row.productId?.barcode,
         header: "Mã vạch",
         cell: ({ row }) => {
-          const barcode = row.getValue("barcode") as string;
+          const barcode = row.original.productId?.barcode;
           if (!barcode) {
             return <span className="text-xs text-muted-foreground">---</span>;
           }
@@ -260,55 +476,194 @@ export default function Page() {
         },
         size: 150,
       },
+      ...(!showBranchCountColumn
+        ? [
+            {
+              accessorKey: "productCode",
+              header: "Mã hàng",
+              cell: ({ row }: { row: { original: IBranchProduct } }) => {
+                const productCode = row.original.productCode;
+                return (
+                  <span className="font-mono text-sm">
+                    {productCode || (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </span>
+                );
+              },
+            } as ColumnDef<IBranchProduct>,
+          ]
+        : []),
       {
-        accessorKey: "name",
-        header: "Tên sản phẩm",
-        cell: ({ row }) => (
-          <div className="max-w-[200px]">
-            <p className="font-medium truncate">{row.getValue("name")}</p>
-          </div>
-        ),
-      },
-      {
-        accessorKey: "categoryId",
-        header: "Loại",
-        cell: ({ row }) => (
-          <Badge variant="outline">{getCategoryName(row.original.categoryId)}</Badge>
-        ),
-      },
-      {
-        accessorKey: "unit",
-        header: "Đơn vị",
-      },
-      {
-        accessorKey: "currentSalePrice",
-        header: "Giá bán",
-        cell: ({ row }) => (
-          <span className="font-medium">
-            {formatCurrency(row.getValue("currentSalePrice"))}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "status",
-        header: "Trạng thái",
+        id: "productId.categoryId",
+        accessorFn: (row) => row.productId?.categoryId,
+        header: "Loại sản phẩm",
         cell: ({ row }) => {
-          const status = row.getValue("status") as string;
-          return (
-            <Badge variant={status === "active" ? "default" : "secondary"}>
-              {status === "active" ? "Đang bán" : "Ngừng bán"}
-            </Badge>
-          );
+          const category = row.original.productId?.categoryId;
+          const categoryName =
+            typeof category === "object" && category?.name
+              ? category.name
+              : "—";
+          return <Badge variant="outline">{categoryName}</Badge>;
         },
       },
       {
-        accessorKey: "createdAt",
-        header: "Ngày tạo",
+        id: "productId.unit",
+        accessorFn: (row) => row.productId?.unit,
+        header: "Đơn vị",
+        cell: ({ row }) => {
+          const unit = row.original.productId?.unit || "—";
+          return <span className="text-sm">{unit}</span>;
+        },
+      },
+      ...(showBranchCountColumn
+        ? [
+            {
+              accessorKey: "branchCount",
+              header: "Số chi nhánh",
+              cell: ({ row }: { row: { original: IBranchProduct } }) => {
+                const count = row.original.branchCount || 0;
+                return (
+                  <Badge variant="secondary" className="gap-1">
+                    <LayoutGrid className="h-3 w-3" />
+                    {count} chi nhánh
+                  </Badge>
+                );
+              },
+            } as ColumnDef<IBranchProduct>,
+          ]
+        : []),
+      {
+        accessorKey: "stock",
+        header: showBranchCountColumn ? "Tổng tồn kho" : "Tồn kho",
+        cell: ({ row }) => {
+          const stock = row.getValue("stock") as number;
+
+          if (showBranchCountColumn) {
+            const isOutOfStock = stock <= 0;
+            const isLow = !isOutOfStock && stock <= 5;
+            return (
+              <div className="flex items-center gap-2">
+                <span
+                  className={
+                    isOutOfStock || isLow ? "text-destructive font-medium" : ""
+                  }
+                >
+                  {stock}
+                </span>
+                {isOutOfStock && (
+                  <Badge variant="destructive" className="text-xs gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Hết hàng
+                  </Badge>
+                )}
+                {isLow && (
+                  <Badge
+                    variant="secondary"
+                    className="text-xs gap-1 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    Sắp hết
+                  </Badge>
+                )}
+              </div>
+            );
+          }
+
+          const minStock = row.original.minStock;
+          const isOutOfStock = stock <= 0;
+          const isLow = !isOutOfStock && stock <= minStock;
+          return (
+            <div className="flex items-center gap-2">
+              <span
+                className={
+                  isOutOfStock || isLow ? "text-destructive font-medium" : ""
+                }
+              >
+                {stock}
+              </span>
+              {isOutOfStock && (
+                <Badge variant="destructive" className="text-xs gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Hết hàng
+                </Badge>
+              )}
+              {isLow && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs gap-1 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
+                >
+                  <AlertTriangle className="h-3 w-3" />
+                  Sắp hết
+                </Badge>
+              )}
+            </div>
+          );
+        },
+      },
+      ...(!showBranchCountColumn
+        ? [
+            {
+              accessorKey: "minStock",
+              header: "Định mức tối thiểu",
+            } as ColumnDef<IBranchProduct>,
+          ]
+        : []),
+      ...(!showBranchCountColumn
+        ? [
+            {
+              accessorKey: "salePrice",
+              header: "Giá bán",
+              cell: ({ row }: { row: { original: IBranchProduct } }) => {
+                const salePrice = row.original.salePrice;
+                return (
+                  <span className="font-medium text-primary">
+                    {formatCurrency(salePrice || 0)}
+                  </span>
+                );
+              },
+            } as ColumnDef<IBranchProduct>,
+            {
+              accessorKey: "lastImportPrice",
+              header: "Giá nhập gần nhất",
+              cell: ({ row }: { row: { original: IBranchProduct } }) => {
+                const lastImportPrice = row.original.lastImportPrice;
+                return (
+                  <span className="text-sm text-muted-foreground">
+                    {lastImportPrice ? formatCurrency(lastImportPrice) : "—"}
+                  </span>
+                );
+              },
+            } as ColumnDef<IBranchProduct>,
+          ]
+        : []),
+      ...(!showBranchCountColumn
+        ? [
+            {
+              accessorKey: "note",
+              header: "Ghi chú",
+              cell: ({ row }: { row: { original: IBranchProduct } }) => {
+                const note = row.original.note;
+                return (
+                  <span className="text-sm max-w-[200px] truncate block">
+                    {note || <span className="text-muted-foreground">—</span>}
+                  </span>
+                );
+              },
+            } as ColumnDef<IBranchProduct>,
+          ]
+        : []),
+      {
+        accessorKey: "updatedAt",
+        header: "Cập nhật",
         cell: ({ row }) => {
           try {
-            return format(new Date(row.getValue("createdAt")), "dd/MM/yyyy");
+            return format(
+              new Date(row.getValue("updatedAt")),
+              "dd/MM/yyyy HH:mm",
+            );
           } catch {
-            return row.getValue("createdAt");
+            return "—";
           }
         },
       },
@@ -316,59 +671,67 @@ export default function Page() {
         id: "actions",
         cell: ({ row, table }) => {
           const isAnyRowSelected = table.getFilteredSelectedRowModel().rows.length > 0;
+          const isAggregated = row.original.isAggregated;
+
           return (
             <RowActions
               onView={() => handleView(row.original)}
-              onEdit={() => handleEdit(row.original)}
-              onDelete={() => handleDelete(row.original)}
+              onEdit={canEditProduct ? () => handleEditProduct(row.original) : undefined}
+              editLabel="Chỉnh sửa"
+              customActions={!isAggregated ? [
+                {
+                  label: "Cập nhật ghi chú",
+                  icon: <FileEdit className="h-4 w-4" />,
+                  onClick: () => handleEditNote(row.original),
+                },
+              ] : undefined}
               disabled={isAnyRowSelected}
             />
           );
         },
       },
     ],
-    []
+    [showBranchCountColumn, canEditProduct],
   );
 
-  const toolbarActions = (
-    <>
-      <Select 
-        value={filters.categoryId || "all"} 
-        onValueChange={(value) => updateFilter("categoryId", value === "all" ? undefined : value)}
-      >
-        <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="Danh mục" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Tất cả danh mục</SelectItem>
-          {categories.map((cat) => (
-            <SelectItem key={cat._id} value={cat._id}>
-              {cat.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      <Select 
-        value={filters.status || "all"} 
-        onValueChange={(value) => updateFilter("status", value === "all" ? undefined : value)}
-      >
-        <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="Trạng thái" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Tất cả trạng thái</SelectItem>
-          <SelectItem value="active">Đang bán</SelectItem>
-          <SelectItem value="inactive">Ngừng bán</SelectItem>
-        </SelectContent>
-      </Select>
-    </>
-  )
+  const toolbarActions = React.useMemo(
+    () => (
+      <>
+        {isAdmin && (
+          <Select value={filterBranchId} onValueChange={setFilterBranchId}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Tất cả chi nhánh" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tất cả chi nhánh</SelectItem>
+              {branches.map((branch) => (
+                <SelectItem key={branch._id} value={branch._id}>
+                  {branch.branchName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        <Select value={filterLowStock} onValueChange={setFilterLowStock}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Trạng thái tồn kho" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tất cả trạng thái</SelectItem>
+            <SelectItem value="low">Sắp hết hàng</SelectItem>
+          </SelectContent>
+        </Select>
+      </>
+    ),
+    [isAdmin, filterBranchId, filterLowStock, branches],
+  );
 
   return (
     <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-primary">Quản lý sản phẩm</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-primary">
+          Quản lý sản phẩm
+        </h1>
         <div className="flex items-center gap-2">
           <Button
             variant={showStats ? "secondary" : "outline"}
@@ -380,234 +743,125 @@ export default function Page() {
           </Button>
           <ExportProductsButton
             filters={{
-              categoryId: filters.categoryId,
-              status: filters.status,
               search: searchTerm,
             }}
           />
           <Button
             variant="outline"
-            onClick={() => setIsImportOpen(true)}
+            onClick={() => setIsImportStockExcelOpen(true)}
           >
-            <FileUp className="mr-2 h-4 w-4" />
-            Import Excel
+            <FileSpreadsheet className="mr-2 h-4 w-4" />
+            Nhập kho Excel
           </Button>
-          <Button onClick={handleCreate}>
+          <Button onClick={handleCreateProduct}>
             <Plus className="mr-2 h-4 w-4" />
             Thêm sản phẩm
           </Button>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      {showStats && <ProductStats products={data} categories={categories} />}
-
-      {loading ? (
-        <div className="flex flex-1 items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      {showStats && (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <StatsCard
+            title="Tổng mặt hàng"
+            value={stats.totalItems}
+            icon={Package}
+            description="Số lượng mặt hàng đang quản lý"
+          />
+          <StatsCard
+            title="Tổng số lượng"
+            value={stats.totalQuantity}
+            icon={Boxes}
+            description="Tổng số lượng sản phẩm tất cả các loại"
+          />
+          <StatsCard
+            title="Sắp hết hàng"
+            value={stats.lowStockCount}
+            icon={AlertTriangle}
+            description="Sản phẩm dưới định mức tối thiểu"
+            trend={stats.lowStockCount > 0 ? "critical" : "neutral"}
+          />
         </div>
-      ) : (
-        <CommonTable
-          columns={columns}
-          data={data}
-          filterCol="name"
-          filterPlaceholder="Tìm sản phẩm (Tên, Barcode)..."
-          onBulkAction={handleDeleteMany}
-          bulkActionLabel="Xóa đã chọn"
-          bulkActionIcon="trash"
-          toolbarActions={toolbarActions}
-          serverPagination={pagination}
-          onPageChange={handlePageChange}
-          onSearch={handleSearch}
-          searchValue={searchTerm}
-        />
       )}
 
-      {/* Form Modal */}
-      <ProductFormModal
-        open={isFormOpen}
-        onOpenChange={setIsFormOpen}
-        product={selectedItem}
-        categories={categories}
-        onSubmit={handleFormSubmit}
-        isSubmitting={isSubmitting}
+      <CommonTable
+        columns={columns}
+        data={data}
+        filterCol="productId"
+        filterPlaceholder="Tìm theo tên, mã vạch hoặc mã hàng..."
+        serverPagination={pagination}
+        onPageChange={(page) => setPagination((prev) => ({ ...prev, page }))}
+        onSearch={setSearchTerm}
+        searchValue={searchTerm}
+        onBulkAction={handleDeleteMany}
+        bulkActionLabel="Xóa đã chọn"
+        bulkActionIcon="trash"
+        toolbarActions={toolbarActions}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+        isLoading={loading}
+        getRowClassName={(row) => {
+          // Aggregated view: use Product.status (global status)
+          // Branch view: use BranchProduct.status (branch-specific status)
+          const status = row.isAggregated 
+            ? row.productId?.status 
+            : row.status;
+          return status === "inactive" ? "opacity-50" : "";
+        }}
       />
 
-      {/* Delete Confirm */}
       <ConfirmDeleteDialog
         open={isDeleteOpen}
         onOpenChange={setIsDeleteOpen}
         onConfirm={confirmDelete}
         isSubmitting={isSubmitting}
-        title={
-          selectedItem
-            ? `Xóa sản phẩm "${selectedItem.name}"?`
-            : `Xóa ${selectedItems.length} sản phẩm đã chọn?`
-        }
-        description="Sản phẩm sẽ bị xóa khỏi hệ thống. Bạn không thể hoàn tác hành động này."
+        title={`Xóa ${selectedItems.length} mục tồn kho?`}
+        description="Hành động này sẽ xóa dữ liệu tồn kho của các sản phẩm đã chọn khỏi chi nhánh."
       />
 
-      {/* Detail Modal */}
-      <DetailModal
+      <ProductDetailModal
         open={isDetailOpen}
         onOpenChange={setIsDetailOpen}
-        title="Chi tiết sản phẩm"
-        className="max-w-[95vw] sm:max-w-[800px]"
-        onEdit={() => {
-          setIsDetailOpen(false);
-          if (selectedItem) handleEdit(selectedItem);
-        }}
-      >
-        {selectedItem && (
-          <div className="grid gap-6 py-4 lg:grid-cols-[280px_1fr]">
-            {/* Left Column: Images & Barcode */}
-            <div className="flex flex-col items-center gap-6">
-              {/* Image Gallery */}
-              <div className="w-full space-y-2">
-                {selectedItem.images && selectedItem.images.length > 0 ? (
-                  <>
-                    {/* All Images Grid - Equal Size */}
-                    <div className="grid grid-cols-2 gap-2">
-                      {selectedItem.images.map((img, index) => (
-                        <div
-                          key={index}
-                          onClick={() => {
-                            setLightboxIndex(index);
-                            setLightboxOpen(true);
-                          }}
-                          className="relative aspect-square overflow-hidden rounded-lg border bg-muted cursor-pointer hover:border-primary hover:shadow-lg transition-all group"
-                        >
-                          <img
-                            src={img}
-                            alt={`${selectedItem.name} ${index + 1}`}
-                            className="h-full w-full object-cover group-hover:scale-105 transition-transform"
-                          />
-                          {index === 0 && (
-                            <div className="absolute top-2 left-2 bg-primary text-primary-foreground text-[10px] px-2 py-0.5 rounded-full font-medium">
-                              Chính
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
-                            <Package className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <div className="relative h-64 w-full overflow-hidden rounded-lg border bg-muted">
-                    <div className="flex h-full w-full items-center justify-center">
-                      <Package className="h-16 w-16 text-muted-foreground/50" />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Barcode Section */}
-              {selectedItem.barcode && (
-                <div className="flex flex-col items-center gap-3 p-4 rounded-lg border bg-white">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <BarcodeIcon className="h-4 w-4" />
-                    <span>Mã vạch sản phẩm</span>
-                  </div>
-                  <Barcode
-                    value={selectedItem.barcode}
-                    width={2}
-                    height={60}
-                    fontSize={14}
-                    margin={5}
-                    displayValue={true}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Right Column: Info */}
-            <div className="flex flex-col gap-6">
-              <div>
-                <h2 className="text-2xl font-bold tracking-tight text-foreground">
-                  {selectedItem.name}
-                </h2>
-                <div className="mt-2 flex items-center gap-2">
-                  <Badge variant="secondary" className="px-3 py-1 text-sm font-normal">
-                    {getCategoryName(selectedItem.categoryId)}
-                  </Badge>
-                  <span className="text-muted-foreground">•</span>
-                  <span className="text-sm text-muted-foreground">
-                    Đơn vị: {selectedItem.unit}
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-6 rounded-lg border bg-muted/30 p-4">
-                <div className="space-y-1">
-                  <span className="text-xs font-medium uppercase text-muted-foreground">
-                    Giá bán
-                  </span>
-                  <p className="text-2xl font-bold text-primary">
-                    {formatCurrency(selectedItem.currentSalePrice)}
-                  </p>
-                </div>
-                <div className="space-y-1">
-                  <span className="text-xs font-medium uppercase text-muted-foreground">
-                    Trạng thái
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`flex h-2 w-2 rounded-full ${
-                        selectedItem.status === "active" ? "bg-green-500" : "bg-gray-400"
-                      }`}
-                    />
-                    <span className="font-medium">
-                      {selectedItem.status === "active" ? "Đang bán" : "Ngừng bán"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h3 className="font-semibold leading-none tracking-tight">Mô tả</h3>
-                <div className="rounded-md border bg-muted/10 p-4 text-sm leading-relaxed text-muted-foreground">
-                  {selectedItem.desc || (
-                    <span className="italic">Chưa có mô tả cho sản phẩm này.</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-auto grid grid-cols-2 gap-4 border-t pt-4 text-xs text-muted-foreground">
-                <div>
-                  <span className="font-medium text-foreground">Ngày tạo: </span>
-                  {format(new Date(selectedItem.createdAt), "dd/MM/yyyy HH:mm")}
-                </div>
-                <div>
-                  <span className="font-medium text-foreground">Cập nhật cuối: </span>
-                  {format(new Date(selectedItem.updatedAt), "dd/MM/yyyy HH:mm")}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </DetailModal>
-
-      {/* Image Lightbox */}
-      <Lightbox
-        open={lightboxOpen}
-        close={() => setLightboxOpen(false)}
-        index={lightboxIndex}
-        slides={selectedItem?.images?.map((src) => ({ src })) || []}
-        on={{
-          view: ({ index }) => setLightboxIndex(index),
-        }}
+        product={selectedItem}
       />
 
-      {/* Import Excel Modal */}
-      <ImportExcelModal
-        open={isImportOpen}
-        onOpenChange={setIsImportOpen}
+      <ProductNoteModal
+        open={isNoteModalOpen}
+        onOpenChange={setIsNoteModalOpen}
+        product={selectedItem}
+        onSave={handleSaveNote}
+        isSubmitting={isSubmitting}
+      />
+
+      {/* Product Form Modal - Thêm sản phẩm mới */}
+      <ProductFormModal
+        open={isProductFormOpen}
+        onOpenChange={setIsProductFormOpen}
+        product={editingProduct}
+        categories={categories}
+        onSubmit={handleProductFormSubmit}
+        isSubmitting={isSubmitting}
+        // Chỉ hiện inventory fields khi tạo mới và là admin
+        // HOẶC khi đang edit specific branch product (để sửa giá bán/giá nhập)
+        isInventoryMode={!editingProduct || !!editingBranchProductId}
+        branches={branches}
+        isAdmin={isAdmin}
+        // Aggregated edit mode: chỉ cho sửa thông tin chung, không cho sửa giá
+        isAggregatedEdit={!!editingProduct && !editingBranchProductId}
+      />
+
+      {/* Import Stock Excel Modal - Nhập kho */}
+      <ImportReceiptExcelModal
+        open={isImportStockExcelOpen}
+        onOpenChange={setIsImportStockExcelOpen}
         onSuccess={() => {
-          refetch();
+          setIsImportStockExcelOpen(false);
+          fetchData();
           eventBus.emit(Events.DATA_CHANGED);
         }}
+        branches={branches}
+        userBranchId={user?.branchId}
+        isAdmin={isAdmin}
       />
     </div>
   );

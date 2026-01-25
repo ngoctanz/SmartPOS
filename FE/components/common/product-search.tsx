@@ -15,7 +15,7 @@ interface ProductSearchProps {
 export function ProductSearch({
   onProductSelect,
   searchFn,
-  placeholder = "Tìm sản phẩm theo tên...",
+  placeholder = "Tìm sản phẩm theo tên, mã vạch hoặc mã hàng...",
 }: ProductSearchProps) {
   const [searchInput, setSearchInput] = React.useState("");
   const [searchResults, setSearchResults] = React.useState<Product[]>([]);

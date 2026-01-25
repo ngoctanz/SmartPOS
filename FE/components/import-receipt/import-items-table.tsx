@@ -14,6 +14,7 @@ export interface ImportItem {
   importPrice: number;
   unit: string;
   image?: string;
+  isImportPriceManual?: boolean; // Track if user manually entered the price
 }
 
 interface ImportItemsTableProps {
@@ -95,14 +96,26 @@ export function ImportItemsTable({
                   <Input
                     type="number"
                     min="0"
-                    value={item.importPrice || ""}
+                    value={item.isImportPriceManual ? item.importPrice || "" : ""}
+                    placeholder={
+                      !item.isImportPriceManual && item.importPrice > 0
+                        ? item.importPrice.toString()
+                        : "0"
+                    }
                     onChange={(e) => onUpdatePrice(item.productId, parseFloat(e.target.value) || 0)}
-                    placeholder="0"
-                    className="w-28 text-right h-9 ml-auto [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-28 text-right h-9 ml-auto [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none placeholder:text-muted-foreground/60"
                   />
                 </td>
                 <td className="p-3 text-right font-medium">
-                  {formatCurrency(item.importPrice * item.quantity)}
+                  <span
+                    className={
+                      !item.isImportPriceManual && item.importPrice > 0
+                        ? "text-muted-foreground/60"
+                        : ""
+                    }
+                  >
+                    {formatCurrency(item.importPrice * item.quantity)}
+                  </span>
                 </td>
                 <td className="p-3">
                   <Button

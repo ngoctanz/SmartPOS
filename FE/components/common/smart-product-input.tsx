@@ -25,7 +25,7 @@ export function SmartProductInput({
   onProductSelect,
   searchFn,
   getByBarcodeFn,
-  placeholder = "Quét mã barcode hoặc nhập tên sản phẩm...",
+  placeholder = "Quét mã barcode, nhập tên hoặc mã hàng...",
   autoFocus = true,
   onBarcodeNotFound,
   disableAutoRefocus = false,

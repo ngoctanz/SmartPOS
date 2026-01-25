@@ -17,34 +17,34 @@ Router.get("/barcode/:barcode", injectUserBranch({ requireBranchForWrite: false 
 Router.get("/category/:categoryId", productController.getByCategory);
 Router.get("/:id", injectUserBranch({ requireBranchForWrite: false }), productController.getById);
 
-// Admin, Manager and Staff can manage products
+// Admin and Manager can manage products (Staff can only manage stock via stock API)
 Router.post(
   "/",
-  authorize("admin", "manager", "staff"),
+  authorize("admin", "manager"),
   productValidation.create,
   productController.create
 );
 
 Router.put(
   "/:id",
-  authorize("admin", "manager", "staff"),
+  authorize("admin", "manager"),
   productValidation.update,
   productController.update
 );
 
 Router.patch(
   "/:id/price",
-  authorize("admin", "manager", "staff"),
+  authorize("admin", "manager"),
   productValidation.updatePrice,
   productController.updateSalePrice
 );
 
 Router.delete(
   "/bulk",
-  authorize("admin", "manager", "staff"),
+  authorize("admin", "manager"),
   productController.removeMany
 );
 
-Router.delete("/:id", authorize("admin", "manager", "staff"), productController.remove);
+Router.delete("/:id", authorize("admin", "manager"), productController.remove);
 
 export const productRouter = Router;

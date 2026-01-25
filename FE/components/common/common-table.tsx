@@ -26,6 +26,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BulkActions, AdditionalBulkAction } from "./bulk-actions";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Settings2 } from "lucide-react";
 
 export interface ServerPagination {
   page: number;
@@ -51,6 +58,15 @@ interface CommonTableProps<TData, TValue> {
   onSearch?: (search: string) => void;
   searchValue?: string;
   toolbarActions?: React.ReactNode;
+  // Column visibility props
+  columnVisibility?: VisibilityState;
+  onColumnVisibilityChange?: (
+    updater: VisibilityState | ((old: VisibilityState) => VisibilityState),
+  ) => void;
+  // Loading state
+  isLoading?: boolean;
+  // Custom row className
+  getRowClassName?: (row: TData) => string;
 }
 
 export function CommonTable<TData, TValue>({
@@ -70,17 +86,43 @@ export function CommonTable<TData, TValue>({
   onSearch,
   searchValue,
   toolbarActions,
+  // Column visibility
+  columnVisibility: externalColumnVisibility,
+  onColumnVisibilityChange,
+  // Loading state
+  isLoading = false,
+  // Custom row className
+  getRowClassName,
 }: CommonTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
+    [],
   );
-  const [columnVisibility, setColumnVisibility] =
+  const [internalColumnVisibility, setInternalColumnVisibility] =
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
   const [localSearch, setLocalSearch] = React.useState("");
 
   const isServerSide = !!serverPagination;
+
+  // Use external columnVisibility if provided, otherwise use internal state
+  const columnVisibility =
+    externalColumnVisibility !== undefined
+      ? externalColumnVisibility
+      : internalColumnVisibility;
+
+  const handleColumnVisibilityChange = React.useCallback(
+    (
+      updater: VisibilityState | ((old: VisibilityState) => VisibilityState),
+    ) => {
+      if (onColumnVisibilityChange) {
+        onColumnVisibilityChange(updater);
+      } else {
+        setInternalColumnVisibility(updater);
+      }
+    },
+    [onColumnVisibilityChange],
+  );
 
   // Reset selection when data changes
   React.useEffect(() => {
@@ -105,7 +147,7 @@ export function CommonTable<TData, TValue>({
           getFilteredRowModel: getFilteredRowModel(),
         }),
     getSortedRowModel: getSortedRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
+    onColumnVisibilityChange: handleColumnVisibilityChange,
     onRowSelectionChange: setRowSelection,
     enableRowSelection: canSelectRow
       ? (row: Row<TData>) => canSelectRow(row.original)
@@ -157,7 +199,7 @@ export function CommonTable<TData, TValue>({
   };
 
   // Get current search value
-  const currentSearchValue = isServerSide ? searchValue ?? "" : localSearch;
+  const currentSearchValue = isServerSide ? (searchValue ?? "") : localSearch;
 
   // Pagination handlers
   const handlePreviousPage = () => {
@@ -218,6 +260,39 @@ export function CommonTable<TData, TValue>({
               className="max-w-sm"
             />
           )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="ml-auto">
+                <Settings2 className="mr-2 h-4 w-4" />
+                Cột hiển thị
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[200px]">
+              {table
+                .getAllColumns()
+                .filter((column) => column.getCanHide())
+                .map((column) => {
+                  // Get header text - use id if header is a function
+                  const headerText =
+                    typeof column.columnDef.header === "string"
+                      ? column.columnDef.header
+                      : column.id;
+
+                  return (
+                    <DropdownMenuCheckboxItem
+                      key={column.id}
+                      className="capitalize"
+                      checked={column.getIsVisible()}
+                      onCheckedChange={(value) =>
+                        column.toggleVisibility(!!value)
+                      }
+                    >
+                      {headerText}
+                    </DropdownMenuCheckboxItem>
+                  );
+                })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
       <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
@@ -235,7 +310,7 @@ export function CommonTable<TData, TValue>({
                         ? null
                         : flexRender(
                             header.column.columnDef.header,
-                            header.getContext()
+                            header.getContext(),
                           )}
                     </TableHead>
                   );
@@ -244,18 +319,30 @@ export function CommonTable<TData, TValue>({
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {isLoading ? (
+              <TableRow>
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-32 text-center"
+                >
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                    <span className="text-muted-foreground">Đang tải...</span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
-                  className="transition-colors"
+                  className={`transition-colors ${getRowClassName ? getRowClassName(row.original) : ""}`}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(
                         cell.column.columnDef.cell,
-                        cell.getContext()
+                        cell.getContext(),
                       )}
                     </TableCell>
                   ))}

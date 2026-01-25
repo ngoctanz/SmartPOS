@@ -17,6 +17,14 @@ export function useCart(): UseCartReturn {
   const [cartItems, setCartItems] = React.useState<CartItem[]>([]);
 
   const addProduct = React.useCallback((product: Product) => {
+    // CRITICAL: Block inactive products from being added to cart
+    if (product.status === "inactive") {
+      toast.error(`Không thể thêm: ${product.name}`, {
+        description: "Sản phẩm này đang ngừng bán tại chi nhánh",
+      });
+      return;
+    }
+
     setCartItems((prev) => {
       const existingItem = prev.find((item) => item.productId === product._id);
 

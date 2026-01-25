@@ -1,7 +1,6 @@
 import { ROUTES } from "@/configs/routes.config";
 import {
   IconBuildingStore,
-  IconBuildingWarehouse,
   IconDashboard,
   IconFileInvoice,
   IconFolder,
@@ -41,11 +40,6 @@ export const navItems = {
       title: 'Quản lý hóa đơn',
       url: ROUTES.INVOICES,
       icon: IconFileInvoice,
-    },
-    {
-      title: 'Quản lý kho sản phẩm',
-      url: ROUTES.INVENTORY,
-      icon: IconBuildingWarehouse,
     },
     {
       title: 'Quản lý user',

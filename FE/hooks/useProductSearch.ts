@@ -20,7 +20,7 @@ export function useProductSearch({
 }: UseProductSearchOptions): UseProductSearchReturn {
   const searchProducts = React.useCallback(
     async (term: string): Promise<Product[]> => {
-      const searchBranchId = isAdmin ? branchId : undefined;
+      const searchBranchId = isAdmin && branchId ? branchId : undefined;
       const response = await productService.search({
         name: term,
         branchId: searchBranchId,
@@ -33,7 +33,9 @@ export function useProductSearch({
   const getProductByBarcode = React.useCallback(
     async (barcode: string): Promise<Product | null> => {
       try {
-        const searchBranchId = isAdmin ? branchId : undefined;
+        // Admin: truyền branchId nếu có
+        // Staff/Manager: không truyền, BE middleware sẽ tự inject
+        const searchBranchId = isAdmin && branchId ? branchId : undefined;
         const response = await productService.getByBarcode(
           barcode,
           searchBranchId

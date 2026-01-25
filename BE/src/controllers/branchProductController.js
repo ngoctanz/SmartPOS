@@ -12,9 +12,13 @@ const getByBranch = async (req, res, next) => {
       limit: parseInt(limit) || 20,
       lowStockOnly: lowStockOnly === "true",
     };
-    
+
     // Pass user for defense-in-depth security
-    const result = await branchProductService.getByBranch(req.params.branchId, options, req.user);
+    const result = await branchProductService.getByBranch(
+      req.params.branchId,
+      options,
+      req.user,
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get stock by branch successfully",
@@ -27,23 +31,25 @@ const getByBranch = async (req, res, next) => {
 };
 
 const getStats = async (req, res, next) => {
-    try {
-        const { branchId } = req.query;
-        // branchId is already injected for staff by middleware
-        const stats = await branchProductService.getStats(branchId);
-        res.status(StatusCodes.OK).json({
-            success: true,
-            message: "Get stock stats successfully",
-            data: stats,
-        });
-    } catch (error) {
-        next(error);
-    }
+  try {
+    const { branchId } = req.query;
+    // branchId is already injected for staff by middleware
+    const stats = await branchProductService.getStats(branchId);
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Get stock stats successfully",
+      data: stats,
+    });
+  } catch (error) {
+    next(error);
+  }
 };
 
 const getByProduct = async (req, res, next) => {
   try {
-    const stocks = await branchProductService.getByProduct(req.params.productId);
+    const stocks = await branchProductService.getByProduct(
+      req.params.productId,
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get stock by product successfully",
@@ -77,7 +83,11 @@ const setMinStock = async (req, res, next) => {
     // Permission check handled by middleware
 
     const { minStock } = req.body;
-    const result = await branchProductService.setMinStock(branchId, productId, minStock);
+    const result = await branchProductService.setMinStock(
+      branchId,
+      productId,
+      minStock,
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Min stock updated successfully!",
@@ -91,7 +101,10 @@ const setMinStock = async (req, res, next) => {
 const getLowStock = async (req, res, next) => {
   try {
     // Pass user for defense-in-depth security
-    const lowStockProducts = await branchProductService.getLowStock(req.params.branchId, req.user);
+    const lowStockProducts = await branchProductService.getLowStock(
+      req.params.branchId,
+      req.user,
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get low stock products successfully",
@@ -107,7 +120,11 @@ const getByBarcode = async (req, res, next) => {
   try {
     const { branchId, barcode } = req.params;
     // Pass user for defense-in-depth security
-    const result = await branchProductService.getByBarcode(branchId, barcode, req.user);
+    const result = await branchProductService.getByBarcode(
+      branchId,
+      barcode,
+      req.user,
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Get stock by barcode successfully",
@@ -127,7 +144,7 @@ const checkAvailability = async (req, res, next) => {
     const result = await branchProductService.checkStockAvailability(
       branchId,
       productId,
-      parseInt(quantity) || 1
+      parseInt(quantity) || 1,
     );
     res.status(StatusCodes.OK).json({
       success: true,
@@ -142,7 +159,7 @@ const checkAvailability = async (req, res, next) => {
 const getAll = async (req, res, next) => {
   try {
     const { branchId, search, page, limit, lowStockOnly } = req.query;
-    
+
     // branchId is already injected for staff by middleware
     const options = {
       branchId,
@@ -151,7 +168,7 @@ const getAll = async (req, res, next) => {
       limit: parseInt(limit) || 20,
       lowStockOnly: lowStockOnly === "true",
     };
-    
+
     // Pass user for defense-in-depth security
     const result = await branchProductService.getAll(options, req.user);
     res.status(StatusCodes.OK).json({
@@ -172,14 +189,14 @@ const getAll = async (req, res, next) => {
 const getAggregatedByProduct = async (req, res, next) => {
   try {
     const { search, page, limit, lowStockOnly } = req.query;
-    
+
     const options = {
       search,
       page: parseInt(page) || 1,
       limit: parseInt(limit) || 20,
       lowStockOnly: lowStockOnly === "true",
     };
-    
+
     const result = await branchProductService.getAggregatedByProduct(options);
     res.status(StatusCodes.OK).json({
       success: true,
@@ -210,7 +227,11 @@ const create = async (req, res, next) => {
 const update = async (req, res, next) => {
   try {
     // Pass user for defense-in-depth security
-    const data = await branchProductService.update(req.params.id, req.body, req.user);
+    const data = await branchProductService.update(
+      req.params.id,
+      req.body,
+      req.user,
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Stock updated successfully",
@@ -238,7 +259,12 @@ const updateNote = async (req, res, next) => {
     const { note, branchId } = req.body;
     // Pass user for defense-in-depth security
     // branchId được inject từ middleware cho staff, hoặc từ body cho admin
-    const data = await branchProductService.updateNote(req.params.id, note, req.user, branchId);
+    const data = await branchProductService.updateNote(
+      req.params.id,
+      note,
+      req.user,
+      branchId,
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Note updated successfully",
@@ -254,7 +280,12 @@ const updateSalePrice = async (req, res, next) => {
     const { salePrice, branchId } = req.body;
     // Pass user for defense-in-depth security
     // branchId được inject từ middleware cho staff, hoặc từ body cho admin
-    const data = await branchProductService.updateSalePrice(req.params.id, salePrice, req.user, branchId);
+    const data = await branchProductService.updateSalePrice(
+      req.params.id,
+      salePrice,
+      req.user,
+      branchId,
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Sale price updated successfully",
@@ -270,10 +301,56 @@ const updateMinStock = async (req, res, next) => {
     const { minStock, branchId } = req.body;
     // Pass user for defense-in-depth security
     // branchId được inject từ middleware cho staff, hoặc từ body cho admin
-    const data = await branchProductService.updateMinStock(req.params.id, minStock, req.user, branchId);
+    const data = await branchProductService.updateMinStock(
+      req.params.id,
+      minStock,
+      req.user,
+      branchId,
+    );
     res.status(StatusCodes.OK).json({
       success: true,
       message: "Min stock updated successfully",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const updateStatus = async (req, res, next) => {
+  try {
+    const { status, branchId } = req.body;
+    // Pass user for defense-in-depth security
+    // branchId được inject từ middleware cho staff, hoặc từ body cho admin
+    const data = await branchProductService.updateStatus(
+      req.params.id,
+      status,
+      req.user,
+      branchId,
+    );
+    res.status(StatusCodes.OK).json({
+      success: true,
+      message: "Status updated successfully",
+      data: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Create a new product and add it to a specific branch's stock
+ * Admin only - for creating products directly for a specific branch
+ */
+const createProductWithStock = async (req, res, next) => {
+  try {
+    const data = await branchProductService.createProductWithStock(
+      req.body,
+      req.user,
+    );
+    res.status(StatusCodes.CREATED).json({
+      success: true,
+      message: "Product created and added to branch stock successfully",
       data: data,
     });
   } catch (error) {
@@ -293,9 +370,11 @@ export const branchProductController = {
   getLowStock,
   checkAvailability,
   create,
+  createProductWithStock,
   update,
   remove,
   updateNote,
   updateSalePrice,
-  updateMinStock
+  updateMinStock,
+  updateStatus,
 };

@@ -5,10 +5,12 @@ export interface BranchProduct {
   _id: string;
   branchId: any; // Populated object or string
   productId: any; // Populated object or string
+  productCode?: string; // Mã sản phẩm tùy chỉnh theo chi nhánh
   stock: number;
   minStock: number;
   salePrice: number; // Giá bán theo chi nhánh
-  avgImportPrice?: number;
+  lastImportPrice?: number; // Giá nhập gần nhất
+  status?: "active" | "inactive"; // Trạng thái bán tại chi nhánh
   note?: string | null; // Ghi chú cho sản phẩm
   branchCount?: number; // Only for aggregated view
   isAggregated?: boolean; // Flag for aggregated data
@@ -47,19 +49,20 @@ export interface BranchProductStats {
   lowStockCount: number;
 }
 
-
 const stockService = {
   /**
    * Get all stock with pagination and search
    * GET /api/v1/stock
    */
-  getAll: async (params?: StockQueryParams): Promise<ApiResponse<BranchProduct[]> & { pagination?: Pagination }> => {
+  getAll: async (
+    params?: StockQueryParams,
+  ): Promise<ApiResponse<BranchProduct[]> & { pagination?: Pagination }> => {
     const searchParams = new URLSearchParams();
     if (params?.search) searchParams.append("search", params.search);
     if (params?.page) searchParams.append("page", params.page.toString());
     if (params?.limit) searchParams.append("limit", params.limit.toString());
     if (params?.lowStockOnly) searchParams.append("lowStockOnly", "true");
-    
+
     const query = searchParams.toString();
     return apiGet<BranchProduct[]>(`/stock${query ? `?${query}` : ""}`);
   },
@@ -69,41 +72,70 @@ const stockService = {
    * Only for admin when viewing "All branches"
    * GET /api/v1/stock/aggregated
    */
-  getAggregatedByProduct: async (params?: StockQueryParams): Promise<ApiResponse<BranchProduct[]> & { pagination?: Pagination }> => {
+  getAggregatedByProduct: async (
+    params?: StockQueryParams,
+  ): Promise<ApiResponse<BranchProduct[]> & { pagination?: Pagination }> => {
     const searchParams = new URLSearchParams();
     if (params?.search) searchParams.append("search", params.search);
     if (params?.page) searchParams.append("page", params.page.toString());
     if (params?.limit) searchParams.append("limit", params.limit.toString());
     if (params?.lowStockOnly) searchParams.append("lowStockOnly", "true");
-    
+
     const query = searchParams.toString();
-    return apiGet<BranchProduct[]>(`/stock/aggregated${query ? `?${query}` : ""}`);
+    return apiGet<BranchProduct[]>(
+      `/stock/aggregated${query ? `?${query}` : ""}`,
+    );
   },
 
   /**
    * Get stock stats
    * GET /api/v1/stock/stats?branchId=xxx
    */
-  getStats: async (branchId?: string): Promise<ApiResponse<BranchProductStats>> => {
-      const queryParams = new URLSearchParams();
-      if (branchId) queryParams.append("branchId", branchId);
-      return apiGet<BranchProductStats>(`/stock/stats?${queryParams.toString()}`);
+  getStats: async (
+    branchId?: string,
+  ): Promise<ApiResponse<BranchProductStats>> => {
+    const queryParams = new URLSearchParams();
+    if (branchId) queryParams.append("branchId", branchId);
+    return apiGet<BranchProductStats>(`/stock/stats?${queryParams.toString()}`);
   },
 
   /**
    * Create stock report (Bulk)
    * POST /api/v1/stock
    */
-  create: async (data: { branchId?: string; items: { productId: string; stock: number; minStock?: number }[] }): Promise<ApiResponse<BranchProduct>> => {
+  create: async (data: {
+    branchId?: string;
+    items: { productId: string; stock: number; minStock?: number }[];
+  }): Promise<ApiResponse<BranchProduct>> => {
     return apiPost<BranchProduct>("/stock", data);
   },
 
   /**
-   * Update stock
-   * PUT /api/v1/stock/:id
+   * Create product with stock for specific branch (Admin only)
+   * Creates a new product and adds it to a specific branch's stock
+   * POST /api/v1/stock/with-product
    */
-  update: async (id: string, data: { stock?: number; minStock?: number }): Promise<ApiResponse<BranchProduct>> => {
-    return apiPut<BranchProduct>(`/stock/${id}`, data);
+  createProductWithStock: async (data: {
+    // Product fields
+    name: string;
+    barcode?: string;
+    categoryId: string;
+    unit: string;
+    currentSalePrice?: number;
+    status?: "active" | "inactive";
+    desc?: string;
+    images?: string[];
+    // Branch stock fields
+    branchId: string;
+    productCode?: string;
+    salePrice: number;
+    importPrice?: number;
+    minStock?: number;
+  }): Promise<ApiResponse<{ product: any; branchProduct: BranchProduct }>> => {
+    return apiPost<{ product: any; branchProduct: BranchProduct }>(
+      "/stock/with-product",
+      data,
+    );
   },
 
   /**
@@ -115,21 +147,41 @@ const stockService = {
   },
 
   /**
+   * Update stock record (full update)
+   * PUT /api/v1/stock/:id
+   */
+  update: async (
+    id: string,
+    data: {
+      stock?: number;
+      minStock?: number;
+      salePrice?: number;
+      lastImportPrice?: number;
+      productCode?: string;
+      note?: string;
+    },
+  ): Promise<ApiResponse<BranchProduct>> => {
+    return apiPut<BranchProduct>(`/stock/${id}`, data);
+  },
+
+  /**
    * Lấy tồn kho theo chi nhánh với pagination và search
    * GET /api/v1/stock/branch/:branchId
    */
   getByBranch: async (
     branchId: string,
-    params?: StockQueryParams
+    params?: StockQueryParams,
   ): Promise<ApiResponse<BranchProduct[]> & { pagination?: Pagination }> => {
     const searchParams = new URLSearchParams();
     if (params?.search) searchParams.append("search", params.search);
     if (params?.page) searchParams.append("page", params.page.toString());
     if (params?.limit) searchParams.append("limit", params.limit.toString());
     if (params?.lowStockOnly) searchParams.append("lowStockOnly", "true");
-    
+
     const query = searchParams.toString();
-    return apiGet<BranchProduct[]>(`/stock/branch/${branchId}${query ? `?${query}` : ""}`);
+    return apiGet<BranchProduct[]>(
+      `/stock/branch/${branchId}${query ? `?${query}` : ""}`,
+    );
   },
 
   /**
@@ -137,7 +189,7 @@ const stockService = {
    * GET /api/v1/stock/product/:productId
    */
   getByProduct: async (
-    productId: string
+    productId: string,
   ): Promise<ApiResponse<BranchProduct[]>> => {
     return apiGet<BranchProduct[]>(`/stock/product/${productId}`);
   },
@@ -148,10 +200,10 @@ const stockService = {
    */
   getStock: async (
     branchId: string,
-    productId: string
+    productId: string,
   ): Promise<ApiResponse<BranchProduct>> => {
     return apiGet<BranchProduct>(
-      `/stock/branch/${branchId}/product/${productId}`
+      `/stock/branch/${branchId}/product/${productId}`,
     );
   },
 
@@ -161,11 +213,23 @@ const stockService = {
    */
   getProductInfo: async (
     branchId: string,
-    productId: string
-  ): Promise<ApiResponse<{ branchId: string; productId: string; stock: number; salePrice: number; minStock: number }>> => {
-    return apiGet<{ branchId: string; productId: string; stock: number; salePrice: number; minStock: number }>(
-      `/stock/branch/${branchId}/product/${productId}`
-    );
+    productId: string,
+  ): Promise<
+    ApiResponse<{
+      branchId: string;
+      productId: string;
+      stock: number;
+      salePrice: number;
+      minStock: number;
+    }>
+  > => {
+    return apiGet<{
+      branchId: string;
+      productId: string;
+      stock: number;
+      salePrice: number;
+      minStock: number;
+    }>(`/stock/branch/${branchId}/product/${productId}`);
   },
 
   /**
@@ -173,7 +237,7 @@ const stockService = {
    * GET /api/v1/stock/branch/:branchId/low-stock
    */
   getLowStock: async (
-    branchId: string
+    branchId: string,
   ): Promise<ApiResponse<BranchProduct[]>> => {
     return apiGet<BranchProduct[]>(`/stock/branch/${branchId}/low-stock`);
   },
@@ -184,9 +248,11 @@ const stockService = {
    */
   getByBarcode: async (
     branchId: string,
-    barcode: string
+    barcode: string,
   ): Promise<ApiResponse<BranchProduct>> => {
-    return apiGet<BranchProduct>(`/stock/branch/${branchId}/barcode/${barcode}`);
+    return apiGet<BranchProduct>(
+      `/stock/branch/${branchId}/barcode/${barcode}`,
+    );
   },
 
   /**
@@ -196,10 +262,10 @@ const stockService = {
   checkAvailability: async (
     branchId: string,
     productId: string,
-    quantity: number
+    quantity: number,
   ): Promise<ApiResponse<StockAvailability>> => {
     return apiGet<StockAvailability>(
-      `/stock/branch/${branchId}/product/${productId}/check?quantity=${quantity}`
+      `/stock/branch/${branchId}/product/${productId}/check?quantity=${quantity}`,
     );
   },
 
@@ -210,11 +276,11 @@ const stockService = {
   setMinStock: async (
     branchId: string,
     productId: string,
-    minStock: number
+    minStock: number,
   ): Promise<ApiResponse<BranchProduct>> => {
     return apiPatch<BranchProduct>(
       `/stock/branch/${branchId}/product/${productId}/min-stock`,
-      { minStock }
+      { minStock },
     );
   },
 
@@ -225,7 +291,7 @@ const stockService = {
   updateNote: async (
     id: string,
     note: string,
-    branchId?: string
+    branchId?: string,
   ): Promise<ApiResponse<BranchProduct>> => {
     return apiPatch<BranchProduct>(`/stock/${id}/note`, { note, branchId });
   },
@@ -237,9 +303,12 @@ const stockService = {
   updateSalePrice: async (
     id: string,
     salePrice: number,
-    branchId?: string
+    branchId?: string,
   ): Promise<ApiResponse<BranchProduct>> => {
-    return apiPatch<BranchProduct>(`/stock/${id}/sale-price`, { salePrice, branchId });
+    return apiPatch<BranchProduct>(`/stock/${id}/sale-price`, {
+      salePrice,
+      branchId,
+    });
   },
 
   /**
@@ -249,9 +318,27 @@ const stockService = {
   updateMinStock: async (
     id: string,
     minStock: number,
-    branchId?: string
+    branchId?: string,
   ): Promise<ApiResponse<BranchProduct>> => {
-    return apiPatch<BranchProduct>(`/stock/${id}/min-stock`, { minStock, branchId });
+    return apiPatch<BranchProduct>(`/stock/${id}/min-stock`, {
+      minStock,
+      branchId,
+    });
+  },
+
+  /**
+   * Cập nhật trạng thái bán cho sản phẩm theo chi nhánh
+   * PATCH /api/v1/stock/:id/status
+   */
+  updateStatus: async (
+    id: string,
+    status: "active" | "inactive",
+    branchId?: string,
+  ): Promise<ApiResponse<BranchProduct>> => {
+    return apiPatch<BranchProduct>(`/stock/${id}/status`, {
+      status,
+      branchId,
+    });
   },
 
   /**
@@ -261,21 +348,34 @@ const stockService = {
   updateBranchProduct: async (
     id: string,
     data: { salePrice?: number; minStock?: number; note?: string },
-    branchId?: string
+    branchId?: string,
   ): Promise<ApiResponse<BranchProduct>> => {
     const promises: Promise<ApiResponse<BranchProduct>>[] = [];
-    
+
     if (data.salePrice !== undefined) {
-      promises.push(apiPatch<BranchProduct>(`/stock/${id}/sale-price`, { salePrice: data.salePrice, branchId }));
+      promises.push(
+        apiPatch<BranchProduct>(`/stock/${id}/sale-price`, {
+          salePrice: data.salePrice,
+          branchId,
+        }),
+      );
     }
     if (data.note !== undefined) {
-      promises.push(apiPatch<BranchProduct>(`/stock/${id}/note`, { note: data.note, branchId }));
+      promises.push(
+        apiPatch<BranchProduct>(`/stock/${id}/note`, {
+          note: data.note,
+          branchId,
+        }),
+      );
     }
-    
+
     if (promises.length === 0) {
-      return { success: true, message: "No changes" } as ApiResponse<BranchProduct>;
+      return {
+        success: true,
+        message: "No changes",
+      } as ApiResponse<BranchProduct>;
     }
-    
+
     const results = await Promise.all(promises);
     return results[results.length - 1]; // Return last result
   },

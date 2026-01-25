@@ -51,7 +51,7 @@ const productSchema = new mongoose.Schema(
   {
     timestamps: true,
     versionKey: false,
-  }
+  },
 );
 
 productSchema.index({ categoryId: 1 });
@@ -79,7 +79,7 @@ productSchema.statics = {
   async findAllProducts(filter = {}) {
     const query = { ...filter };
     if (!query.status) {
-      query.status = "active"; 
+      query.status = "active";
     }
     // If status is 'all', remove it from query
     if (query.status === "all") {
@@ -94,9 +94,9 @@ productSchema.statics = {
 
   async findAllProductsPaginated(options = {}) {
     const { search, categoryId, status, page = 1, limit = 20 } = options;
-    
+
     const query = {};
-    
+
     // Search by name or barcode
     if (search && search.trim()) {
       query.$or = [
@@ -104,12 +104,12 @@ productSchema.statics = {
         { barcode: { $regex: search, $options: "i" } },
       ];
     }
-    
+
     // Filter by category
     if (categoryId) {
       query.categoryId = categoryId;
     }
-    
+
     // Filter by status (default: all)
     if (status) {
       query.status = status;
@@ -117,7 +117,7 @@ productSchema.statics = {
 
     const total = await this.countDocuments(query);
     const skip = (page - 1) * limit;
-    
+
     const data = await this.find(query)
       .populate("categoryId", "name")
       .sort({ createdAt: -1 })
@@ -151,30 +151,56 @@ productSchema.statics = {
     return product;
   },
 
-  async findProductsByName(searchTerm) {
-    return this.find({
-      $or: [
-        { name: new RegExp(searchTerm, "i") },
-        { barcode: new RegExp(searchTerm, "i") },
-      ],
-    })
+  /**
+   * Tìm sản phẩm theo tên, barcode hoặc productCode (nếu có branchId)
+   */
+  async findProductsByName(searchTerm, branchId = null) {
+    const searchRegex = new RegExp(searchTerm, "i");
+    const conditions = [{ name: searchRegex }, { barcode: searchRegex }];
+
+    if (branchId) {
+      try {
+        const BranchProduct = mongoose.model("BranchProduct");
+        const branchObjectId =
+          typeof branchId === "string"
+            ? new mongoose.Types.ObjectId(branchId)
+            : branchId;
+
+        const branchDoc = await BranchProduct.findOne({
+          branchId: branchObjectId,
+        })
+          .select("products.productId products.productCode")
+          .lean();
+
+        if (branchDoc?.products?.length) {
+          const matchedIds = branchDoc.products
+            .filter((p) => p.productCode && searchRegex.test(p.productCode))
+            .map((p) => p.productId);
+
+          if (matchedIds.length > 0) {
+            conditions.push({ _id: { $in: matchedIds } });
+          }
+        }
+      } catch {
+        // Lỗi query BranchProduct - tiếp tục search bình thường
+      }
+    }
+
+    return this.find({ $or: conditions })
       .populate("categoryId", "name")
       .limit(20)
       .lean();
   },
 
   async findProductsByCategory(categoryId) {
-    return this.find({ categoryId })
-      .populate("categoryId", "name")
-      .lean();
+    return this.find({ categoryId }).populate("categoryId", "name").lean();
   },
 
   async updateProduct(id, data) {
-    const product = await this.findOneAndUpdate(
-      { _id: id },
-      data,
-      { new: true, runValidators: true }
-    ).populate("categoryId", "name");
+    const product = await this.findOneAndUpdate({ _id: id }, data, {
+      new: true,
+      runValidators: true,
+    }).populate("categoryId", "name");
     if (!product) throw new Error("Product not found");
     return product;
   },
@@ -183,7 +209,7 @@ productSchema.statics = {
     return this.findOneAndUpdate(
       { _id: id },
       { currentSalePrice: salePrice },
-      { new: true }
+      { new: true },
     );
   },
 

@@ -10,6 +10,7 @@ export interface Product {
   currentSalePrice: number;
   salePrice?: number; // Giá bán theo chi nhánh (nếu có branchId)
   stock?: number; // Tồn kho theo chi nhánh (nếu có branchId)
+  lastImportPrice?: number; // Giá nhập gần nhất (từ BranchProduct nếu có branchId)
   status: "active" | "inactive";
   desc?: string;
   images?: string[];
@@ -114,7 +115,7 @@ const productService = {
   /**
    * Tìm kiếm sản phẩm theo tên hoặc barcode
    * GET /api/v1/product/search?name=xxx&branchId=xxx
-   * BE sẽ tìm kiếm theo cả name và barcode, map giá theo branchId nếu có
+   * BE sẽ tìm kiếm theo cả name, barcode và productCode (nếu có branchId)
    */
   search: async (
     params: SearchProductParams

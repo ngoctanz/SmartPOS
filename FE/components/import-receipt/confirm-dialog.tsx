@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +38,21 @@ export function ConfirmDialog({
   );
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
 
+  // Enter hotkey to confirm
+  React.useEffect(() => {
+    if (!open || isSubmitting) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        onConfirm();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, isSubmitting, onConfirm]);
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -73,7 +89,7 @@ export function ConfirmDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isSubmitting}>Hủy</AlertDialogCancel>
+          <AlertDialogCancel disabled={isSubmitting}>Hủy (Esc)</AlertDialogCancel>
           <AlertDialogAction onClick={onConfirm} disabled={isSubmitting}>
             {isSubmitting ? (
               <>
@@ -81,7 +97,7 @@ export function ConfirmDialog({
                 Đang xử lý...
               </>
             ) : (
-              "Xác nhận"
+              "Xác nhận (Enter)"
             )}
           </AlertDialogAction>
         </AlertDialogFooter>

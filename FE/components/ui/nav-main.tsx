@@ -35,7 +35,7 @@ export function NavMain({
     {
       label: "Sản phẩm & Kho",
       items: items.filter((i) =>
-        [ROUTES.PRODUCTS, ROUTES.PRODUCT_TYPES, ROUTES.INVENTORY].includes(
+        [ROUTES.PRODUCTS, ROUTES.PRODUCT_TYPES].includes(
           i.url
         )
       ),

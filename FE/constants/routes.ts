@@ -16,7 +16,6 @@ export const ROUTES = {
     PRODUCT_TYPES: "/trang-quan-ly/loai-san-pham",
     IMPORTS: "/trang-quan-ly/nhap-hang",
     INVOICES: "/trang-quan-ly/hoa-don",
-    INVENTORY: "/trang-quan-ly/ton-kho",
     USERS: "/trang-quan-ly/nguoi-dung",
     BRANCHES: "/trang-quan-ly/chi-nhanh",
   },

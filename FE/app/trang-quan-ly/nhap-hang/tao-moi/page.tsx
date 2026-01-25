@@ -24,7 +24,10 @@ import {
   ImportItem,
 } from "@/components/import-receipt";
 import { SmartProductInput } from "@/components/common/smart-product-input";
-import { ProductFormModal } from "@/components/forms/product-form-modal";
+import {
+  ProductFormModal,
+  InventoryProductFormData,
+} from "@/components/forms/product-form-modal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,6 +38,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import stockService from "@/service/stock.service";
 
 export default function CreateImportReceiptPage() {
   const router = useRouter();
@@ -109,11 +113,11 @@ export default function CreateImportReceiptPage() {
 
         if (productsJson) {
           const products = JSON.parse(decodeURIComponent(productsJson));
-          
+
           // Load full product details for each item
           const loadedItems: ImportItem[] = [];
           const deletedProducts: string[] = [];
-          
+
           for (const item of products) {
             try {
               const response = await productService.getById(item.productId);
@@ -127,6 +131,7 @@ export default function CreateImportReceiptPage() {
                   importPrice: item.importPrice,
                   unit: product.unit,
                   image: product.images?.[0],
+                  isImportPriceManual: true, // From error receipt, consider as manual
                 });
               } else {
                 // Product not found (deleted)
@@ -138,21 +143,21 @@ export default function CreateImportReceiptPage() {
               console.error("Failed to load product:", item.productId, error);
             }
           }
-          
+
           setImportItems(loadedItems);
-          
+
           // Show appropriate message
           if (loadedItems.length > 0 && deletedProducts.length === 0) {
             toast.success(`Đã tải ${loadedItems.length} sản phẩm từ phiếu lỗi`);
           } else if (loadedItems.length > 0 && deletedProducts.length > 0) {
             toast.warning(
               `Đã tải ${loadedItems.length} sản phẩm. ${deletedProducts.length} sản phẩm đã bị xóa khỏi hệ thống.`,
-              { duration: 5000 }
+              { duration: 5000 },
             );
           } else if (loadedItems.length === 0 && deletedProducts.length > 0) {
             toast.error(
               `Không thể tải sản phẩm. Tất cả ${deletedProducts.length} sản phẩm trong phiếu đã bị xóa khỏi hệ thống.`,
-              { duration: 5000 }
+              { duration: 5000 },
             );
           }
         }
@@ -165,51 +170,7 @@ export default function CreateImportReceiptPage() {
     loadErrorReceiptData();
   }, [searchParams]);
 
-  const handleBarcodeScanned = React.useCallback(
-    async (barcode: string) => {
-      const existingItem = importItems.find((item) => item.barcode === barcode);
 
-      if (existingItem) {
-        setImportItems((prev) =>
-          prev.map((item) =>
-            item.barcode === barcode
-              ? { ...item, quantity: item.quantity + 1 }
-              : item
-          )
-        );
-        toast.success(`+1 ${existingItem.productName}`);
-      } else {
-        try {
-          const response = await productService.getByBarcode(barcode);
-          if (response.success && response.data) {
-            const product = response.data;
-            setImportItems((prev) => [
-              ...prev,
-              {
-                productId: product._id,
-                productName: product.name,
-                barcode: product.barcode || barcode,
-                quantity: 1,
-                importPrice: 0,
-                unit: product.unit,
-                image: product.images?.[0],
-              },
-            ]);
-            toast.success(`Đã thêm: ${product.name}`);
-          } else {
-            // Product not found - show dialog to create new
-            setNotFoundBarcode(barcode);
-            setShowNotFoundDialog(true);
-          }
-        } catch (error) {
-          // Product not found - show dialog to create new
-          setNotFoundBarcode(barcode);
-          setShowNotFoundDialog(true);
-        }
-      }
-    },
-    [importItems]
-  );
 
   const handleCreateNewProduct = () => {
     setShowNotFoundDialog(false);
@@ -217,35 +178,89 @@ export default function CreateImportReceiptPage() {
   };
 
   const handleProductFormSubmit = async (
-    data: CreateProductRequest | UpdateProductRequest
+    data:
+      | CreateProductRequest
+      | UpdateProductRequest
+      | InventoryProductFormData,
   ) => {
     setIsCreatingProduct(true);
     try {
-      const response = await productService.create(
-        data as CreateProductRequest
-      );
-      if (response.success && response.data) {
+      let createdProduct: Product | undefined;
+
+      // Check if it's inventory creation (admin with branch selected)
+      const inventoryData = data as InventoryProductFormData;
+      if (isAdmin && inventoryData.branchId) {
+        // Create product + stock
+        await stockService.createProductWithStock({
+          name: inventoryData.name,
+          barcode: inventoryData.barcode,
+          categoryId: inventoryData.categoryId,
+          unit: inventoryData.unit,
+          currentSalePrice: inventoryData.currentSalePrice,
+          status: inventoryData.status,
+          desc: inventoryData.desc,
+          images: inventoryData.images,
+          branchId: inventoryData.branchId,
+          productCode: inventoryData.productCode,
+          salePrice: inventoryData.currentSalePrice, // Giá bán chi nhánh = giá niêm yết
+          importPrice: inventoryData.importPrice,
+        });
+
+        // After creation, we need to fetch the product details to add to import list
+        // Since createProductWithStock might return void or different structure,
+        // we'll try to fetch by barcode or search
+        const searchRes = await productService.search({
+          name: inventoryData.name,
+        });
+        if (searchRes.success && searchRes.data && searchRes.data.length > 0) {
+          // Find the one we just created (best effort match)
+          createdProduct =
+            searchRes.data.find((p) => p.barcode === inventoryData.barcode) ||
+            searchRes.data[0];
+        } else if (inventoryData.barcode) {
+          const barcodeRes = await productService.getByBarcode(
+            inventoryData.barcode,
+          );
+          if (barcodeRes.success) createdProduct = barcodeRes.data;
+        }
+      } else {
+        // Normal creation
+        const response = await productService.create(
+          data as CreateProductRequest,
+        );
+        if (response.success && response.data) {
+          createdProduct = response.data;
+        } else {
+          throw new Error(response.message || "Tạo sản phẩm thất bại");
+        }
+      }
+
+      if (createdProduct) {
         toast.success("Tạo sản phẩm mới thành công!");
-        const newProduct = response.data;
 
         // Auto add to import list
         setImportItems((prev) => [
           ...prev,
           {
-            productId: newProduct._id,
-            productName: newProduct.name,
-            barcode: newProduct.barcode || notFoundBarcode,
+            productId: createdProduct!._id,
+            productName: createdProduct!.name,
+            barcode: createdProduct!.barcode || notFoundBarcode,
             quantity: 1,
-            importPrice: 0,
-            unit: newProduct.unit,
-            image: newProduct.images?.[0],
+            // If inventory mode, use the import price entered
+            importPrice: (data as InventoryProductFormData).importPrice || 0,
+            unit: createdProduct!.unit,
+            image: createdProduct!.images?.[0],
+            isImportPriceManual: true, // User entered in form
           },
         ]);
 
         setShowProductFormModal(false);
         setNotFoundBarcode("");
       } else {
-        toast.error(response.message || "Tạo sản phẩm thất bại");
+        // Fallback success message but maybe failed to Auto add
+        toast.success("Tạo sản phẩm thành công!");
+        setShowProductFormModal(false);
+        setNotFoundBarcode("");
       }
     } catch (error) {
       toast.error((error as Error).message || "Lỗi tạo sản phẩm");
@@ -254,25 +269,46 @@ export default function CreateImportReceiptPage() {
     }
   };
 
-  const handleSearch = React.useCallback(async (term: string) => {
-    const response = await productService.search({ name: term });
-    return response.success && response.data ? response.data : [];
-  }, []);
+  const handleSearch = React.useCallback(
+    async (term: string) => {
+      if (!term?.trim()) return [];
 
-  // Get product by barcode for SmartProductInput
+      try {
+        // Admin: dùng selectedBranch để lấy lastImportPrice
+        // Staff/Manager: undefined (middleware tự inject branchId)
+        const branchId = isAdmin && selectedBranch ? selectedBranch : undefined;
+
+        const response = await productService.search({
+          name: term,
+          branchId,
+        });
+
+        return response.success && response.data ? response.data : [];
+      } catch (error) {
+        console.error("Search error:", error);
+        return [];
+      }
+    },
+    [isAdmin, selectedBranch],
+  );
+
   const getProductByBarcode = React.useCallback(
     async (barcode: string): Promise<Product | null> => {
+      if (!barcode?.trim()) return null;
+
       try {
-        const response = await productService.getByBarcode(barcode);
-        if (response.success && response.data) {
-          return response.data;
-        }
-        return null;
-      } catch {
+        // Admin: dùng selectedBranch để lấy lastImportPrice
+        // Staff/Manager: undefined (middleware tự inject branchId)
+        const branchId = isAdmin && selectedBranch ? selectedBranch : undefined;
+        const response = await productService.getByBarcode(barcode, branchId);
+
+        return response.success && response.data ? response.data : null;
+      } catch (error) {
+        console.error("Get by barcode error:", error);
         return null;
       }
     },
-    []
+    [isAdmin, selectedBranch],
   );
 
   // Handle barcode not found - show dialog to create new product
@@ -283,8 +319,10 @@ export default function CreateImportReceiptPage() {
 
   const handleProductSelect = React.useCallback(
     (product: Product) => {
+      if (!product?._id) return;
+
       const existingItem = importItems.find(
-        (item) => item.productId === product._id
+        (item) => item.productId === product._id,
       );
 
       if (existingItem) {
@@ -292,11 +330,15 @@ export default function CreateImportReceiptPage() {
           prev.map((item) =>
             item.productId === product._id
               ? { ...item, quantity: item.quantity + 1 }
-              : item
-          )
+              : item,
+          ),
         );
         toast.success(`+1 ${product.name}`);
       } else {
+        // Ưu tiên: lastImportPrice > currentSalePrice > 0
+        const importPrice =
+          product.lastImportPrice || product.currentSalePrice || 0;
+
         setImportItems((prev) => [
           ...prev,
           {
@@ -304,87 +346,108 @@ export default function CreateImportReceiptPage() {
             productName: product.name,
             barcode: product.barcode || "",
             quantity: 1,
-            importPrice: 0,
+            importPrice,
             unit: product.unit,
             image: product.images?.[0],
+            isImportPriceManual: false, // Auto-filled price
           },
         ]);
         toast.success(`Đã thêm: ${product.name}`);
       }
     },
-    [importItems]
+    [importItems],
   );
 
-  const updateQuantity = (productId: string, newQuantity: number) => {
+  const updateQuantity = React.useCallback((productId: string, newQuantity: number) => {
     if (newQuantity < 1) {
       setImportItems((prev) =>
-        prev.filter((item) => item.productId !== productId)
+        prev.filter((item) => item.productId !== productId),
       );
       return;
     }
     setImportItems((prev) =>
       prev.map((item) =>
-        item.productId === productId ? { ...item, quantity: newQuantity } : item
-      )
+        item.productId === productId
+          ? { ...item, quantity: Math.max(1, newQuantity) }
+          : item,
+      ),
     );
-  };
+  }, []);
 
-  const updateImportPrice = (productId: string, newPrice: number) => {
+  const updateImportPrice = React.useCallback((productId: string, newPrice: number) => {
     setImportItems((prev) =>
       prev.map((item) =>
-        item.productId === productId ? { ...item, importPrice: newPrice } : item
-      )
+        item.productId === productId
+          ? { 
+              ...item, 
+              importPrice: Math.max(0, newPrice),
+              isImportPriceManual: true, // Mark as manually entered
+            }
+          : item,
+      ),
     );
-  };
+  }, []);
 
-  const removeItem = (productId: string) => {
+  const removeItem = React.useCallback((productId: string) => {
     setImportItems((prev) =>
-      prev.filter((item) => item.productId !== productId)
+      prev.filter((item) => item.productId !== productId),
     );
-  };
+  }, []);
 
-  const clearItems = () => {
+  const clearItems = React.useCallback(() => {
     setImportItems([]);
-  };
+  }, []);
 
-  const validateItems = () => {
-    const invalidItems = importItems.filter((item) => item.importPrice <= 0);
+  const validateItems = React.useCallback(() => {
+    if (importItems.length === 0) {
+      toast.error("Vui lòng thêm ít nhất một sản phẩm");
+      return false;
+    }
+
+    // Chấp nhận cả giá auto-fill (isImportPriceManual: false) và giá manual
+    const invalidItems = importItems.filter(
+      (item) => !item.importPrice || item.importPrice <= 0
+    );
     if (invalidItems.length > 0) {
       toast.error(
         `Vui lòng nhập giá cho: ${invalidItems
           .map((i) => i.productName)
-          .join(", ")}`
+          .join(", ")}`,
       );
       return false;
     }
-    return true;
-  };
 
-  const handleSubmitClick = () => {
+    return true;
+  }, [importItems]);
+
+  const handleSubmitClick = React.useCallback(() => {
     if (validateItems()) {
       setShowConfirmDialog(true);
     }
-  };
+  }, [validateItems]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = React.useCallback(async () => {
     if (isAdmin && !selectedBranch) {
       toast.error("Vui lòng chọn chi nhánh");
       return;
     }
 
+    if (importItems.length === 0) {
+      toast.error("Vui lòng thêm sản phẩm vào phiếu nhập");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      // Staff không cần gửi branchId - backend tự inject từ token
-      // Admin bắt buộc phải gửi branchId
       const receiptData: CreateImportReceiptRequest = {
-        ...(isAdmin && { branchId: selectedBranch }),
+        ...(isAdmin && selectedBranch && { branchId: selectedBranch }),
         listProduct: importItems.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
           importPrice: item.importPrice,
         })),
-        supplierName: supplierName || undefined,
-        note: note || undefined,
+        ...(supplierName?.trim() && { supplierName: supplierName.trim() }),
+        ...(note?.trim() && { note: note.trim() }),
       };
 
       const response = await importReceiptService.create(receiptData);
@@ -396,26 +459,45 @@ export default function CreateImportReceiptPage() {
         toast.error(response.message || "Tạo phiếu nhập thất bại");
       }
     } catch (error) {
+      console.error("Submit error:", error);
       toast.error((error as Error).message || "Lỗi tạo phiếu nhập");
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [isAdmin, selectedBranch, importItems, supplierName, note, router]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "F9" && importItems.length > 0) {
+      // F9 or Enter to submit
+      if ((e.key === "F9" || e.key === "Enter") && importItems.length > 0) {
+        const target = e.target as HTMLElement;
+
+        // Bỏ qua nếu đang focus vào input/textarea VÀ có giá trị
+        if (
+          target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement
+        ) {
+          const inputValue = target.value?.trim() || "";
+          if (inputValue.length > 0) return;
+        }
+
+        // Bỏ qua nếu đang trong contentEditable
+        if (target.isContentEditable) return;
+
         e.preventDefault();
+        e.stopPropagation();
         handleSubmitClick();
       }
-      if (e.key === "Escape") {
+
+      // Escape to close dialog
+      if (e.key === "Escape" && showConfirmDialog) {
         setShowConfirmDialog(false);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [importItems]);
+  }, [importItems.length, showConfirmDialog, handleSubmitClick]);
 
   return (
     <div className="flex flex-col h-full p-4 pt-0">
@@ -526,6 +608,10 @@ export default function CreateImportReceiptPage() {
         onSubmit={handleProductFormSubmit}
         isSubmitting={isCreatingProduct}
         isImportMode={true}
+        isInventoryMode={true}
+        branches={branches}
+        isAdmin={isAdmin}
+        defaultBranchId={selectedBranch}
       />
     </div>
   );

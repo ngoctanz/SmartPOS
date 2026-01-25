@@ -17,13 +17,31 @@ const branchProductSchema = new mongoose.Schema(
         },
         productCode: { type: String, default: "" },
         stock: { type: Number, default: 0 },
-        minStock: { type: Number, default: 5, min: [0, "Min stock cannot be negative"] },
-        salePrice: { type: Number, default: 0, min: [0, "Sale price cannot be negative"] },
+        minStock: {
+          type: Number,
+          default: 5,
+          min: [0, "Min stock cannot be negative"],
+        },
+        salePrice: {
+          type: Number,
+          default: 0,
+          min: [0, "Sale price cannot be negative"],
+        },
+        lastImportPrice: {
+          type: Number,
+          default: 0,
+          min: [0, "Import price cannot be negative"],
+        },
+        status: {
+          type: String,
+          enum: ["active", "inactive"],
+          default: "active",
+        },
         note: { type: String, default: null },
       },
     ],
   },
-  { timestamps: true, versionKey: false }
+  { timestamps: true, versionKey: false },
 );
 
 branchProductSchema.index({ "products.productId": 1 });
@@ -35,17 +53,19 @@ async function getProductSalePrice(productId) {
   const { Product } = await import("./productModel.js");
   const product = await Product.findById(productId).select("currentSalePrice");
   if (!product) {
-    throw new Error("Product not found - cannot adjust stock for deleted product");
+    throw new Error(
+      "Product not found - cannot adjust stock for deleted product",
+    );
   }
   return product.currentSalePrice || 0;
 }
 
 // Find or create BranchProduct document
 async function findOrCreateBranchDoc(model, branchId, session = null) {
-  let doc = session 
+  let doc = session
     ? await model.findOne({ branchId }).session(session)
     : await model.findOne({ branchId });
-  
+
   if (!doc) {
     doc = new model({ branchId, products: [] });
   }
@@ -65,25 +85,50 @@ branchProductSchema.statics = {
           totalItems: { $sum: 1 },
           totalQuantity: { $sum: "$products.stock" },
           lowStockCount: {
-            $sum: { $cond: [{ $lte: ["$products.stock", "$products.minStock"] }, 1, 0] }
-          }
-        }
-      }
+            $sum: {
+              $cond: [
+                { $lte: ["$products.stock", "$products.minStock"] },
+                1,
+                0,
+              ],
+            },
+          },
+        },
+      },
     ];
 
     if (branchId) {
-      pipeline.unshift({ $match: { branchId: new mongoose.Types.ObjectId(String(branchId)) } });
+      pipeline.unshift({
+        $match: { branchId: new mongoose.Types.ObjectId(String(branchId)) },
+      });
     }
 
     const result = await this.aggregate(pipeline);
     return result[0] || { totalItems: 0, totalQuantity: 0, lowStockCount: 0 };
   },
 
-  // ============ QUERIES ============
-  
-  // Get aggregated stock by product (admin - all branches view)
+  /**
+   * Get aggregated stock by product (admin - all branches view)
+   * Hỗ trợ search theo name, barcode và productCode
+   */
   async findAggregatedByProduct(options = {}) {
     const { search, page = 1, limit = 20, lowStockOnly = false } = options;
+    const searchTerm = search?.trim();
+
+    // Tìm productIds có productCode match trước (nếu có search)
+    let productIdsFromCode = [];
+    if (searchTerm) {
+      const codeMatches = await this.aggregate([
+        { $unwind: "$products" },
+        {
+          $match: {
+            "products.productCode": { $regex: searchTerm, $options: "i" },
+          },
+        },
+        { $group: { _id: "$products.productId" } },
+      ]);
+      productIdsFromCode = codeMatches.map((m) => m._id);
+    }
 
     const pipeline = [
       { $unwind: "$products" },
@@ -107,22 +152,28 @@ branchProductSchema.statics = {
       { $unwind: "$product" },
     ];
 
-    if (search?.trim()) {
-      pipeline.push({
-        $match: {
-          $or: [
-            { "product.name": { $regex: search, $options: "i" } },
-            { "product.barcode": { $regex: search, $options: "i" } },
-          ],
-        },
-      });
+    // Search: match by name, barcode, OR productCode
+    if (searchTerm) {
+      const searchConditions = [
+        { "product.name": { $regex: searchTerm, $options: "i" } },
+        { "product.barcode": { $regex: searchTerm, $options: "i" } },
+      ];
+      if (productIdsFromCode.length > 0) {
+        searchConditions.push({ _id: { $in: productIdsFromCode } });
+      }
+      pipeline.push({ $match: { $or: searchConditions } });
     }
 
     if (lowStockOnly) {
       pipeline.push({
         $match: {
-          $expr: { $lte: ["$totalStock", { $divide: ["$totalMinStock", "$branchCount"] }] }
-        }
+          $expr: {
+            $lte: [
+              "$totalStock",
+              { $divide: ["$totalMinStock", "$branchCount"] },
+            ],
+          },
+        },
       });
     }
 
@@ -131,7 +182,9 @@ branchProductSchema.statics = {
         _id: "$_id",
         productId: "$product",
         stock: "$totalStock",
-        minStock: { $round: [{ $divide: ["$totalMinStock", "$branchCount"] }, 0] },
+        minStock: {
+          $round: [{ $divide: ["$totalMinStock", "$branchCount"] }, 0],
+        },
         branchCount: "$branchCount",
         updatedAt: "$latestUpdate",
         isAggregated: { $literal: true },
@@ -140,7 +193,10 @@ branchProductSchema.statics = {
 
     pipeline.push({ $sort: { updatedAt: -1 } });
 
-    const countResult = await this.aggregate([...pipeline, { $count: "total" }]);
+    const countResult = await this.aggregate([
+      ...pipeline,
+      { $count: "total" },
+    ]);
     const total = countResult[0]?.total || 0;
 
     pipeline.push({ $skip: (page - 1) * limit }, { $limit: limit });
@@ -154,18 +210,53 @@ branchProductSchema.statics = {
 
   // Get all stock with branch filter
   async findAll(options = {}) {
-    const { branchId, search, page = 1, limit = 20, lowStockOnly = false } = options;
+    const {
+      branchId,
+      search,
+      page = 1,
+      limit = 20,
+      lowStockOnly = false,
+    } = options;
 
     const pipeline = [
       { $unwind: "$products" },
-      { $lookup: { from: "branches", localField: "branchId", foreignField: "_id", as: "branch" } },
-      { $lookup: { from: "products", localField: "products.productId", foreignField: "_id", as: "product" } },
+      {
+        $lookup: {
+          from: "branches",
+          localField: "branchId",
+          foreignField: "_id",
+          as: "branch",
+        },
+      },
+      {
+        $lookup: {
+          from: "products",
+          localField: "products.productId",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
       { $unwind: { path: "$branch", preserveNullAndEmptyArrays: true } },
       { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "product.categoryId",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      {
+        $addFields: {
+          "product.categoryId": { $arrayElemAt: ["$category", 0] },
+        },
+      },
     ];
 
     if (branchId) {
-      pipeline.unshift({ $match: { branchId: new mongoose.Types.ObjectId(String(branchId)) } });
+      pipeline.unshift({
+        $match: { branchId: new mongoose.Types.ObjectId(String(branchId)) },
+      });
     }
 
     if (search?.trim()) {
@@ -174,13 +265,16 @@ branchProductSchema.statics = {
           $or: [
             { "product.name": { $regex: search, $options: "i" } },
             { "product.barcode": { $regex: search, $options: "i" } },
+            { "products.productCode": { $regex: search, $options: "i" } },
           ],
         },
       });
     }
 
     if (lowStockOnly) {
-      pipeline.push({ $match: { $expr: { $lte: ["$products.stock", "$products.minStock"] } } });
+      pipeline.push({
+        $match: { $expr: { $lte: ["$products.stock", "$products.minStock"] } },
+      });
     }
 
     pipeline.push({
@@ -188,9 +282,12 @@ branchProductSchema.statics = {
         _id: "$products._id",
         branchId: "$branch",
         productId: "$product",
+        productCode: "$products.productCode",
         stock: "$products.stock",
         minStock: "$products.minStock",
         salePrice: "$products.salePrice",
+        lastImportPrice: "$products.lastImportPrice",
+        status: "$products.status",
         note: "$products.note",
         updatedAt: "$updatedAt",
       },
@@ -198,7 +295,10 @@ branchProductSchema.statics = {
 
     pipeline.push({ $sort: { updatedAt: -1 } });
 
-    const countResult = await this.aggregate([...pipeline, { $count: "total" }]);
+    const countResult = await this.aggregate([
+      ...pipeline,
+      { $count: "total" },
+    ]);
     const total = countResult[0]?.total || 0;
 
     pipeline.push({ $skip: (page - 1) * limit }, { $limit: limit });
@@ -216,34 +316,46 @@ branchProductSchema.statics = {
 
     const doc = await this.findOne({ branchId })
       .populate("branchId", "branchName")
-      .populate("products.productId", "name barcode unit image images")
+      .populate({
+        path: "products.productId",
+        select: "name barcode unit images categoryId",
+        populate: {
+          path: "categoryId",
+          select: "name",
+        },
+      })
       .lean();
 
     if (!doc) {
       return { data: [], pagination: { page, limit, total: 0, totalPages: 0 } };
     }
 
-    let items = doc.products.map(p => ({
+    let items = doc.products.map((p) => ({
       _id: p._id,
       branchId: doc.branchId,
       productId: p.productId,
+      productCode: p.productCode || "",
       stock: p.stock,
       minStock: p.minStock,
       salePrice: p.salePrice || 0,
+      lastImportPrice: p.lastImportPrice || 0,
+      status: p.status || "active",
       note: p.note || null,
       updatedAt: doc.updatedAt,
     }));
 
     if (search?.trim()) {
       const searchLower = search.toLowerCase();
-      items = items.filter(item =>
-        item.productId?.name?.toLowerCase().includes(searchLower) ||
-        item.productId?.barcode?.toLowerCase().includes(searchLower)
+      items = items.filter(
+        (item) =>
+          item.productId?.name?.toLowerCase().includes(searchLower) ||
+          item.productId?.barcode?.toLowerCase().includes(searchLower) ||
+          item.productCode?.toLowerCase().includes(searchLower),
       );
     }
 
     if (lowStockOnly) {
-      items = items.filter(item => item.stock <= item.minStock);
+      items = items.filter((item) => item.stock <= item.minStock);
     }
 
     // Sort by stock descending (highest stock first)
@@ -259,45 +371,73 @@ branchProductSchema.statics = {
   },
 
   // ============ SINGLE ITEM GETTERS ============
-  
+
   async getStock(branchId, productId) {
-    const doc = await this.findOne({ branchId, "products.productId": productId }, { "products.$": 1 });
+    const doc = await this.findOne(
+      { branchId, "products.productId": productId },
+      { "products.$": 1 },
+    );
     return doc?.products[0]?.stock ?? 0;
   },
 
   async getSalePrice(branchId, productId) {
-    const doc = await this.findOne({ branchId, "products.productId": productId }, { "products.$": 1 });
+    const doc = await this.findOne(
+      { branchId, "products.productId": productId },
+      { "products.$": 1 },
+    );
     return doc?.products[0]?.salePrice ?? 0;
   },
 
   async getProductInfo(branchId, productId) {
-    const doc = await this.findOne({ branchId, "products.productId": productId }, { "products.$": 1 });
-    return doc?.products[0] 
-      ? { stock: doc.products[0].stock, salePrice: doc.products[0].salePrice, minStock: doc.products[0].minStock }
-      : { stock: 0, salePrice: 0, minStock: 10 };
+    if (!branchId || !productId) {
+      return { stock: 0, salePrice: 0, minStock: 10, lastImportPrice: 0, status: "active" };
+    }
+
+    try {
+      const doc = await this.findOne(
+        { branchId, "products.productId": productId },
+        { "products.$": 1 },
+      );
+
+      if (doc?.products?.[0]) {
+        const product = doc.products[0];
+        return {
+          stock: product.stock || 0,
+          salePrice: product.salePrice || 0,
+          minStock: product.minStock || 10,
+          lastImportPrice: product.lastImportPrice || 0,
+          status: product.status || "active",
+        };
+      }
+
+      return { stock: 0, salePrice: 0, minStock: 10, lastImportPrice: 0, status: "active" };
+    } catch (error) {
+      console.error("Error getting product info:", error);
+      return { stock: 0, salePrice: 0, minStock: 10, lastImportPrice: 0, status: "active" };
+    }
   },
 
   // Find product in branch by barcode
   async findByBarcode(branchId, barcode) {
     const { Product } = await import("./productModel.js");
-    
+
     // First find product by barcode
     const product = await Product.findOne({ barcode }).lean();
     if (!product) return null;
-    
+
     // Then check if product exists in branch stock
     const doc = await this.findOne({ branchId })
       .populate("branchId", "branchName")
       .lean();
-    
+
     if (!doc) return null;
-    
+
     const branchProduct = doc.products.find(
-      p => p.productId.toString() === product._id.toString()
+      (p) => p.productId.toString() === product._id.toString(),
     );
-    
+
     if (!branchProduct) return null;
-    
+
     return {
       _id: branchProduct._id,
       branchId: doc.branchId,
@@ -308,9 +448,12 @@ branchProductSchema.statics = {
         unit: product.unit,
         images: product.images,
       },
+      productCode: branchProduct.productCode || "",
       stock: branchProduct.stock,
       minStock: branchProduct.minStock,
       salePrice: branchProduct.salePrice || product.currentSalePrice || 0,
+      lastImportPrice: branchProduct.lastImportPrice || 0,
+      status: branchProduct.status || "active",
       note: branchProduct.note || null,
       updatedAt: doc.updatedAt,
     };
@@ -321,15 +464,22 @@ branchProductSchema.statics = {
   // Increase stock (import receipt confirm, receipt error mark)
   async increaseStock(branchId, productId, quantity, session = null) {
     const doc = await findOrCreateBranchDoc(this, branchId, session);
-    let product = doc.products.find(p => p.productId.toString() === productId.toString());
-    
+    let product = doc.products.find(
+      (p) => p.productId.toString() === productId.toString(),
+    );
+
     if (product) {
       product.stock += quantity;
     } else {
       const salePrice = await getProductSalePrice(productId);
-      doc.products.push({ productId, stock: quantity, minStock: 10, salePrice });
+      doc.products.push({
+        productId,
+        stock: quantity,
+        minStock: 10,
+        salePrice,
+      });
     }
-    
+
     await doc.save(session ? { session } : {});
     return doc;
   },
@@ -337,15 +487,22 @@ branchProductSchema.statics = {
   // Decrease stock (receipt confirm, import receipt error mark) - allows negative
   async decreaseStock(branchId, productId, quantity) {
     const doc = await findOrCreateBranchDoc(this, branchId);
-    let product = doc.products.find(p => p.productId.toString() === productId.toString());
-    
+    let product = doc.products.find(
+      (p) => p.productId.toString() === productId.toString(),
+    );
+
     if (product) {
       product.stock -= quantity;
     } else {
       const salePrice = await getProductSalePrice(productId);
-      doc.products.push({ productId, stock: -quantity, minStock: 10, salePrice });
+      doc.products.push({
+        productId,
+        stock: -quantity,
+        minStock: 10,
+        salePrice,
+      });
     }
-    
+
     await doc.save();
     return doc;
   },
@@ -356,7 +513,7 @@ branchProductSchema.statics = {
     const result = await this.findOneAndUpdate(
       { "products._id": id },
       { $set: { "products.$.note": note }, $currentDate: { updatedAt: true } },
-      { new: true }
+      { new: true },
     );
     if (!result) throw new Error("Stock record not found");
     return result;
@@ -365,8 +522,11 @@ branchProductSchema.statics = {
   async updateSalePrice(id, salePrice) {
     const result = await this.findOneAndUpdate(
       { "products._id": id },
-      { $set: { "products.$.salePrice": salePrice }, $currentDate: { updatedAt: true } },
-      { new: true }
+      {
+        $set: { "products.$.salePrice": salePrice },
+        $currentDate: { updatedAt: true },
+      },
+      { new: true },
     );
     if (!result) throw new Error("Stock record not found");
     return result;
@@ -375,8 +535,24 @@ branchProductSchema.statics = {
   async updateMinStock(id, minStock) {
     const result = await this.findOneAndUpdate(
       { "products._id": id },
-      { $set: { "products.$.minStock": minStock }, $currentDate: { updatedAt: true } },
-      { new: true }
+      {
+        $set: { "products.$.minStock": minStock },
+        $currentDate: { updatedAt: true },
+      },
+      { new: true },
+    );
+    if (!result) throw new Error("Stock record not found");
+    return result;
+  },
+
+  async updateStatus(id, status) {
+    const result = await this.findOneAndUpdate(
+      { "products._id": id },
+      {
+        $set: { "products.$.status": status },
+        $currentDate: { updatedAt: true },
+      },
+      { new: true },
     );
     if (!result) throw new Error("Stock record not found");
     return result;
@@ -387,7 +563,9 @@ branchProductSchema.statics = {
     if (!doc) doc = new this({ branchId, products: [] });
 
     for (const item of items) {
-      const existing = doc.products.find(p => p.productId.toString() === item.productId);
+      const existing = doc.products.find(
+        (p) => p.productId.toString() === item.productId,
+      );
       if (existing) {
         if (item.stock !== undefined) existing.stock = item.stock;
         if (item.minStock !== undefined) existing.minStock = item.minStock;
@@ -395,7 +573,7 @@ branchProductSchema.statics = {
         doc.products.push({
           productId: item.productId,
           stock: item.stock || 0,
-          minStock: item.minStock || 10
+          minStock: item.minStock || 10,
         });
       }
     }
@@ -410,24 +588,24 @@ branchProductSchema.statics = {
   async addProductToAllBranches(productId, salePrice = 0) {
     const { Branch } = await import("./branchModel.js");
     const allBranches = await Branch.find({}, "_id");
-    
+
     if (allBranches.length === 0) return;
 
     // Ensure all BranchProduct documents exist
     await this.bulkWrite(
-      allBranches.map(branch => ({
+      allBranches.map((branch) => ({
         updateOne: {
           filter: { branchId: branch._id },
           update: { $setOnInsert: { branchId: branch._id, products: [] } },
-          upsert: true
-        }
-      }))
+          upsert: true,
+        },
+      })),
     );
 
     // Add product to all branches (only if not exists)
     await this.updateMany(
       { "products.productId": { $ne: productId } },
-      { $push: { products: { productId, stock: 0, minStock: 10, salePrice } } }
+      { $push: { products: { productId, stock: 0, minStock: 10, salePrice } } },
     );
   },
 
@@ -441,12 +619,12 @@ branchProductSchema.statics = {
 
     const branchProduct = new this({
       branchId,
-      products: allProducts.map(p => ({
+      products: allProducts.map((p) => ({
         productId: p._id,
         stock: 0,
         minStock: 10,
-        salePrice: p.currentSalePrice || 0
-      }))
+        salePrice: p.currentSalePrice || 0,
+      })),
     });
 
     await branchProduct.save();
@@ -458,7 +636,7 @@ branchProductSchema.statics = {
     return this.findOneAndUpdate(
       { branchId },
       { $pull: { products: { productId } } },
-      { new: true }
+      { new: true },
     );
   },
 
@@ -475,25 +653,31 @@ branchProductSchema.statics = {
 
     // 1. Aggregate input items by ProductId in memory first
     // This handles duplicates in the input array securely
-    const aggregatedItems = new Map(); // ProductId -> { quantity, productCode }
-    items.forEach(item => {
+    const aggregatedItems = new Map(); // ProductId -> { quantity, productCode, importPrice }
+    items.forEach((item) => {
       const pid = item.productId.toString();
       const existing = aggregatedItems.get(pid);
       if (existing) {
         existing.quantity += item.quantity;
         // Keep productCode if provided
         if (item.productCode) existing.productCode = item.productCode;
+        // Keep latest importPrice if provided
+        if (item.importPrice !== undefined)
+          existing.importPrice = item.importPrice;
       } else {
-        aggregatedItems.set(pid, { 
+        aggregatedItems.set(pid, {
           quantity: item.quantity,
-          productCode: item.productCode || ""
+          productCode: item.productCode || "",
+          importPrice: item.importPrice,
         });
       }
     });
 
     // 2. Map existing products for O(1) lookup
     const existingProductMap = new Map();
-    doc.products.forEach(p => existingProductMap.set(p.productId.toString(), p));
+    doc.products.forEach((p) =>
+      existingProductMap.set(p.productId.toString(), p),
+    );
 
     // 3. Identify missing products to fetch prices
     const missingProductIds = [];
@@ -505,14 +689,18 @@ branchProductSchema.statics = {
 
     let priceMap = new Map();
     if (missingProductIds.length > 0) {
-        const { Product } = await import("./productModel.js");
-        const products = await Product.find({ _id: { $in: missingProductIds } }).select("currentSalePrice");
-        products.forEach(p => priceMap.set(p._id.toString(), p.currentSalePrice || 0));
+      const { Product } = await import("./productModel.js");
+      const products = await Product.find({
+        _id: { $in: missingProductIds },
+      }).select("currentSalePrice");
+      products.forEach((p) =>
+        priceMap.set(p._id.toString(), p.currentSalePrice || 0),
+      );
     }
 
     // 4. Apply Updates
     const newProductsToPush = [];
-    
+
     for (const [pid, data] of aggregatedItems) {
       if (existingProductMap.has(pid)) {
         // Update existing
@@ -522,15 +710,20 @@ branchProductSchema.statics = {
         if (data.productCode) {
           product.productCode = data.productCode;
         }
+        // Update lastImportPrice if provided
+        if (data.importPrice !== undefined) {
+          product.lastImportPrice = data.importPrice;
+        }
       } else {
         // Prepare new
         const salePrice = priceMap.get(pid) || 0;
         newProductsToPush.push({
-             productId: pid,
-             productCode: data.productCode,
-             stock: data.quantity,
-             minStock: 10,
-             salePrice: salePrice
+          productId: pid,
+          productCode: data.productCode,
+          stock: data.quantity,
+          minStock: 10,
+          salePrice: salePrice,
+          lastImportPrice: data.importPrice || 0,
         });
       }
     }
@@ -539,7 +732,7 @@ branchProductSchema.statics = {
     if (newProductsToPush.length > 0) {
       doc.products.push(...newProductsToPush);
     }
-    
+
     await doc.save();
     return doc;
   },
@@ -549,8 +742,8 @@ branchProductSchema.statics = {
     if (!doc) doc = new this({ branchId, products: [] });
 
     // 1. Aggregate input items
-    const aggregatedItems = new Map(); 
-    items.forEach(item => {
+    const aggregatedItems = new Map();
+    items.forEach((item) => {
       const pid = item.productId.toString();
       const currentQty = aggregatedItems.get(pid) || 0;
       aggregatedItems.set(pid, currentQty + item.quantity);
@@ -558,7 +751,9 @@ branchProductSchema.statics = {
 
     // 2. Map existing
     const existingProductMap = new Map();
-    doc.products.forEach(p => existingProductMap.set(p.productId.toString(), p));
+    doc.products.forEach((p) =>
+      existingProductMap.set(p.productId.toString(), p),
+    );
 
     // 3. Missing IDs (for price if we need to create neg stock)
     const missingProductIds = [];
@@ -570,9 +765,13 @@ branchProductSchema.statics = {
 
     let priceMap = new Map();
     if (missingProductIds.length > 0) {
-        const { Product } = await import("./productModel.js");
-        const products = await Product.find({ _id: { $in: missingProductIds } }).select("currentSalePrice");
-        products.forEach(p => priceMap.set(p._id.toString(), p.currentSalePrice || 0));
+      const { Product } = await import("./productModel.js");
+      const products = await Product.find({
+        _id: { $in: missingProductIds },
+      }).select("currentSalePrice");
+      products.forEach((p) =>
+        priceMap.set(p._id.toString(), p.currentSalePrice || 0),
+      );
     }
 
     // 4. Update
@@ -583,12 +782,12 @@ branchProductSchema.statics = {
         const product = existingProductMap.get(pid);
         product.stock -= quantity;
       } else {
-         const salePrice = priceMap.get(pid) || 0;
-         newProductsToPush.push({
-             productId: pid,
-             stock: -quantity,
-             minStock: 10,
-             salePrice: salePrice
+        const salePrice = priceMap.get(pid) || 0;
+        newProductsToPush.push({
+          productId: pid,
+          stock: -quantity,
+          minStock: 10,
+          salePrice: salePrice,
         });
       }
     }
@@ -599,7 +798,10 @@ branchProductSchema.statics = {
 
     await doc.save();
     return doc;
-  }
+  },
 };
 
-export const BranchProduct = mongoose.model("BranchProduct", branchProductSchema);
+export const BranchProduct = mongoose.model(
+  "BranchProduct",
+  branchProductSchema,
+);
