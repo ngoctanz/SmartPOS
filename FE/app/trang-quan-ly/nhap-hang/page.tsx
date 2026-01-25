@@ -355,11 +355,11 @@ export default function Page() {
           const isCompleted = item.status === "completed";
           const isAnyRowSelected = table.getFilteredSelectedRowModel().rows.length > 0;
 
-          // Check nếu phiếu được tạo trong vòng 30 phút
+          // Check nếu phiếu được tạo trong vòng 1 tiếng
           const createdAt = new Date(item.createdAt);
           const now = new Date();
           const diffInMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
-          const canMarkError = isCompleted && diffInMinutes <= 30; // Cả staff và admin đều có thể đánh dấu lỗi
+          const canMarkError = isCompleted && diffInMinutes <= 60; // Cả staff và admin đều có thể đánh dấu lỗi
 
           return (
             <div className="flex items-center gap-2">
@@ -378,7 +378,7 @@ export default function Page() {
                   onClick={() => handleMarkError(item)}
                   disabled={isAnyRowSelected}
                   className="h-8 text-destructive hover:text-destructive"
-                  title="Đánh dấu lỗi (chỉ trong 30 phút)"
+                  title="Đánh dấu lỗi (chỉ trong 1 tiếng)"
                 >
                   <AlertTriangle className="h-4 w-4" />
                 </Button>
@@ -635,16 +635,16 @@ export default function Page() {
               <div className="flex items-start gap-2">
                 <Clock className="h-4 w-4 text-amber-600 mt-0.5" />
                 <div className="text-sm text-amber-800">
-                  <p className="font-medium mb-1">Điều kiện đánh dấu lỗi</p>
+                  <p className="font-medium mb-1">Lưu ý</p>
                   <ul className="list-disc list-inside space-y-1">
-                    <li>Chỉ trong vòng 30 phút sau khi tạo phiếu</li>
-                    <li>Tồn kho phải đủ để hoàn lại (không được âm)</li>
+                    <li>Chỉ có thể đánh dấu lỗi trong vòng 1 tiếng sau khi tạo phiếu</li>
+                    <li>Hàng sẽ được hoàn lại vào kho (cho phép tồn kho âm nếu cần)</li>
                   </ul>
                 </div>
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Hệ thống sẽ kiểm tra tồn kho trước khi hoàn lại. Nếu hàng đã được bán hết, bạn sẽ không thể đánh dấu lỗi.
+              Hệ thống sẽ tự động hoàn lại số lượng hàng vào kho. Tồn kho có thể âm nếu hàng đã được bán.
             </p>
             <div className="space-y-2">
               <Label>Lý do đánh dấu lỗi <span className="text-destructive">*</span></Label>
@@ -697,7 +697,7 @@ export default function Page() {
                   const createdAt = new Date(selectedItem.createdAt);
                   const now = new Date();
                   const diffInMinutes = (now.getTime() - createdAt.getTime()) / (1000 * 60);
-                  const canMarkError = diffInMinutes <= 30; // Cả staff và admin
+                  const canMarkError = diffInMinutes <= 60; // Cả staff và admin
                   
                   return canMarkError ? (
                     <Button

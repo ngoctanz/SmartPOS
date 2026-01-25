@@ -95,12 +95,13 @@ export function SmartProductInput({
     async (barcode: string) => {
       if (!barcode.trim()) return;
 
+      // SET FLAGS TRƯỚC KHI BẮT ĐẦU - Quan trọng để chặn Enter ngay lập tức
+      justProcessedBarcodeRef.current = true;
+      lastProcessTimeRef.current = Date.now();
+
       setIsSearching(true);
       setErrorMessage(null);
       setShowDropdown(false);
-      
-      justProcessedBarcodeRef.current = true;
-      lastProcessTimeRef.current = Date.now();
 
       try {
         const product = await getByBarcodeFn(barcode.trim());
@@ -127,6 +128,7 @@ export function SmartProductInput({
       } finally {
         setIsSearching(false);
         inputRef.current?.focus();
+        // Giữ block lâu hơn để chắc chắn
         setTimeout(() => {
           justProcessedBarcodeRef.current = false;
         }, SCANNER_ENTER_BLOCK_TIME);
@@ -227,9 +229,11 @@ export function SmartProductInput({
     if (e.key === "Enter") {
       const timeSinceLastProcess = now - lastProcessTimeRef.current;
       
+      // BLOCK ENTER ngay lập tức nếu vừa xử lý barcode
       if (justProcessedBarcodeRef.current || timeSinceLastProcess < SCANNER_ENTER_BLOCK_TIME) {
         e.preventDefault();
         e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
         return;
       }
       
@@ -238,6 +242,7 @@ export function SmartProductInput({
       if (hasValue) {
         e.preventDefault();
         e.stopPropagation();
+        e.nativeEvent.stopImmediatePropagation();
 
         if (showDropdown && selectedIndex >= 0 && searchResults[selectedIndex]) {
           handleSelectProduct(searchResults[selectedIndex]);
@@ -276,14 +281,16 @@ export function SmartProductInput({
   };
 
   const handleSelectProduct = (product: Product) => {
+    // SET FLAGS TRƯỚC - Quan trọng để chặn Enter ngay
+    justProcessedBarcodeRef.current = true;
+    lastProcessTimeRef.current = Date.now();
+    
     onProductSelect(product);
     setInputValue("");
     setSearchResults([]);
     setShowDropdown(false);
     setSelectedIndex(-1);
     
-    justProcessedBarcodeRef.current = true;
-    lastProcessTimeRef.current = Date.now();
     setTimeout(() => {
       justProcessedBarcodeRef.current = false;
     }, SCANNER_ENTER_BLOCK_TIME);

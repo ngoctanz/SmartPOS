@@ -97,6 +97,8 @@ export function useEnterFlow({
       if (refs.current.isProcessing || refs.current.isOnCooldown) return;
 
       const target = e.target as HTMLElement;
+      
+      // QUAN TRỌNG: Bỏ qua nếu input có giá trị (đang nhập text hoặc vừa quét barcode)
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
         const inputValue = target.value?.trim() || "";
         if (inputValue.length > 0) return;
@@ -108,6 +110,8 @@ export function useEnterFlow({
         case "IDLE":
           if (!canSubmit) return;
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation(); // ← THÊM: Chặn tất cả listeners khác
           blurActiveInput();
           setIsProcessing(true);
           try {
@@ -121,12 +125,16 @@ export function useEnterFlow({
 
         case "QR_PREVIEW":
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation(); // ← THÊM
           blurActiveInput();
           onPrintDraft();
           break;
 
         case "TRANSFER_SUCCESS":
           e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation(); // ← THÊM
           onCloseTransferSuccess();
           setIsOnCooldown(true);
           setTimeout(() => setIsOnCooldown(false), SUBMIT_COOLDOWN);
