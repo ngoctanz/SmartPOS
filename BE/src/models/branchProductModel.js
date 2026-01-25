@@ -15,6 +15,7 @@ const branchProductSchema = new mongoose.Schema(
           ref: "Product",
           required: true,
         },
+        productCode: { type: String, default: "" },
         stock: { type: Number, default: 0 },
         minStock: { type: Number, default: 5, min: [0, "Min stock cannot be negative"] },
         salePrice: { type: Number, default: 0, min: [0, "Sale price cannot be negative"] },
@@ -474,11 +475,20 @@ branchProductSchema.statics = {
 
     // 1. Aggregate input items by ProductId in memory first
     // This handles duplicates in the input array securely
-    const aggregatedItems = new Map(); // ProductId -> Quantity
+    const aggregatedItems = new Map(); // ProductId -> { quantity, productCode }
     items.forEach(item => {
       const pid = item.productId.toString();
-      const currentQty = aggregatedItems.get(pid) || 0;
-      aggregatedItems.set(pid, currentQty + item.quantity);
+      const existing = aggregatedItems.get(pid);
+      if (existing) {
+        existing.quantity += item.quantity;
+        // Keep productCode if provided
+        if (item.productCode) existing.productCode = item.productCode;
+      } else {
+        aggregatedItems.set(pid, { 
+          quantity: item.quantity,
+          productCode: item.productCode || ""
+        });
+      }
     });
 
     // 2. Map existing products for O(1) lookup
@@ -503,17 +513,22 @@ branchProductSchema.statics = {
     // 4. Apply Updates
     const newProductsToPush = [];
     
-    for (const [pid, quantity] of aggregatedItems) {
+    for (const [pid, data] of aggregatedItems) {
       if (existingProductMap.has(pid)) {
         // Update existing
         const product = existingProductMap.get(pid);
-        product.stock += quantity;
+        product.stock += data.quantity;
+        // Update productCode if provided
+        if (data.productCode) {
+          product.productCode = data.productCode;
+        }
       } else {
         // Prepare new
         const salePrice = priceMap.get(pid) || 0;
         newProductsToPush.push({
              productId: pid,
-             stock: quantity,
+             productCode: data.productCode,
+             stock: data.quantity,
              minStock: 10,
              salePrice: salePrice
         });

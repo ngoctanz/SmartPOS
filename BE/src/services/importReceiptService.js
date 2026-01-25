@@ -13,6 +13,7 @@ import { validateBranchAccess } from "../utils/branchSecurity.js";
 const mapRowToReceiptItem = (row, rowIndex) => {
   // Use exact column names from Excel file
   const categoryName = row["Nhóm hàng(3 Cấp)"] || "";
+  const productCode = row["Mã hàng"] || "";
   const barcode = row["Mã vạch"] || "";
   const name = row["Tên hàng"] || "";
   const salePrice = row["Giá bán"] || "";
@@ -27,15 +28,10 @@ const mapRowToReceiptItem = (row, rowIndex) => {
   const parsedQuantity = quantity ? parseFloat(String(quantity).replace(/[^\d.-]/g, "")) : 0;
   const parsedImportPrice = importPrice ? parseFloat(String(importPrice).replace(/[^\d.-]/g, "")) : 0;
 
-  // Debug logging
-  console.log(`Row ${rowIndex + 2}: ${name}`);
-  console.log(`  - Quantity raw: "${quantity}" -> parsed: ${parsedQuantity}`);
-  console.log(`  - ImportPrice raw: "${importPrice}" -> parsed: ${parsedImportPrice}`);
-  console.log(`  - Subtotal: ${parsedQuantity * parsedImportPrice}`);
-
   return {
     // Info for verifying/creating product
     categoryName,
+    productCode,
     barcode: barcode || undefined,
     name,
     images: images ? images.split(",").map(url => url.trim()).filter(url => url) : [],
@@ -114,14 +110,17 @@ const importReceiptFromExcel = async (fileBuffer, branchId, userId) => {
       newCats.forEach(c => categoryCache.set(c.name.toLowerCase(), c));
     }
 
-    
+    // 1.2 Fetch existing products
     const barcodes = validItems.map(i => i.barcode).filter(Boolean);
     const names = validItems.map(i => i.name).filter(Boolean);
+
+    // Escape special regex characters in names
+    const escapeRegex = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     const existingProducts = await Product.find({
       $or: [
         { barcode: { $in: barcodes } },
-        { name: { $in: names.map(n => new RegExp(`^${n}$`, "i")) } }
+        { name: { $in: names.map(n => new RegExp(`^${escapeRegex(n)}$`, "i")) } }
       ]
     }).populate('categoryId', 'name');
 
@@ -129,7 +128,7 @@ const importReceiptFromExcel = async (fileBuffer, branchId, userId) => {
     const productMapByNameCategory = new Map(); // Key: "categoryId:name"
 
     existingProducts.forEach(p => {
-      if (p.barcode) productMapByBarcode.set(p.barcode, p);
+      if (p.barcode) productMapByBarcode.set(p.barcode.toLowerCase(), p);
       if (p.name && p.categoryId) {
         const key = `${p.categoryId._id}:${p.name.toLowerCase()}`;
         productMapByNameCategory.set(key, p);
@@ -153,7 +152,7 @@ const importReceiptFromExcel = async (fileBuffer, branchId, userId) => {
       // Check existence in database
       let foundProduct = null;
       if (item.barcode) {
-        foundProduct = productMapByBarcode.get(item.barcode);
+        foundProduct = productMapByBarcode.get(item.barcode.toLowerCase());
       }
       if (!foundProduct) {
         // If no barcode or not found by barcode, try by name + category
@@ -192,7 +191,7 @@ const importReceiptFromExcel = async (fileBuffer, branchId, userId) => {
         const createdProducts = await Product.insertMany(productsToCreate, { ordered: false });
         // Add new products to maps
         createdProducts.forEach(p => {
-          if (p.barcode) productMapByBarcode.set(p.barcode, p);
+          if (p.barcode) productMapByBarcode.set(p.barcode.toLowerCase(), p);
           if (p.name && p.categoryId) {
             const key = `${p.categoryId}:${p.name.toLowerCase()}`;
             productMapByNameCategory.set(key, p);
@@ -215,7 +214,7 @@ const importReceiptFromExcel = async (fileBuffer, branchId, userId) => {
           }).populate('categoryId', 'name');
           
           recentlyCreated.forEach(p => {
-            if (p.barcode) productMapByBarcode.set(p.barcode, p);
+            if (p.barcode) productMapByBarcode.set(p.barcode.toLowerCase(), p);
             if (p.name && p.categoryId) {
               const key = `${p.categoryId._id}:${p.name.toLowerCase()}`;
               productMapByNameCategory.set(key, p);
@@ -238,7 +237,7 @@ const importReceiptFromExcel = async (fileBuffer, branchId, userId) => {
       // Resolve Product ID again
       let product = null;
       if (item.barcode) {
-        product = productMapByBarcode.get(item.barcode);
+        product = productMapByBarcode.get(item.barcode.toLowerCase());
       }
       if (!product && category) {
         // Try to find by name + category
@@ -257,6 +256,7 @@ const importReceiptFromExcel = async (fileBuffer, branchId, userId) => {
 
       receiptProducts.push({
         productId: product._id,
+        productCode: item.productCode || "",
         productName: product.name,
         barcode: product.barcode || "",
         quantity: item.quantity,
