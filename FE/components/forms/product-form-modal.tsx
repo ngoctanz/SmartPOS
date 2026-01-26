@@ -266,14 +266,16 @@ export function ProductFormModal({
       // Prepare clean data based on mode
       if (isAggregatedEdit) {
         // Aggregated edit: Only send common product fields, NO pricing/inventory fields
-        const cleanData: UpdateProductRequest = {
+        const cleanData: InventoryProductFormData = {
           name: values.name,
           categoryId: values.categoryId,
           unit: values.unit,
+          currentSalePrice: 0, // Not used in aggregated edit
           barcode: values.barcode || undefined,
           desc: values.desc || undefined,
           images: imageUrls.length > 0 ? imageUrls : undefined,
           status: values.status,
+          productCode: values.productCode || undefined,
           // Explicitly exclude pricing and inventory fields
         };
         await onSubmit(cleanData);
@@ -534,17 +536,24 @@ export function ProductFormModal({
                         )}
                       </div>
 
-                      {/* Product Code (Inventory Mode) */}
-                      {showInventoryFields && (
+                      {/* Product Code (Inventory Mode or Aggregated Edit) */}
+                      {(showInventoryFields || isAggregatedEdit) && (
                         <div className="space-y-1.5">
                           <Label
                             htmlFor="productCode"
                             className="text-xs font-medium"
                           >
-                            Mã hàng (theo chi nhánh)
-                            <span className="ml-2 text-muted-foreground text-[10px]">
-                              SKU riêng
-                            </span>
+                            Mã hàng
+                            {showInventoryFields && (
+                              <span className="ml-2 text-muted-foreground text-[10px]">
+                                (theo chi nhánh - SKU riêng)
+                              </span>
+                            )}
+                            {isAggregatedEdit && (
+                              <span className="ml-2 text-muted-foreground text-[10px]">
+                                (mã nội bộ)
+                              </span>
+                            )}
                           </Label>
                           <div className="relative">
                             <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
