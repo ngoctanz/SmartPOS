@@ -16,4 +16,10 @@ router.get("/template", exportController.downloadTemplate);
 // Export products by category
 router.get("/products/by-category", exportController.exportByCategory);
 
+// Export aggregated stock (admin only)
+router.get("/stock/aggregated", exportController.exportAggregatedStock);
+
+// Export stock by specific branch
+router.get("/stock/branch/:branchId", exportController.exportStockByBranch);
+
 export const exportRouter = router;

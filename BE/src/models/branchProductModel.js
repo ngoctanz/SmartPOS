@@ -150,6 +150,19 @@ branchProductSchema.statics = {
         },
       },
       { $unwind: "$product" },
+      {
+        $lookup: {
+          from: "categories",
+          localField: "product.categoryId",
+          foreignField: "_id",
+          as: "category",
+        },
+      },
+      {
+        $addFields: {
+          "product.categoryId": { $arrayElemAt: ["$category", 0] },
+        },
+      },
     ];
 
     // Search: match by name, barcode, OR productCode

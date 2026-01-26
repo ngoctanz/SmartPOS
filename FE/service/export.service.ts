@@ -77,6 +77,68 @@ class ExportService {
   }
 
   /**
+   * Export aggregated stock (for admin "All branches" view)
+   */
+  async exportAggregatedStock(filters?: {
+    search?: string;
+    lowStockOnly?: boolean;
+  }): Promise<Blob> {
+    const params = new URLSearchParams();
+    
+    if (filters?.search) {
+      params.append("search", filters.search);
+    }
+    if (filters?.lowStockOnly) {
+      params.append("lowStockOnly", "true");
+    }
+
+    const url = `${APP_CONFIG.API.BASE_URL}${this.BASE_URL}/stock/aggregated?${params.toString()}`;
+    
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include", // Include cookies for auth
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || "Export aggregated stock failed");
+    }
+
+    return response.blob();
+  }
+
+  /**
+   * Export stock by specific branch
+   */
+  async exportStockByBranch(branchId: string, filters?: {
+    search?: string;
+    lowStockOnly?: boolean;
+  }): Promise<Blob> {
+    const params = new URLSearchParams();
+    
+    if (filters?.search) {
+      params.append("search", filters.search);
+    }
+    if (filters?.lowStockOnly) {
+      params.append("lowStockOnly", "true");
+    }
+
+    const url = `${APP_CONFIG.API.BASE_URL}${this.BASE_URL}/stock/branch/${branchId}?${params.toString()}`;
+    
+    const response = await fetch(url, {
+      method: "GET",
+      credentials: "include", // Include cookies for auth
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || "Export stock by branch failed");
+    }
+
+    return response.blob();
+  }
+
+  /**
    * Helper to trigger download
    */
   downloadBlob(blob: Blob, filename: string) {

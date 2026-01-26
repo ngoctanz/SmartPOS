@@ -19,15 +19,20 @@ interface ExportProductsButtonProps {
     categoryId?: string;
     status?: string;
     search?: string;
+    lowStockOnly?: boolean;
   };
   variant?: "default" | "outline" | "ghost";
   size?: "default" | "sm" | "lg" | "icon";
+  isAggregatedView?: boolean; // True when viewing "All branches" aggregated stock
+  branchId?: string; // Specific branch ID when viewing single branch
 }
 
 export function ExportProductsButton({
   filters,
   variant = "outline",
   size = "default",
+  isAggregatedView = false,
+  branchId,
 }: ExportProductsButtonProps) {
   const [isExporting, setIsExporting] = React.useState(false);
 
@@ -38,27 +43,72 @@ export function ExportProductsButton({
       let blob: Blob;
       let filename: string;
 
-      switch (type) {
-        case "all":
-          toast.info("Đang export tất cả sản phẩm...");
-          blob = await exportService.exportProducts();
-          filename = `tat-ca-san-pham-${Date.now()}.xlsx`;
-          break;
-          
-        case "filtered":
-          toast.info("Đang export sản phẩm đã lọc...");
-          blob = await exportService.exportProducts(filters);
-          filename = `san-pham-da-loc-${Date.now()}.xlsx`;
-          break;
-          
-        case "by-category":
-          toast.info("Đang export theo danh mục...");
-          blob = await exportService.exportByCategory();
-          filename = `san-pham-theo-danh-muc-${Date.now()}.xlsx`;
-          break;
-          
-        default:
-          throw new Error("Invalid export type");
+      // If in aggregated view, use aggregated stock export
+      if (isAggregatedView) {
+        switch (type) {
+          case "all":
+            toast.info("Đang export tồn kho tổng hợp...");
+            blob = await exportService.exportAggregatedStock();
+            filename = `ton-kho-tong-hop-${Date.now()}.xlsx`;
+            break;
+            
+          case "filtered":
+            toast.info("Đang export tồn kho đã lọc...");
+            blob = await exportService.exportAggregatedStock({
+              search: filters?.search,
+              lowStockOnly: filters?.lowStockOnly,
+            });
+            filename = `ton-kho-da-loc-${Date.now()}.xlsx`;
+            break;
+            
+          default:
+            throw new Error("Invalid export type for aggregated view");
+        }
+      } else if (branchId) {
+        // Export stock for specific branch
+        switch (type) {
+          case "all":
+            toast.info("Đang export tồn kho chi nhánh...");
+            blob = await exportService.exportStockByBranch(branchId);
+            filename = `ton-kho-chi-nhanh-${Date.now()}.xlsx`;
+            break;
+            
+          case "filtered":
+            toast.info("Đang export tồn kho đã lọc...");
+            blob = await exportService.exportStockByBranch(branchId, {
+              search: filters?.search,
+              lowStockOnly: filters?.lowStockOnly,
+            });
+            filename = `ton-kho-da-loc-${Date.now()}.xlsx`;
+            break;
+            
+          default:
+            throw new Error("Invalid export type for branch view");
+        }
+      } else {
+        // Regular product export
+        switch (type) {
+          case "all":
+            toast.info("Đang export tất cả sản phẩm...");
+            blob = await exportService.exportProducts();
+            filename = `tat-ca-san-pham-${Date.now()}.xlsx`;
+            break;
+            
+          case "filtered":
+            toast.info("Đang export sản phẩm đã lọc...");
+            blob = await exportService.exportProducts(filters);
+            filename = `san-pham-da-loc-${Date.now()}.xlsx`;
+            break;
+            
+          case "by-category":
+            toast.info("Đang export theo danh mục...");
+            blob = await exportService.exportByCategory();
+            filename = `san-pham-theo-danh-muc-${Date.now()}.xlsx`;
+            break;
+            
+          default:
+            throw new Error("Invalid export type");
+        }
       }
 
       exportService.downloadBlob(blob, filename);
@@ -101,25 +151,29 @@ export function ExportProductsButton({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>Export sản phẩm</DropdownMenuLabel>
+        <DropdownMenuLabel>
+          {isAggregatedView || branchId ? "Export tồn kho" : "Export sản phẩm"}
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
         
         <DropdownMenuItem onClick={() => handleExport("all")} disabled={isExporting}>
           <FileSpreadsheet className="mr-2 h-4 w-4" />
-          <span>Tất cả sản phẩm</span>
+          <span>{isAggregatedView || branchId ? "Tất cả tồn kho" : "Tất cả sản phẩm"}</span>
         </DropdownMenuItem>
         
         {filters && (
           <DropdownMenuItem onClick={() => handleExport("filtered")} disabled={isExporting}>
             <FileSpreadsheet className="mr-2 h-4 w-4" />
-            <span>Sản phẩm đã lọc</span>
+            <span>{isAggregatedView || branchId ? "Tồn kho đã lọc" : "Sản phẩm đã lọc"}</span>
           </DropdownMenuItem>
         )}
         
-        <DropdownMenuItem onClick={() => handleExport("by-category")} disabled={isExporting}>
-          <FolderTree className="mr-2 h-4 w-4" />
-          <span>Theo danh mục</span>
-        </DropdownMenuItem>
+        {!isAggregatedView && !branchId && (
+          <DropdownMenuItem onClick={() => handleExport("by-category")} disabled={isExporting}>
+            <FolderTree className="mr-2 h-4 w-4" />
+            <span>Theo danh mục</span>
+          </DropdownMenuItem>
+        )}
         
         <DropdownMenuSeparator />
         
