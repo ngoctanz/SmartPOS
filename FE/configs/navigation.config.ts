@@ -7,47 +7,47 @@ import {
   IconPackage,
   IconTruck,
   IconUsers,
-} from '@tabler/icons-react';
+} from "@tabler/icons-react";
 
 export const navItems = {
   user: {
-    name: '',
-    email: '',
-    avatar: '',
+    name: "",
+    email: "",
+    avatar: "",
   },
   navMain: [
     {
-      title: 'Dashboard',
+      title: "Dashboard",
       url: ROUTES.DASHBOARD,
       icon: IconDashboard,
     },
+    // {
+    //   title: 'Quản lý loại sản phẩm',
+    //   url: ROUTES.PRODUCT_TYPES,
+    //   icon: IconFolder,
+    // },
     {
-      title: 'Quản lý loại sản phẩm',
-      url: ROUTES.PRODUCT_TYPES,
-      icon: IconFolder,
-    },
-    {
-      title: 'Quản lý sản phẩm',
+      title: "Quản lý sản phẩm",
       url: ROUTES.PRODUCTS,
       icon: IconPackage,
     },
     {
-      title: 'Quản lý nhập hàng',
+      title: "Quản lý nhập hàng",
       url: ROUTES.IMPORTS,
       icon: IconTruck,
     },
     {
-      title: 'Quản lý hóa đơn',
+      title: "Quản lý hóa đơn",
       url: ROUTES.INVOICES,
       icon: IconFileInvoice,
     },
     {
-      title: 'Quản lý user',
+      title: "Quản lý user",
       url: ROUTES.USERS,
       icon: IconUsers,
     },
     {
-      title: 'Quản lý chi nhánh',
+      title: "Quản lý chi nhánh",
       url: ROUTES.BRANCHES,
       icon: IconBuildingStore,
     },
