@@ -295,14 +295,20 @@ export function CommonTable<TData, TValue>({
           </DropdownMenu>
         </div>
       )}
-      <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <Table className="min-w-max">
-            <TableHeader>
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div
+          className="overflow-auto max-h-[calc(100vh-320px)]"
+          style={{
+            WebkitOverflowScrolling: "touch",
+            overscrollBehavior: "contain",
+          }}
+        >
+          <Table style={{ minWidth: "max-content" }}>
+            <TableHeader className="sticky top-0 z-10">
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow
                   key={headerGroup.id}
-                  className="border-b bg-muted/30 hover:bg-muted/30"
+                  className="border-b bg-muted/50 hover:bg-muted/50"
                 >
                   {headerGroup.headers.map((header) => {
                     return (
