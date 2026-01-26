@@ -500,10 +500,17 @@ export default function Page() {
         header: "Loại sản phẩm",
         cell: ({ row }) => {
           const category = row.original.productId?.categoryId;
-          const categoryName =
-            typeof category === "object" && category?.name
-              ? category.name
-              : "—";
+          let categoryName = "—";
+          
+          if (category) {
+            if (typeof category === "object" && category?.name) {
+              categoryName = category.name;
+            } else if (typeof category === "string") {
+              // Fallback: if it's just an ID string
+              categoryName = category;
+            }
+          }
+          
           return <Badge variant="outline">{categoryName}</Badge>;
         },
       },
@@ -742,8 +749,11 @@ export default function Page() {
             {showStats ? "Ẩn thống kê" : "Hiện thống kê"}
           </Button>
           <ExportProductsButton
+            isAggregatedView={filterBranchId === "all"}
+            branchId={filterBranchId !== "all" ? filterBranchId : undefined}
             filters={{
               search: searchTerm,
+              lowStockOnly: filterLowStock === "low",
             }}
           />
           <Button

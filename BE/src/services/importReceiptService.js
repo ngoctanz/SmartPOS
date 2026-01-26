@@ -17,7 +17,13 @@ const mapRowToReceiptItem = (row, rowIndex) => {
   const barcode = row["Mã vạch"] || "";
   const name = row["Tên hàng"] || "";
   const salePrice = row["Giá bán"] || "";
-  const images = row["Hình ảnh (url1, url2...)"] || "";
+  
+  // Try multiple possible column names for images
+  const images = row["Hình ảnh (url1, url2...)"] 
+    || row["Hình ảnh (url1,url2...)"] 
+    || row["Hình ảnh"] 
+    || row["Images"]
+    || "";
   
   // Specific fields for Import Receipt
   const quantity = row["Tồn kho"] || "";
@@ -28,13 +34,26 @@ const mapRowToReceiptItem = (row, rowIndex) => {
   const parsedQuantity = quantity ? parseFloat(String(quantity).replace(/[^\d.-]/g, "")) : 0;
   const parsedImportPrice = importPrice ? parseFloat(String(importPrice).replace(/[^\d.-]/g, "")) : 0;
 
+  // Parse images - handle both comma and newline separators
+  let parsedImages = [];
+  if (images) {
+    const imageStr = String(images).trim();
+    if (imageStr) {
+      // Split by comma or newline, trim and filter empty
+      parsedImages = imageStr
+        .split(/[,\n]/)
+        .map(url => url.trim())
+        .filter(url => url && url.length > 0);
+    }
+  }
+
   return {
     // Info for verifying/creating product
     categoryName,
     productCode,
     barcode: barcode || undefined,
     name,
-    images: images ? images.split(",").map(url => url.trim()).filter(url => url) : [],
+    images: parsedImages,
     
     // Receipt numeric fields
     salePrice: parsedSalePrice,
@@ -63,6 +82,15 @@ const importReceiptFromExcel = async (fileBuffer, branchId, userId) => {
   try {
     const rawData = parseExcelFile(fileBuffer);
     const parsedItems = rawData.map((row, index) => mapRowToReceiptItem(row, index));
+
+    // Debug: Log first item to check images parsing
+    if (parsedItems.length > 0) {
+      console.log("Sample parsed item:", JSON.stringify({
+        name: parsedItems[0].name,
+        images: parsedItems[0].images,
+        imagesCount: parsedItems[0].images?.length || 0
+      }, null, 2));
+    }
 
     // Validate
     const validationErrors = [];
@@ -137,7 +165,7 @@ const importReceiptFromExcel = async (fileBuffer, branchId, userId) => {
 
     // 1.3 Create missing products
     const productsToCreate = [];
-    const itemsNeedCreation = [];
+    const productsToUpdate = []; // Track products that need image updates
 
     // Temporary map to avoid creating duplicates within the items list itself
     // Key format: "barcode" (if exists) or "categoryId:name" (if no barcode)
@@ -180,8 +208,20 @@ const importReceiptFromExcel = async (fileBuffer, branchId, userId) => {
           status: "active",
         };
         
+        // Debug: Log when creating product with images
+        if (item.images && item.images.length > 0) {
+          console.log(`Creating product with images: ${item.name}, images count: ${item.images.length}`);
+        }
+        
         productsToCreate.push(newProductData);
         newProductsTempMap.set(tempKey, newProductData);
+      } else if (item.images && item.images.length > 0) {
+        // Product exists but has new images - update it
+        console.log(`Updating existing product with images: ${item.name}, images count: ${item.images.length}`);
+        productsToUpdate.push({
+          productId: foundProduct._id,
+          images: item.images
+        });
       }
     }
 
@@ -223,6 +263,22 @@ const importReceiptFromExcel = async (fileBuffer, branchId, userId) => {
         } else {
           throw error; // Re-throw if it's not a bulk write error
         }
+      }
+    }
+
+    // Bulk Update Existing Products with new images
+    if (productsToUpdate.length > 0) {
+      try {
+        const bulkOps = productsToUpdate.map(item => ({
+          updateOne: {
+            filter: { _id: item.productId },
+            update: { $set: { images: item.images } }
+          }
+        }));
+        await Product.bulkWrite(bulkOps);
+      } catch (error) {
+        console.error("Error updating product images:", error);
+        // Don't throw - continue with import even if image update fails
       }
     }
 
