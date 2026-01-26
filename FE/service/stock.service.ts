@@ -131,6 +131,7 @@ const stockService = {
     salePrice: number;
     importPrice?: number;
     minStock?: number;
+    stock?: number; // Initial stock quantity
   }): Promise<ApiResponse<{ product: any; branchProduct: BranchProduct }>> => {
     return apiPost<{ product: any; branchProduct: BranchProduct }>(
       "/stock/with-product",

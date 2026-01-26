@@ -40,6 +40,7 @@ import {
   ChevronRight,
   Store,
   Tag,
+  Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import uploadService from "@/service/upload.service";
@@ -70,6 +71,7 @@ const productSchema = z.object({
     .optional()
     .or(z.literal("")),
   importPrice: z.coerce.number().min(0, "Giá nhập không được âm").optional(),
+  quantity: z.coerce.number().min(0, "Số lượng không được âm").optional(),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -79,6 +81,7 @@ export interface InventoryProductFormData extends CreateProductRequest {
   branchId?: string;
   productCode?: string;
   importPrice?: number;
+  quantity?: number;
 }
 
 interface ProductFormModalProps {
@@ -164,6 +167,7 @@ export function ProductFormModal({
       branchId: "",
       productCode: "",
       importPrice: 0,
+      quantity: 0,
     },
   });
 
@@ -187,6 +191,7 @@ export function ProductFormModal({
             (product as any).importPrice ||
             (product as any).lastImportPrice ||
             0,
+          quantity: (product as any).stock || 0,
         });
       } else {
         form.reset({
@@ -201,6 +206,7 @@ export function ProductFormModal({
           branchId: defaultBranchId || "",
           productCode: "",
           importPrice: 0,
+          quantity: 0,
         });
       }
     } else {
@@ -288,9 +294,10 @@ export function ProductFormModal({
         if (!isEditMode) {
           cleanData.branchId = values.branchId;
         }
-        // productCode and importPrice can be updated
+        // productCode, importPrice and quantity can be updated
         cleanData.productCode = values.productCode || undefined;
         cleanData.importPrice = values.importPrice || undefined;
+        cleanData.quantity = values.quantity;
 
         await onSubmit(cleanData);
       } else {
@@ -363,8 +370,8 @@ export function ProductFormModal({
                   <strong>chi nhánh bạn chọn</strong>
                 </li>
                 <li>
-                  Số lượng mặc định là <strong>0</strong> - nhập kho để thêm số
-                  lượng
+                  Nhập <strong>số lượng tồn kho</strong> ban đầu (hoặc để 0 và
+                  nhập kho sau)
                 </li>
                 <li>Giá bán có thể khác giá niêm yết theo từng chi nhánh</li>
               </ul>
@@ -650,7 +657,8 @@ export function ProductFormModal({
                         </Select>
                         {isAggregatedEdit && (
                           <p className="text-xs text-amber-600 dark:text-amber-400">
-                            ⚠️ Thay đổi trạng thái toàn cục sẽ cập nhật trạng thái của sản phẩm này tại TẤT CẢ chi nhánh
+                            ⚠️ Thay đổi trạng thái toàn cục sẽ cập nhật trạng
+                            thái của sản phẩm này tại TẤT CẢ chi nhánh
                           </p>
                         )}
                         {showInventoryFields && (
@@ -697,7 +705,8 @@ export function ProductFormModal({
                               "h-10 pl-3 pr-12 text-base font-bold text-emerald-600 dark:text-emerald-400 focus:ring-2 focus:ring-primary/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                               form.formState.errors.currentSalePrice &&
                                 "border-destructive focus:ring-destructive/20",
-                              isAggregatedEdit && "opacity-60 cursor-not-allowed bg-muted",
+                              isAggregatedEdit &&
+                                "opacity-60 cursor-not-allowed bg-muted",
                             )}
                           />
                           <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-[10px] font-bold pointer-events-none">
@@ -706,7 +715,8 @@ export function ProductFormModal({
                         </div>
                         {isAggregatedEdit && (
                           <p className="text-[10px] text-muted-foreground italic">
-                            Giá bán riêng cho từng chi nhánh, không thể sửa ở chế độ xem tất cả
+                            Giá bán riêng cho từng chi nhánh, không thể sửa ở
+                            chế độ xem tất cả
                           </p>
                         )}
                       </div>
@@ -736,6 +746,37 @@ export function ProductFormModal({
                               VNĐ
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {/* Quantity (Inventory Mode) */}
+                      {showInventoryFields && (
+                        <div className="space-y-1.5">
+                          <Label
+                            htmlFor="quantity"
+                            className="text-xs font-medium"
+                          >
+                            Số lượng tồn kho
+                            <span className="ml-2 text-muted-foreground text-[10px]">
+                              {isEditMode ? "Sửa số lượng" : "Nhập ban đầu"}
+                            </span>
+                          </Label>
+                          <div className="relative">
+                            <Boxes className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                              id="quantity"
+                              type="number"
+                              min={0}
+                              {...form.register("quantity")}
+                              placeholder="0"
+                              className="h-10 pl-10 pr-3 text-base font-bold text-blue-600 dark:text-blue-400 focus:ring-2 focus:ring-primary/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">
+                            {isEditMode
+                              ? "Thay đổi số lượng sẽ cập nhật trực tiếp tồn kho"
+                              : "Số lượng ban đầu khi thêm sản phẩm vào kho"}
+                          </p>
                         </div>
                       )}
 

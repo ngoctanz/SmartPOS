@@ -191,6 +191,7 @@ const createProductWithStock = async (data, user = null) => {
       salePrice,
       importPrice,
       minStock = 5,
+      stock = 0, // Initial stock quantity, default to 0
     } = data;
 
     if (!branchId) {
@@ -225,6 +226,9 @@ const createProductWithStock = async (data, user = null) => {
 
     const product = await ProductModel.createProduct(productData);
 
+    // Calculate initial stock (ensure it's a non-negative number)
+    const initialStock = Math.max(0, parseInt(stock) || 0);
+
     // Now add to branch stock with the specified details
     let branchDoc = await BranchProduct.findOne({ branchId });
     if (!branchDoc) {
@@ -235,7 +239,7 @@ const createProductWithStock = async (data, user = null) => {
     branchDoc.products.push({
       productId: product._id,
       productCode: productCode || "",
-      stock: 0, // Default stock is 0
+      stock: initialStock,
       minStock: minStock,
       salePrice: salePrice || currentSalePrice || 0,
       lastImportPrice: importPrice || 0,
@@ -249,7 +253,7 @@ const createProductWithStock = async (data, user = null) => {
         branchId,
         productId: product._id,
         productCode,
-        stock: 0,
+        stock: initialStock,
         minStock,
         salePrice: salePrice || currentSalePrice || 0,
         lastImportPrice: importPrice || 0,

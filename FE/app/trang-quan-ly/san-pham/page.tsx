@@ -87,24 +87,34 @@ export default function Page() {
   });
 
   // Modal state
-  const [selectedItem, setSelectedItem] = React.useState<IBranchProduct | null>(null);
-  const [selectedItems, setSelectedItems] = React.useState<IBranchProduct[]>([]);
+  const [selectedItem, setSelectedItem] = React.useState<IBranchProduct | null>(
+    null,
+  );
+  const [selectedItems, setSelectedItems] = React.useState<IBranchProduct[]>(
+    [],
+  );
   const [isDetailOpen, setIsDetailOpen] = React.useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
   const [isNoteModalOpen, setIsNoteModalOpen] = React.useState(false);
-  const [isImportStockExcelOpen, setIsImportStockExcelOpen] = React.useState(false);
+  const [isImportStockExcelOpen, setIsImportStockExcelOpen] =
+    React.useState(false);
   const [isProductFormOpen, setIsProductFormOpen] = React.useState(false);
-  const [editingProduct, setEditingProduct] = React.useState<Product | null>(null);
-  const [editingBranchProductId, setEditingBranchProductId] = React.useState<string | null>(null);
+  const [editingProduct, setEditingProduct] = React.useState<Product | null>(
+    null,
+  );
+  const [editingBranchProductId, setEditingBranchProductId] = React.useState<
+    string | null
+  >(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Column visibility state
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({
-    "productId.categoryId": false,
-    "productId.unit": false,
-    minStock: false,
-    lastImportPrice: false,
-  });
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({
+      "productId.categoryId": false,
+      "productId.unit": false,
+      minStock: false,
+      lastImportPrice: false,
+    });
 
   // Debounce search
   React.useEffect(() => {
@@ -128,7 +138,9 @@ export default function Page() {
       setLoading(true);
 
       const effectiveBranchId = isAdmin
-        ? filterBranchId !== "all" ? filterBranchId : undefined
+        ? filterBranchId !== "all"
+          ? filterBranchId
+          : undefined
         : user.branchId;
 
       const params = {
@@ -138,11 +150,12 @@ export default function Page() {
         lowStockOnly: filterLowStock === "low",
       };
 
-      const stockPromise = isAdmin && filterBranchId === "all"
-        ? stockService.getAggregatedByProduct(params)
-        : effectiveBranchId
-          ? stockService.getByBranch(effectiveBranchId, params)
-          : stockService.getAll(params);
+      const stockPromise =
+        isAdmin && filterBranchId === "all"
+          ? stockService.getAggregatedByProduct(params)
+          : effectiveBranchId
+            ? stockService.getByBranch(effectiveBranchId, params)
+            : stockService.getAll(params);
 
       const [res, statsRes] = await Promise.all([
         stockPromise,
@@ -164,7 +177,15 @@ export default function Page() {
     } finally {
       setLoading(false);
     }
-  }, [isAdmin, filterBranchId, debouncedSearch, pagination.page, pagination.limit, filterLowStock, user]);
+  }, [
+    isAdmin,
+    filterBranchId,
+    debouncedSearch,
+    pagination.page,
+    pagination.limit,
+    filterLowStock,
+    user,
+  ]);
 
   // Fetch branches and categories
   React.useEffect(() => {
@@ -203,19 +224,20 @@ export default function Page() {
 
     try {
       setIsSubmitting(true);
-      
+
       // Determine branchId based on context
       let branchId: string | undefined;
-      
+
       if (isAdmin) {
         // Admin: use filter branchId if specific branch selected, otherwise extract from item
         if (filterBranchId !== "all") {
           branchId = filterBranchId;
         } else if (selectedItem.branchId) {
           // Extract branchId from populated or string format
-          branchId = typeof selectedItem.branchId === "string" 
-            ? selectedItem.branchId 
-            : selectedItem.branchId._id;
+          branchId =
+            typeof selectedItem.branchId === "string"
+              ? selectedItem.branchId
+              : selectedItem.branchId._id;
         }
       }
       // Staff/Manager: branchId will be injected by middleware, no need to send
@@ -244,22 +266,26 @@ export default function Page() {
     const isAggregated = item.isAggregated;
 
     // Extract branchId safely from populated or string format
-    const extractedBranchId = item.branchId 
-      ? (typeof item.branchId === "string" ? item.branchId : item.branchId._id)
+    const extractedBranchId = item.branchId
+      ? typeof item.branchId === "string"
+        ? item.branchId
+        : item.branchId._id
       : "";
 
     const productData = {
       ...item.productId,
-      currentSalePrice: isAggregated ? item.productId.currentSalePrice : item.salePrice,
-      lastImportPrice: isAggregated ? 0 : (item.lastImportPrice || 0),
-      productCode: isAggregated ? "" : (item.productCode || ""),
+      currentSalePrice: isAggregated
+        ? item.productId.currentSalePrice
+        : item.salePrice,
+      lastImportPrice: isAggregated ? 0 : item.lastImportPrice || 0,
+      productCode: isAggregated ? "" : item.productCode || "",
       branchId: isAggregated ? "" : extractedBranchId,
       // CRITICAL: Status logic
       // - Aggregated mode: use Product.status (global status) - CANNOT EDIT
       // - Branch mode: use BranchProduct.status (branch-specific status) - CAN EDIT
-      status: isAggregated 
-        ? (item.productId.status || "active") 
-        : (item.status || "active"),
+      status: isAggregated
+        ? item.productId.status || "active"
+        : item.status || "active",
     };
 
     setEditingProduct(productData as Product);
@@ -272,7 +298,10 @@ export default function Page() {
   };
 
   const handleProductFormSubmit = async (
-    formData: CreateProductRequest | UpdateProductRequest | InventoryProductFormData,
+    formData:
+      | CreateProductRequest
+      | UpdateProductRequest
+      | InventoryProductFormData,
   ) => {
     try {
       setIsSubmitting(true);
@@ -309,27 +338,33 @@ export default function Page() {
             lastImportPrice: invData.importPrice,
             productCode: invData.productCode,
           };
-          
+
+          // Include stock (quantity) if provided
+          if (invData.quantity !== undefined) {
+            updateData.stock = invData.quantity;
+          }
+
           // Admin needs to send branchId for write operations
-          const branchIdForUpdate = isAdmin && (editingProduct as any)._editingBranchId 
-            ? (editingProduct as any)._editingBranchId 
-            : undefined;
-          
+          const branchIdForUpdate =
+            isAdmin && (editingProduct as any)._editingBranchId
+              ? (editingProduct as any)._editingBranchId
+              : undefined;
+
           if (branchIdForUpdate) {
             updateData.branchId = branchIdForUpdate;
           }
-          
+
           await stockService.update(editingBranchProductId, updateData);
-          
+
           // CRITICAL: Update BranchProduct.status separately (branch-specific status)
           if (formData.status) {
             await stockService.updateStatus(
               editingBranchProductId,
               formData.status,
-              branchIdForUpdate
+              branchIdForUpdate,
             );
           }
-          
+
           toast.success("Cập nhật sản phẩm & cấu hình chi nhánh thành công!");
         } else {
           // PRODUCT-ONLY UPDATE (global status was updated above)
@@ -352,6 +387,7 @@ export default function Page() {
             productCode: inventoryData.productCode,
             salePrice: inventoryData.currentSalePrice,
             importPrice: inventoryData.importPrice,
+            stock: inventoryData.quantity, // Initial stock quantity
           });
           toast.success("Thêm sản phẩm vào kho chi nhánh thành công!");
         } else {
@@ -379,7 +415,9 @@ export default function Page() {
   const confirmDelete = async () => {
     try {
       setIsSubmitting(true);
-      await Promise.all(selectedItems.map((item) => stockService.delete(item._id)));
+      await Promise.all(
+        selectedItems.map((item) => stockService.delete(item._id)),
+      );
       toast.success(`Đã xóa ${selectedItems.length} sản phẩm khỏi kho`);
       setSelectedItems([]);
       setIsDeleteOpen(false);
@@ -670,21 +708,30 @@ export default function Page() {
       {
         id: "actions",
         cell: ({ row, table }) => {
-          const isAnyRowSelected = table.getFilteredSelectedRowModel().rows.length > 0;
+          const isAnyRowSelected =
+            table.getFilteredSelectedRowModel().rows.length > 0;
           const isAggregated = row.original.isAggregated;
 
           return (
             <RowActions
               onView={() => handleView(row.original)}
-              onEdit={canEditProduct ? () => handleEditProduct(row.original) : undefined}
+              onEdit={
+                canEditProduct
+                  ? () => handleEditProduct(row.original)
+                  : undefined
+              }
               editLabel="Chỉnh sửa"
-              customActions={!isAggregated ? [
-                {
-                  label: "Cập nhật ghi chú",
-                  icon: <FileEdit className="h-4 w-4" />,
-                  onClick: () => handleEditNote(row.original),
-                },
-              ] : undefined}
+              customActions={
+                !isAggregated
+                  ? [
+                      {
+                        label: "Cập nhật ghi chú",
+                        icon: <FileEdit className="h-4 w-4" />,
+                        onClick: () => handleEditNote(row.original),
+                      },
+                    ]
+                  : undefined
+              }
               disabled={isAnyRowSelected}
             />
           );
@@ -803,9 +850,7 @@ export default function Page() {
         getRowClassName={(row) => {
           // Aggregated view: use Product.status (global status)
           // Branch view: use BranchProduct.status (branch-specific status)
-          const status = row.isAggregated 
-            ? row.productId?.status 
-            : row.status;
+          const status = row.isAggregated ? row.productId?.status : row.status;
           return status === "inactive" ? "opacity-50" : "";
         }}
       />
