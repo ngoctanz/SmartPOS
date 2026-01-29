@@ -248,21 +248,21 @@ export function CommonTable<TData, TValue>({
       )}
 
       {(filterCol || toolbarActions) && (
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          {toolbarActions && (
-            <div className="flex items-center gap-2">{toolbarActions}</div>
-          )}
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full">
+            {toolbarActions}
+          </div>
           {filterCol && (
             <Input
               placeholder={filterPlaceholder}
               value={currentSearchValue}
               onChange={(event) => handleSearchChange(event.target.value)}
-              className="max-w-sm"
+              className="w-full sm:max-w-sm"
             />
           )}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="ml-auto">
+              <Button variant="outline" size="sm" className="w-full sm:w-auto sm:ml-auto">
                 <Settings2 className="mr-2 h-4 w-4" />
                 Cột hiển thị
               </Button>
@@ -295,18 +295,23 @@ export function CommonTable<TData, TValue>({
           </DropdownMenu>
         </div>
       )}
-      <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <Table className="min-w-max">
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div
+          className="overflow-x-auto overflow-y-visible"
+          style={{
+            WebkitOverflowScrolling: "touch",
+          }}
+        >
+          <Table className="w-full min-w-[640px]">
             <TableHeader>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow
                   key={headerGroup.id}
-                  className="border-b bg-muted/30 hover:bg-muted/30"
+                  className="border-b bg-muted/50 hover:bg-muted/50"
                 >
                   {headerGroup.headers.map((header) => {
                     return (
-                      <TableHead key={header.id}>
+                      <TableHead key={header.id} className="whitespace-nowrap">
                         {header.isPlaceholder
                           ? null
                           : flexRender(
@@ -340,7 +345,7 @@ export function CommonTable<TData, TValue>({
                     className={`transition-colors ${getRowClassName ? getRowClassName(row.original) : ""}`}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id}>
+                      <TableCell key={cell.id} className="whitespace-nowrap">
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
@@ -363,7 +368,7 @@ export function CommonTable<TData, TValue>({
           </Table>
         </div>
       </div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="text-sm text-muted-foreground">
           {selectedRowCount > 0 ? (
             <span className="font-medium text-primary">

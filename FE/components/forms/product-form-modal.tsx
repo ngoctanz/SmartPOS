@@ -22,12 +22,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
-import {
+import productService, {
   Product,
   CreateProductRequest,
   UpdateProductRequest,
 } from "@/service/product.service";
 import { Category } from "@/service/category.service";
+import useDebounce from "@/hooks/useDebounce";
+import { AlertTriangle } from "lucide-react";
 import { Branch } from "@/service/branch.service";
 import { MultipleImageUpload } from "@/components/common/multiple-image-upload";
 import {
@@ -149,6 +151,10 @@ export function ProductFormModal({
     [],
   );
   const [isUploadingImage, setIsUploadingImage] = React.useState(false);
+  
+  // Barcode duplicate checking states
+  const [isCheckingBarcode, setIsCheckingBarcode] = React.useState(false);
+  const [existingProduct, setExistingProduct] = React.useState<Product | null>(null);
 
   // Show inventory fields only in inventory mode AND for admin AND NOT in aggregated edit
   const showInventoryFields = isInventoryMode && isAdmin && !isAggregatedEdit;
@@ -170,6 +176,10 @@ export function ProductFormModal({
       quantity: 0,
     },
   });
+
+  // Watch barcode field for duplicate checking
+  const watchedBarcode = form.watch("barcode");
+  const debouncedBarcode = useDebounce(watchedBarcode, 500);
 
   // Reset form when modal opens or product changes
   React.useEffect(() => {
@@ -217,8 +227,56 @@ export function ProductFormModal({
           URL.revokeObjectURL(url);
         }
       });
+      // Reset barcode check state when modal closes
+      setExistingProduct(null);
+      setIsCheckingBarcode(false);
     }
   }, [open, product, form, defaultBranchId]);
+
+  // Check if barcode already exists (only for new products, not import mode)
+  React.useEffect(() => {
+    const checkBarcodeExists = async () => {
+      // Only check when:
+      // 1. Not in edit mode (creating new product)
+      // 2. Not in import mode (barcode is already scanned from external)
+      // 3. Barcode is not empty
+      // 4. Modal is open
+      if (isEditMode || isImportMode || !debouncedBarcode?.trim() || !open) {
+        setExistingProduct(null);
+        return;
+      }
+
+      // Skip if barcode is same as current product's barcode (when editing)
+      if (product?.barcode === debouncedBarcode.trim()) {
+        setExistingProduct(null);
+        return;
+      }
+
+      setIsCheckingBarcode(true);
+      try {
+        const response = await productService.getByBarcode(debouncedBarcode.trim());
+        if (response.data) {
+          setExistingProduct(response.data);
+          toast.warning(
+            `Mã barcode "${debouncedBarcode}" đã tồn tại cho sản phẩm "${response.data.name}"`,
+            {
+              duration: 5000,
+              description: "Bạn có thể sử dụng sản phẩm đã có hoặc đổi mã barcode khác.",
+            }
+          );
+        } else {
+          setExistingProduct(null);
+        }
+      } catch {
+        // Barcode not found = OK to use
+        setExistingProduct(null);
+      } finally {
+        setIsCheckingBarcode(false);
+      }
+    };
+
+    checkBarcodeExists();
+  }, [debouncedBarcode, isEditMode, isImportMode, open, product?.barcode]);
 
   const onFormSubmit = async (values: ProductFormData) => {
     try {
@@ -375,7 +433,6 @@ export function ProductFormModal({
                   Nhập <strong>số lượng tồn kho</strong> ban đầu (hoặc để 0 và
                   nhập kho sau)
                 </li>
-                <li>Giá bán có thể khác giá niêm yết theo từng chi nhánh</li>
               </ul>
             </div>
           )}
@@ -516,23 +573,49 @@ export function ProductFormModal({
                             </span>
                           )}
                         </Label>
-                        <Input
-                          id="barcode"
-                          {...form.register("barcode")}
-                          placeholder="Nhập hoặc quét mã barcode..."
-                          readOnly={isImportMode}
-                          className={cn(
-                            "h-10 text-sm transition-all focus:ring-2 focus:ring-primary/20",
-                            isImportMode && "bg-muted font-mono",
-                            form.formState.errors.barcode &&
-                              "border-destructive focus:ring-destructive/20",
+                        <div className="relative">
+                          <Input
+                            id="barcode"
+                            {...form.register("barcode")}
+                            placeholder="Nhập hoặc quét mã barcode..."
+                            readOnly={isImportMode}
+                            className={cn(
+                              "h-10 text-sm transition-all focus:ring-2 focus:ring-primary/20 pr-10",
+                              isImportMode && "bg-muted font-mono",
+                              form.formState.errors.barcode &&
+                                "border-destructive focus:ring-destructive/20",
+                              existingProduct && !isEditMode && !isImportMode &&
+                                "border-amber-500 focus:ring-amber-500/20",
+                            )}
+                          />
+                          {isCheckingBarcode && (
+                            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
                           )}
-                        />
+                          {!isCheckingBarcode && existingProduct && !isEditMode && !isImportMode && (
+                            <AlertTriangle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-amber-500" />
+                          )}
+                        </div>
                         {form.formState.errors.barcode && (
                           <p className="text-[11px] font-medium text-destructive mt-1 flex items-center gap-1">
                             <Info className="w-2.5 h-2.5" />
                             {form.formState.errors.barcode.message}
                           </p>
+                        )}
+                        {/* Warning when barcode already exists */}
+                        {existingProduct && !isEditMode && !isImportMode && (
+                          <div className="mt-2 p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+                            <p className="text-xs font-medium text-amber-800 dark:text-amber-200 flex items-center gap-1.5">
+                              <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                              Mã barcode này đã được sử dụng!
+                            </p>
+                            <div className="mt-1.5 text-[11px] text-amber-700 dark:text-amber-300 space-y-0.5">
+                              <p><strong>Sản phẩm:</strong> {existingProduct.name}</p>
+                              <p><strong>Giá bán:</strong> {existingProduct.currentSalePrice?.toLocaleString("vi-VN")} VNĐ</p>
+                            </div>
+                            <p className="mt-1.5 text-[10px] text-amber-600 dark:text-amber-400 italic">
+                              💡 Nếu sản phẩm đã tồn tại, bạn không cần tạo mới. Hãy đóng form và tìm kiếm sản phẩm này.
+                            </p>
+                          </div>
                         )}
                       </div>
 
@@ -689,6 +772,34 @@ export function ProductFormModal({
                     </div>
 
                     <div className="grid gap-4">
+                      {/* Import Price (Inventory Mode) */}
+                      {showInventoryFields && (
+                        <div className="space-y-1.5">
+                          <Label
+                            htmlFor="importPrice"
+                            className="text-xs font-medium"
+                          >
+                            Giá nhập (VNĐ)
+                            <span className="ml-2 text-muted-foreground text-[10px]">
+                              Tham khảo
+                            </span>
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              id="importPrice"
+                              type="number"
+                              min={0}
+                              {...form.register("importPrice")}
+                              placeholder="0"
+                              className="h-10 pl-3 pr-12 text-base font-medium text-orange-600 dark:text-orange-400 focus:ring-2 focus:ring-primary/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-[10px] font-bold pointer-events-none">
+                              VNĐ
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* List Price (currentSalePrice) */}
                       <div className="space-y-1.5">
                         <Label
@@ -698,8 +809,8 @@ export function ProductFormModal({
                           {showInventoryFields && isEditMode
                             ? "Giá bán (Chi nhánh)"
                             : isAggregatedEdit
-                              ? "Giá niêm yết (Chỉ xem)"
-                              : "Giá niêm yết"}{" "}
+                              ? "Giá bán (Chỉ xem)"
+                              : "Giá bán"}{" "}
                           (VNĐ) <span className="text-destructive">*</span>
                         </Label>
                         <div className="relative">
@@ -729,34 +840,6 @@ export function ProductFormModal({
                           </p>
                         )}
                       </div>
-
-                      {/* Import Price (Inventory Mode) */}
-                      {showInventoryFields && (
-                        <div className="space-y-1.5">
-                          <Label
-                            htmlFor="importPrice"
-                            className="text-xs font-medium"
-                          >
-                            Giá nhập (VNĐ)
-                            <span className="ml-2 text-muted-foreground text-[10px]">
-                              Tham khảo
-                            </span>
-                          </Label>
-                          <div className="relative">
-                            <Input
-                              id="importPrice"
-                              type="number"
-                              min={0}
-                              {...form.register("importPrice")}
-                              placeholder="0"
-                              className="h-10 pl-3 pr-12 text-base font-medium text-orange-600 dark:text-orange-400 focus:ring-2 focus:ring-primary/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            />
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-[10px] font-bold pointer-events-none">
-                              VNĐ
-                            </div>
-                          </div>
-                        </div>
-                      )}
 
                       {/* Quantity (Inventory Mode) */}
                       {showInventoryFields && (

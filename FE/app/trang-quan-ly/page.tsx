@@ -172,9 +172,9 @@ export default function DashboardPage() {
     <div className="@container/main flex flex-1 flex-col gap-2">
       <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
         {/* Header with branch filter */}
-        <div className="px-4 lg:px-6 flex items-center justify-between">
+        <div className="px-2 sm:px-4 lg:px-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-primary">Dashboard</h1>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-primary">Dashboard</h1>
             {!isAdmin && (
               <p className="text-sm text-muted-foreground">
                 Thống kê chi nhánh của bạn
@@ -188,7 +188,7 @@ export default function DashboardPage() {
           </div>
           {isAdmin && (
             <Select value={filterBranchId} onValueChange={setFilterBranchId}>
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-full md:w-[200px]">
                 <SelectValue placeholder="Tất cả chi nhánh" />
               </SelectTrigger>
               <SelectContent>

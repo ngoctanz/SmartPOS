@@ -753,7 +753,7 @@ export default function Page() {
       <>
         {isAdmin && (
           <Select value={filterBranchId} onValueChange={setFilterBranchId}>
-            <SelectTrigger className="w-[180px]">
+            <SelectTrigger className="w-full sm:w-[180px]">
               <SelectValue placeholder="Tất cả chi nhánh" />
             </SelectTrigger>
             <SelectContent>
@@ -767,7 +767,7 @@ export default function Page() {
           </Select>
         )}
         <Select value={filterLowStock} onValueChange={setFilterLowStock}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Trạng thái tồn kho" />
           </SelectTrigger>
           <SelectContent>
@@ -781,21 +781,25 @@ export default function Page() {
   );
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-primary">
+    <div className="flex flex-1 flex-col gap-4 p-2 sm:p-4 pt-0">
+      {/* Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-primary">
           Quản lý sản phẩm
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant={showStats ? "secondary" : "outline"}
             size="sm"
             onClick={() => setShowStats(!showStats)}
+            className="flex-shrink-0"
           >
             <ChartBar className="mr-2 h-4 w-4" />
-            {showStats ? "Ẩn thống kê" : "Hiện thống kê"}
+            <span className="hidden sm:inline">{showStats ? "Ẩn thống kê" : "Hiện thống kê"}</span>
+            <span className="sm:hidden">{showStats ? "Ẩn" : "Hiện"}</span>
           </Button>
           <ExportProductsButton
+            size="sm"
             isAggregatedView={filterBranchId === "all"}
             branchId={filterBranchId !== "all" ? filterBranchId : undefined}
             filters={{
@@ -805,20 +809,29 @@ export default function Page() {
           />
           <Button
             variant="outline"
+            size="sm"
             onClick={() => setIsImportStockExcelOpen(true)}
+            className="flex-shrink-0"
           >
             <FileSpreadsheet className="mr-2 h-4 w-4" />
-            Nhập kho Excel
+            <span className="hidden sm:inline">Nhập kho Excel</span>
+            <span className="sm:hidden">Excel</span>
           </Button>
-          <Button onClick={handleCreateProduct}>
+          <Button 
+            size="sm"
+            onClick={handleCreateProduct}
+            className="flex-shrink-0"
+          >
             <Plus className="mr-2 h-4 w-4" />
-            Thêm sản phẩm
+            <span className="hidden sm:inline">Thêm sản phẩm</span>
+            <span className="sm:hidden">Thêm</span>
           </Button>
         </div>
       </div>
 
+      {/* Stats Cards */}
       {showStats && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <StatsCard
             title="Tổng mặt hàng"
             value={stats.totalItems}

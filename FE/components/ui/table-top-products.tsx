@@ -74,8 +74,8 @@ export function TableTopProducts({
           </CardTitle>
         </div>
       </CardHeader>
-      <CardContent>
-        <p className="text-xs text-muted-foreground mb-3">
+      <CardContent className="px-2 sm:px-6">
+        <p className="text-xs text-muted-foreground mb-3 px-4 sm:px-0">
           Thống kê {periodLabel.toLowerCase()}
         </p>
         {data.length === 0 ? (
@@ -83,49 +83,58 @@ export function TableTopProducts({
             Chưa có dữ liệu bán hàng
           </div>
         ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12 text-center">#</TableHead>
-                  <TableHead>Sản phẩm</TableHead>
-                  <TableHead className="text-right">SL bán</TableHead>
-                  <TableHead className="text-right">Doanh thu</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.map((product, index) => (
-                  <TableRow key={product._id}>
-                    <TableCell className="text-center font-medium">
-                      {index < 3 ? (
-                        <span
-                          className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
-                            index === 0
-                              ? "bg-yellow-100 text-yellow-700"
-                              : index === 1
-                              ? "bg-gray-100 text-gray-700"
-                              : "bg-orange-100 text-orange-700"
-                          }`}
-                        >
-                          {index + 1}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">{index + 1}</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-medium max-w-[200px] truncate">
-                      {product.productName}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatNumber(product.totalQuantity)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {formatCurrency(product.totalRevenue)}
-                    </TableCell>
+          <div className="rounded-xl border bg-card shadow-sm">
+            <div 
+              className="overflow-x-auto"
+              style={{
+                WebkitOverflowScrolling: "touch",
+              }}
+            >
+              <Table className="w-full" style={{ minWidth: "max-content" }}>
+                <TableHeader>
+                  <TableRow className="border-b bg-muted/50 hover:bg-muted/50">
+                    <TableHead className="w-12 text-center">#</TableHead>
+                    <TableHead className="min-w-[180px]">Sản phẩm</TableHead>
+                    <TableHead className="text-right min-w-[100px]">SL bán</TableHead>
+                    <TableHead className="text-right min-w-[120px]">Doanh thu</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {data.map((product, index) => (
+                    <TableRow key={product._id} className="transition-colors">
+                      <TableCell className="text-center font-medium">
+                        {index < 3 ? (
+                          <span
+                            className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                              index === 0
+                                ? "bg-yellow-100 text-yellow-700"
+                                : index === 1
+                                ? "bg-gray-100 text-gray-700"
+                                : "bg-orange-100 text-orange-700"
+                            }`}
+                          >
+                            {index + 1}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">{index + 1}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        <div className="max-w-[200px] truncate">
+                          {product.productName}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatNumber(product.totalQuantity)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {formatCurrency(product.totalRevenue)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         )}
       </CardContent>

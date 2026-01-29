@@ -43,7 +43,9 @@ const productSchema = new mongoose.Schema(
       default: 0,
     },
     status: {
+
       type: Schema.Types.String,
+
       enum: ["active", "inactive"],
       default: "active",
     },
@@ -57,7 +59,7 @@ const productSchema = new mongoose.Schema(
 productSchema.index({ categoryId: 1 });
 productSchema.index({ createdAt: -1 });
 productSchema.index({ status: 1 });
-// barcode index already created by unique: true in schema
+
 
 // Static methods
 productSchema.statics = {
