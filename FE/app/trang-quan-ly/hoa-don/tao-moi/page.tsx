@@ -16,6 +16,7 @@ import {
   SuccessDialog,
 } from "@/components/receipt";
 import { SmartProductInput } from "@/components/common/smart-product-input";
+import { PrintQueueStatus } from "@/components/printer";
 import { useSocket } from "@/hooks/useSocket";
 import { useQRDraft } from "@/hooks/useQRDraft";
 import { useCart } from "@/hooks/useCart";
@@ -23,7 +24,8 @@ import { useBranches } from "@/hooks/useBranches";
 import { useProductSearch } from "@/hooks/useProductSearch";
 import { useErrorReceiptLoader } from "@/hooks/useErrorReceiptLoader";
 import { useEnterFlow } from "@/hooks/useEnterFlow";
-import { printDraftWithQR, printReceipt } from "@/utils/print-direct";
+import { useReceiptPrint } from "@/hooks/useReceiptPrint";
+import { optimisticPrint, instantPrintReceipt } from "@/utils/optimistic-print";
 import { playSuccessSound, speakPaymentSuccess } from "@/utils/audio";
 
 export default function CreateReceiptPage() {
@@ -53,7 +55,26 @@ export default function CreateReceiptPage() {
     isAdmin,
   });
 
-  const [paymentMethod, setPaymentMethod] = React.useState<"cash" | "transfer">("cash");
+  // === Receipt Print Hook (for draft printing and queue status) ===
+  const {
+    printDraftWithQR,
+    isProcessing: isPrintProcessing,
+    pendingJobsCount,
+    currentJob,
+  } = useReceiptPrint({
+    userId: user?._id,
+    onPrintSuccess: (receiptCode) => {
+      console.log(`[Print] Successfully printed receipt: ${receiptCode}`);
+    },
+    onPrintError: (receiptCode, error) => {
+      console.error(`[Print] Failed to print receipt ${receiptCode}:`, error);
+      toast.error(`Lỗi in hóa đơn: ${receiptCode}`);
+    },
+  });
+
+  const [paymentMethod, setPaymentMethod] = React.useState<"cash" | "transfer">(
+    "cash",
+  );
   const [customerPaid, setCustomerPaid] = React.useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
@@ -136,13 +157,22 @@ export default function CreateReceiptPage() {
     enabled: true,
   });
 
+  // === SAFE OPTIMISTIC PRINT: Pre-render NGAY, CHỞ API xong mới trigger print ===
   const createCashReceipt = React.useCallback(async () => {
-    if (isSubmitting) {
-      console.warn("⚠️ Duplicate submit blocked");
-      return;
-    }
+    if (isSubmitting) return;
 
     setIsSubmitting(true);
+
+    // Pre-render HTML ngay, chờ API xong mới trigger print
+    const { triggerPrint, cancel } = optimisticPrint({
+      cartItems,
+      totalAmount,
+      paymentMethod: "cash",
+      branchName: currentBranch?.branchName,
+      branchAddress: currentBranch?.address,
+      customerPaid: customerPaid ?? undefined,
+    });
+
     try {
       const receiptData: CreateReceiptRequest = {
         ...(isAdmin && { branchId: selectedBranch }),
@@ -160,25 +190,25 @@ export default function CreateReceiptPage() {
       const response = await receiptService.create(receiptData);
 
       if (response.success && response.data) {
+        const receipt = response.data;
+
+        // API thành công - trigger print với mã thật
+        triggerPrint(receipt.code);
+
         playSuccessSound();
 
         if (showQRPreview) cancelDraft();
-
-        const receipt = response.data;
-
-        printReceipt(receipt);
 
         setTimeout(() => {
           toast.success("Tạo hóa đơn thành công!", {
             description: `Mã hóa đơn: ${receipt.code}`,
           });
-        }, 1500);
+        }, 500);
 
         clearCart();
         setCustomerPaid(null);
-        
-        // Focus lại input để sẵn sàng quét tiếp
-        // Delay nhỏ để tránh conflict với dialog in
+
+        // Auto focus lại input để quét đơn tiếp
         setTimeout(() => {
           const hasOpenDialog = document.querySelector('[role="dialog"]');
           if (!hasOpenDialog) {
@@ -186,9 +216,11 @@ export default function CreateReceiptPage() {
           }
         }, 200);
       } else {
+        cancel();
         toast.error(response.message || "Tạo hóa đơn thất bại");
       }
     } catch (error) {
+      cancel();
       toast.error((error as Error).message || "Lỗi tạo hóa đơn");
     } finally {
       setIsSubmitting(false);
@@ -203,6 +235,7 @@ export default function CreateReceiptPage() {
     showQRPreview,
     cancelDraft,
     clearCart,
+    currentBranch,
   ]);
 
   const handleSubmit = React.useCallback(async () => {
@@ -244,36 +277,57 @@ export default function CreateReceiptPage() {
   // === Payment method change handler ===
   // Không hủy draft khi chuyển tab - user có thể quay lại
   // Draft chỉ bị hủy khi: tạo đơn tiền mặt thành công, bấm Hủy, hoặc hết hạn
+  // === Payment method change handler ===
   const handlePaymentMethodChange = React.useCallback(
     (method: "cash" | "transfer") => {
       setPaymentMethod(method);
     },
-    []
+    [],
   );
 
   // === Success dialog handler (Transfer payment) ===
   const handleSuccessDialogOk = React.useCallback(() => {
     resetAfterSuccess();
-    // Reset tất cả state để sẵn sàng cho đơn mới
     clearCart();
     setPaymentMethod("cash");
     setCustomerPaid(null);
+    
+    // Auto focus input để sẵn sàng cho đơn tiếp theo
+    setTimeout(() => {
+      barcodeInputRef.current?.focus();
+    }, 100);
   }, [resetAfterSuccess, clearCart]);
 
-  // === Print handler (direct browser print dialog) ===
+  // === Print draft receipt handler ===
   const handlePrintDraftReceipt = React.useCallback(() => {
-    if (!draftData) return;
+    // Validation: Đảm bảo draft data đã sẵn sàng
+    if (!draftData?.receiptCode) {
+      console.warn("[Print] Draft data not ready");
+      toast.error("Mã hóa đơn chưa sẵn sàng, vui lòng thử lại");
+      return;
+    }
+
+    // In hóa đơn draft với QR code
     printDraftWithQR({
       code: draftData.receiptCode,
       cartItems,
       totalAmount,
-      paymentMethod: "transfer",
       branchName: currentBranch?.branchName,
       branchAddress: currentBranch?.address,
       staffName: user?.name || user?.userName,
       qrCode: draftData.paymentInfo?.qrCode,
+      accountName: draftData.paymentInfo?.accountName,
+      accountNumber: draftData.paymentInfo?.accountNumber,
+      description: draftData.paymentInfo?.description,
     });
-  }, [draftData, cartItems, totalAmount, currentBranch, user]);
+  }, [
+    draftData,
+    cartItems,
+    totalAmount,
+    currentBranch,
+    user,
+    printDraftWithQR,
+  ]);
 
   // === Enter Flow Hook ===
   useEnterFlow({
@@ -291,6 +345,8 @@ export default function CreateReceiptPage() {
     onPrintDraft: handlePrintDraftReceipt,
     onConfirmQR: confirmDraft,
     onCloseTransferSuccess: handleSuccessDialogOk,
+    // Chỉ cho phép in khi draft data đã có đầy đủ
+    canPrintDraft: !!draftData?.receiptCode,
   });
 
   // === Render ===
@@ -305,12 +361,19 @@ export default function CreateReceiptPage() {
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div>
+        <div className="flex-1">
           <h1 className="text-xl font-semibold">Tạo hóa đơn mới</h1>
           <p className="text-sm text-muted-foreground">
             Quét barcode hoặc tìm kiếm sản phẩm để thêm vào giỏ hàng
           </p>
         </div>
+        {/* Print Queue Status Indicator */}
+        <PrintQueueStatus
+          isProcessing={isPrintProcessing}
+          pendingCount={pendingJobsCount}
+          currentReceiptCode={currentJob?.receiptCode}
+          compact
+        />
       </div>
 
       {/* Main Content */}
@@ -388,7 +451,7 @@ export default function CreateReceiptPage() {
         receipt={completedReceipt}
         type={successType}
         onPrint={() => {
-          if (completedReceipt) printReceipt(completedReceipt);
+          if (completedReceipt) instantPrintReceipt(completedReceipt);
         }}
         onOk={handleSuccessDialogOk}
       />

@@ -327,59 +327,131 @@ branchProductSchema.statics = {
   async findByBranch(branchId, options = {}) {
     const { search, page = 1, limit = 20, lowStockOnly = false } = options;
 
-    const doc = await this.findOne({ branchId })
-      .populate("branchId", "branchName")
-      .populate({
-        path: "products.productId",
-        select: "name barcode unit images categoryId",
-        populate: {
-          path: "categoryId",
-          select: "name",
+    // Build aggregation pipeline for TRUE pagination at DB level
+    const pipeline = [
+      // Match branch
+      { $match: { branchId: new mongoose.Types.ObjectId(branchId) } },
+      
+      // Unwind products array
+      { $unwind: "$products" },
+      
+      // Filter by status (active only by default)
+      { $match: { "products.status": { $ne: "deleted" } } },
+      
+      // Apply lowStock filter if needed
+      ...(lowStockOnly
+        ? [{ $match: { $expr: { $lte: ["$products.stock", "$products.minStock"] } } }]
+        : []),
+      
+      // Lookup product details
+      {
+        $lookup: {
+          from: "products",
+          localField: "products.productId",
+          foreignField: "_id",
+          as: "productDetails",
         },
-      })
-      .lean();
+      },
+      { $unwind: { path: "$productDetails", preserveNullAndEmptyArrays: true } },
+      
+      // Lookup category
+      {
+        $lookup: {
+          from: "categories",
+          localField: "productDetails.categoryId",
+          foreignField: "_id",
+          as: "categoryDetails",
+        },
+      },
+      {
+        $unwind: {
+          path: "$categoryDetails",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      
+      // Lookup branch details
+      {
+        $lookup: {
+          from: "branches",
+          localField: "branchId",
+          foreignField: "_id",
+          as: "branchDetails",
+        },
+      },
+      { $unwind: { path: "$branchDetails", preserveNullAndEmptyArrays: true } },
+      
+      // Apply search filter if provided
+      ...(search?.trim()
+        ? [
+            {
+              $match: {
+                $or: [
+                  { "productDetails.name": { $regex: search, $options: "i" } },
+                  { "productDetails.barcode": { $regex: search, $options: "i" } },
+                  { "products.productCode": { $regex: search, $options: "i" } },
+                ],
+              },
+            },
+          ]
+        : []),
+      
+      // Project final shape
+      {
+        $project: {
+          _id: "$products._id",
+          branchId: {
+            _id: "$branchDetails._id",
+            branchName: "$branchDetails.branchName",
+          },
+          productId: {
+            _id: "$productDetails._id",
+            name: "$productDetails.name",
+            barcode: "$productDetails.barcode",
+            unit: "$productDetails.unit",
+            images: "$productDetails.images",
+            categoryId: {
+              _id: "$categoryDetails._id",
+              name: "$categoryDetails.name",
+            },
+          },
+          productCode: "$products.productCode",
+          stock: "$products.stock",
+          minStock: "$products.minStock",
+          salePrice: "$products.salePrice",
+          lastImportPrice: "$products.lastImportPrice",
+          status: "$products.status",
+          note: "$products.note",
+          updatedAt: "$updatedAt",
+        },
+      },
+      
+      // Sort by stock descending
+      { $sort: { stock: -1 } },
+    ];
 
-    if (!doc) {
-      return { data: [], pagination: { page, limit, total: 0, totalPages: 0 } };
-    }
+    // Get total count
+    const countPipeline = [...pipeline, { $count: "total" }];
+    const countResult = await this.aggregate(countPipeline);
+    const total = countResult[0]?.total || 0;
 
-    let items = doc.products.map((p) => ({
-      _id: p._id,
-      branchId: doc.branchId,
-      productId: p.productId,
-      productCode: p.productCode || "",
-      stock: p.stock,
-      minStock: p.minStock,
-      salePrice: p.salePrice || 0,
-      lastImportPrice: p.lastImportPrice || 0,
-      status: p.status || "active",
-      note: p.note || null,
-      updatedAt: doc.updatedAt,
-    }));
+    // Apply pagination
+    const dataPipeline = [
+      ...pipeline,
+      { $skip: (page - 1) * limit },
+      { $limit: limit },
+    ];
 
-    if (search?.trim()) {
-      const searchLower = search.toLowerCase();
-      items = items.filter(
-        (item) =>
-          item.productId?.name?.toLowerCase().includes(searchLower) ||
-          item.productId?.barcode?.toLowerCase().includes(searchLower) ||
-          item.productCode?.toLowerCase().includes(searchLower),
-      );
-    }
-
-    if (lowStockOnly) {
-      items = items.filter((item) => item.stock <= item.minStock);
-    }
-
-    // Sort by stock descending (highest stock first)
-    items.sort((a, b) => b.stock - a.stock);
-
-    const total = items.length;
-    const paginatedItems = items.slice((page - 1) * limit, page * limit);
+    const data = await this.aggregate(dataPipeline);
 
     return {
-      data: paginatedItems,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+      data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   },
 

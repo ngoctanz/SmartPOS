@@ -36,8 +36,16 @@ export function SuccessDialog({
   const isCompleted = type === "paid" || type === "cash";
 
   // Phím P: In bill - chỉ cho Transfer (Cash dùng Enter)
-  useHotkey({ key: "p", onPress: onPrint, enabled: open && !!receipt && isTransfer });
-  useHotkey({ key: "P", onPress: onPrint, enabled: open && !!receipt && isTransfer });
+  useHotkey({
+    key: "p",
+    onPress: onPrint,
+    enabled: open && !!receipt && isTransfer,
+  });
+  useHotkey({
+    key: "P",
+    onPress: onPrint,
+    enabled: open && !!receipt && isTransfer,
+  });
 
   if (!receipt) return null;
 
@@ -75,11 +83,13 @@ export function SuccessDialog({
           <DialogDescription className="text-center">
             {isCompleted ? (
               <>
-                Đơn hàng <span className="font-semibold">{receipt.code}</span> đã được thanh toán thành công!
+                Đơn hàng <span className="font-semibold">{receipt.code}</span>{" "}
+                đã được thanh toán thành công!
               </>
             ) : (
               <>
-                Đơn hàng <span className="font-semibold">{receipt.code}</span> đang chờ khách hàng thanh toán
+                Đơn hàng <span className="font-semibold">{receipt.code}</span>{" "}
+                đang chờ khách hàng thanh toán
               </>
             )}
           </DialogDescription>
@@ -96,14 +106,18 @@ export function SuccessDialog({
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Tổng tiền:</span>
-            <span className="font-bold text-primary">{formatCurrency(receipt.totalAmount)}</span>
+            <span className="font-bold text-primary">
+              {formatCurrency(receipt.totalAmount)}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Trạng thái:</span>
             {isCompleted ? (
               <span className="text-green-600 font-medium">Đã thanh toán</span>
             ) : (
-              <span className="text-yellow-600 font-medium">Chờ thanh toán</span>
+              <span className="text-yellow-600 font-medium">
+                Chờ thanh toán
+              </span>
             )}
           </div>
         </div>
@@ -111,7 +125,9 @@ export function SuccessDialog({
         <DialogFooter className="flex-shrink-0 flex gap-2 sm:gap-2">
           <Button variant="outline" className="flex-1" onClick={onPrint}>
             <Printer className="h-4 w-4 mr-2 flex-shrink-0" />
-            <span className="truncate">{isCash ? "In bill (Enter)" : "In bill (P)"}</span>
+            <span className="truncate">
+              {isCash ? "In bill (Enter)" : "In bill (P)"}
+            </span>
           </Button>
           <Button className="flex-1" onClick={onOk}>
             OK (Enter)
