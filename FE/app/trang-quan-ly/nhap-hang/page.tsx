@@ -397,13 +397,13 @@ export default function Page() {
   };
 
   const toolbarActions = (
-    <>
+    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
       {isAdmin && (
         <Select 
           value={filters.branchId || "all"} 
           onValueChange={(value) => updateFilter("branchId", value === "all" ? undefined : value)}
         >
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Tất cả chi nhánh" />
           </SelectTrigger>
           <SelectContent>
@@ -420,7 +420,7 @@ export default function Page() {
         value={filters.status || "all"} 
         onValueChange={(value) => updateFilter("status", value === "all" ? undefined : value)}
       >
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger className="w-full sm:w-[180px]">
           <SelectValue placeholder="Trạng thái" />
         </SelectTrigger>
         <SelectContent>
@@ -437,37 +437,40 @@ export default function Page() {
           endDate: filters.endDate,
         }}
         onChange={handleDateRangeChange}
-        className="w-[160px]"
+        className="w-full sm:w-[160px]"
       />
-    </>
+    </div>
   );
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-primary">Quản lý nhập hàng</h1>
-        <Button onClick={handleCreate}>
+    <div className="flex flex-1 flex-col gap-4 p-2 sm:p-4 pt-0">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-primary">Quản lý nhập hàng</h1>
+        <Button onClick={handleCreate} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
-          Tạo phiếu nhập
+          <span className="hidden sm:inline">Tạo phiếu nhập</span>
+          <span className="sm:hidden">Tạo phiếu</span>
         </Button>
       </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="normal">
-            <FileText className="mr-2 h-4 w-4" />
-            Phiếu nhập
+        <TabsList className="grid w-full max-w-full sm:max-w-md grid-cols-2">
+          <TabsTrigger value="normal" className="text-xs sm:text-sm">
+            <FileText className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Phiếu nhập</span>
+            <span className="sm:hidden">Nhập</span>
           </TabsTrigger>
-          <TabsTrigger value="error">
-            <AlertTriangle className="mr-2 h-4 w-4" />
-            Phiếu lỗi
+          <TabsTrigger value="error" className="text-xs sm:text-sm">
+            <AlertTriangle className="mr-1 sm:mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Phiếu lỗi</span>
+            <span className="sm:hidden">Lỗi</span>
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="normal" className="flex-1 flex flex-col gap-4 mt-4">
           {/* Stats Cards */}
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
             <StatsCard
               title="Tổng phiếu nhập"
               value={stats?.totalReceipts || 0}
@@ -647,7 +650,7 @@ export default function Page() {
         maxWidth="3xl"
         footer={
           selectedItem ? (
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               {selectedItem.status === "pending" ? (
                 <>
                   <Button
@@ -656,6 +659,7 @@ export default function Page() {
                       setIsDetailOpen(false);
                       handleCancel(selectedItem);
                     }}
+                    className="w-full sm:w-auto"
                   >
                     <X className="mr-2 h-4 w-4" />
                     Hủy phiếu
@@ -665,6 +669,7 @@ export default function Page() {
                       setIsDetailOpen(false);
                       handleConfirm(selectedItem);
                     }}
+                    className="w-full sm:w-auto"
                   >
                     <Check className="mr-2 h-4 w-4" />
                     Xác nhận
@@ -684,6 +689,7 @@ export default function Page() {
                         setIsDetailOpen(false);
                         handleMarkError(selectedItem);
                       }}
+                      className="w-full sm:w-auto"
                     >
                       <AlertTriangle className="mr-2 h-4 w-4" />
                       Đánh dấu lỗi
@@ -707,7 +713,7 @@ export default function Page() {
             </div>
 
             {/* Info Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Chi nhánh</p>
                 <p className="font-medium">{getBranchName(selectedItem.branchId)}</p>

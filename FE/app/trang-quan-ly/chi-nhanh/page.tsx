@@ -388,20 +388,20 @@ export default function Page() {
   );
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-primary">
+    <div className="flex flex-1 flex-col gap-4 p-2 sm:p-4 pt-0">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-primary">
           Quản lý chi nhánh
         </h1>
-        <div className="flex gap-2">
-          <Button onClick={handleCreate}>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button onClick={handleCreate} className="flex-1 sm:flex-none">
             <Plus className="mr-2 h-4 w-4" />
             Thêm mới
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2">
         <StatsCard
           title="Chi nhánh hoạt động"
           value={stats?.total || 0}
@@ -422,14 +422,16 @@ export default function Page() {
         value={viewMode}
         onValueChange={(v) => setViewMode(v as "active" | "deleted")}
       >
-        <TabsList>
-          <TabsTrigger value="active" className="gap-2">
-            <LayoutGrid className="h-4 w-4" />
-            Đang hoạt động ({stats?.total || 0})
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="active" className="gap-2 flex-1 sm:flex-none text-xs sm:text-sm">
+            <LayoutGrid className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Đang hoạt động ({stats?.total || 0})</span>
+            <span className="sm:hidden">Hoạt động ({stats?.total || 0})</span>
           </TabsTrigger>
-          <TabsTrigger value="deleted" className="gap-2">
-            <Archive className="h-4 w-4" />
-            Đã ngưng ({deletedCount})
+          <TabsTrigger value="deleted" className="gap-2 flex-1 sm:flex-none text-xs sm:text-sm">
+            <Archive className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Đã ngưng ({deletedCount})</span>
+            <span className="sm:hidden">Ngưng ({deletedCount})</span>
           </TabsTrigger>
         </TabsList>
       </Tabs>

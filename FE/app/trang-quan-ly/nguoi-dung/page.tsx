@@ -372,7 +372,7 @@ export default function Page() {
 
   // Custom toolbar actions (Filters)
   const toolbarActions = (
-    <>
+    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
       <Select
         value={filters.role || "ALL"}
         onValueChange={(value) =>
@@ -382,7 +382,7 @@ export default function Page() {
           )
         }
       >
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-full sm:w-[150px]">
           <SelectValue placeholder="Vai trò" />
         </SelectTrigger>
         <SelectContent>
@@ -401,7 +401,7 @@ export default function Page() {
           )
         }
       >
-        <SelectTrigger className="w-[150px]">
+        <SelectTrigger className="w-full sm:w-[150px]">
           <SelectValue placeholder="Trạng thái" />
         </SelectTrigger>
         <SelectContent>
@@ -410,23 +410,24 @@ export default function Page() {
           <SelectItem value="inactive">Đã khóa</SelectItem>
         </SelectContent>
       </Select>
-    </>
+    </div>
   );
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-primary">
+    <div className="flex flex-1 flex-col gap-4 p-2 sm:p-4 pt-0">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-primary">
           Quản lý người dùng
         </h1>
-        <Button onClick={handleCreate}>
+        <Button onClick={handleCreate} className="w-full sm:w-auto">
           <Plus className="mr-2 h-4 w-4" />
-          Thêm người dùng
+          <span className="hidden sm:inline">Thêm người dùng</span>
+          <span className="sm:hidden">Thêm mới</span>
         </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3">
         <StatsCard
           title="Tổng người dùng"
           value={stats?.total || 0}

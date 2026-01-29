@@ -12,6 +12,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { ROUTES } from "@/configs/routes.config";
 
@@ -25,6 +26,13 @@ export function NavMain({
   }[];
 }) {
   const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
+
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   // Grouping logic
   const groups = [
@@ -68,6 +76,7 @@ export function NavMain({
                 <Link
                   href={ROUTES.CREATE_INVOICE}
                   className="flex justify-center font-medium"
+                  onClick={handleLinkClick}
                 >
                   <IconCirclePlusFilled className="!size-5" />
                   <span>Tạo đơn nhanh</span>
@@ -96,7 +105,7 @@ export function NavMain({
                       isActive={pathname === item.url}
                       className="transition-colors"
                     >
-                      <Link href={item.url}>
+                      <Link href={item.url} onClick={handleLinkClick}>
                         {item.icon && <item.icon />}
                         <span>{item.title}</span>
                       </Link>

@@ -641,7 +641,7 @@ export default function Page() {
   };
 
   const toolbarActions = (
-    <>
+    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
       {isAdmin && (
         <Select
           value={filters.branchId || "all"}
@@ -649,7 +649,7 @@ export default function Page() {
             updateFilter("branchId", value === "all" ? undefined : value)
           }
         >
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Tất cả chi nhánh" />
           </SelectTrigger>
           <SelectContent>
@@ -668,7 +668,7 @@ export default function Page() {
           updateFilter("status", value === "all" ? undefined : value)
         }
       >
-        <SelectTrigger className="w-[180px]">
+        <SelectTrigger className="w-full sm:w-[180px]">
           <SelectValue placeholder="Trạng thái" />
         </SelectTrigger>
         <SelectContent>
@@ -685,19 +685,21 @@ export default function Page() {
           endDate: filters.endDate,
         }}
         onChange={handleDateRangeChange}
-        className="w-[160px]"
+        className="w-full sm:w-[160px]"
       />
       {(isAdmin || isManager) && (
         <Button
           variant="outline"
           size="sm"
           onClick={handleDeleteByMonth}
+          className="w-full sm:w-auto"
         >
           <Trash2 className="h-4 w-4 mr-2" />
-          Xóa theo tháng
+          <span className="hidden sm:inline">Xóa theo tháng</span>
+          <span className="sm:hidden">Xóa tháng</span>
         </Button>
       )}
-    </>
+    </div>
   );
 
   if (loading) {
@@ -709,19 +711,20 @@ export default function Page() {
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-primary">
+    <div className="flex flex-1 flex-col gap-4 p-2 sm:p-4 pt-0">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-primary">
           Quản lý hóa đơn
         </h1>
-        <Button onClick={() => router.push("/trang-quan-ly/hoa-don/tao-moi")}>
+        <Button onClick={() => router.push("/trang-quan-ly/hoa-don/tao-moi")} className="w-full sm:w-auto">
           <Plus className="h-4 w-4 mr-2" />
-          Tạo hóa đơn
+          <span className="hidden sm:inline">Tạo hóa đơn</span>
+          <span className="sm:hidden">Tạo mới</span>
         </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title="Tổng hóa đơn"
           value={stats?.totalReceipts || 0}
@@ -766,14 +769,16 @@ export default function Page() {
         onValueChange={setActiveTab}
         className="flex-1 flex flex-col"
       >
-        <TabsList>
-          <TabsTrigger value="all" className="gap-2">
-            Tất cả hóa đơn
+        <TabsList className="w-full sm:w-auto">
+          <TabsTrigger value="all" className="gap-2 flex-1 sm:flex-none text-xs sm:text-sm">
+            <span className="hidden sm:inline">Tất cả hóa đơn</span>
+            <span className="sm:hidden">Tất cả</span>
             <Badge variant="secondary">{pagination.total}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="errors" className="gap-2">
-            <AlertTriangle className="h-4 w-4" />
-            Hóa đơn lỗi
+          <TabsTrigger value="errors" className="gap-2 flex-1 sm:flex-none text-xs sm:text-sm">
+            <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Hóa đơn lỗi</span>
+            <span className="sm:hidden">Lỗi</span>
             <Badge variant="destructive">{errorPagination.total}</Badge>
           </TabsTrigger>
         </TabsList>
@@ -835,7 +840,7 @@ export default function Page() {
           {selectedItem && (
             <div className="grid gap-4 py-4">
               {/* Thông tin cơ bản - 2 cột */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">
                     Mã hóa đơn
@@ -866,7 +871,7 @@ export default function Page() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="text-xs text-muted-foreground">
                     Ngày lập
@@ -892,7 +897,7 @@ export default function Page() {
               {selectedItem.paymentMethod === "cash" &&
                 selectedItem.customerPaid != null &&
                 selectedItem.customerPaid > 0 && (
-                  <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 bg-muted/50 rounded-lg">
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">
                         Tiền khách đưa
@@ -916,7 +921,7 @@ export default function Page() {
 
               {/* Payment QR Code for transfer payments */}
               {selectedItem.paymentMethod === "transfer" && (
-                <div className="flex justify-center items-center gap-4 p-2 border rounded-lg bg-muted/30">
+                <div className="flex flex-col sm:flex-row justify-center items-center gap-4 p-2 border rounded-lg bg-muted/30">
                   {/* QR Code - bên trái */}
                   <div className="flex-shrink-0">
                     {selectedItem.paymentInfo?.qrCode ? (
@@ -1058,13 +1063,14 @@ export default function Page() {
               </div>
             </div>
           )}
-          <DialogFooter className="gap-2">
+          <DialogFooter className="flex-col sm:flex-row gap-2">
             <Button
               variant="outline"
               onClick={() => {
                 setIsDetailOpen(false);
                 if (selectedItem) handlePrint(selectedItem);
               }}
+              className="w-full sm:w-auto"
             >
               <Printer className="h-4 w-4 mr-2" />
               In hóa đơn
@@ -1074,6 +1080,7 @@ export default function Page() {
                 setIsDetailOpen(false);
                 if (selectedItem) handleViewDetail(selectedItem);
               }}
+              className="w-full sm:w-auto"
             >
               <ExternalLink className="h-4 w-4 mr-2" />
               Xem chi tiết

@@ -50,7 +50,7 @@ export function PaymentMethodStats({
   return (
     <div className={cn("space-y-2", className)}>
       {/* Main payment methods - Cash and Transfer */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {mainStats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -62,18 +62,18 @@ export function PaymentMethodStats({
                 stat.bgColor
               )}
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
                   <div
                     className={cn(
-                      "p-2 rounded-lg bg-white shadow-sm",
+                      "p-2 rounded-lg bg-white shadow-sm flex-shrink-0",
                       stat.color
                     )}
                   >
                     <Icon className="h-4 w-4" />
                   </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-muted-foreground truncate">
                       {stat.label}
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -81,8 +81,8 @@ export function PaymentMethodStats({
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
-                  <p className={cn("text-xl font-bold", stat.color)}>
+                <div className="text-right flex-shrink-0">
+                  <p className={cn("text-lg sm:text-xl font-bold tabular-nums", stat.color)}>
                     {formatCurrency(stat.amount)}
                   </p>
                 </div>
@@ -95,13 +95,13 @@ export function PaymentMethodStats({
       {/* Card payment - shown separately if exists */}
       {hasCardPayment && (
         <Card className="p-3 border transition-all hover:shadow-sm border-purple-200 bg-purple-50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-lg bg-white shadow-sm text-purple-600">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="p-2 rounded-lg bg-white shadow-sm text-purple-600 flex-shrink-0">
                 <CreditCard className="h-4 w-4" />
               </div>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground truncate">
                   Thẻ
                 </p>
                 <p className="text-xs text-muted-foreground">
@@ -109,8 +109,8 @@ export function PaymentMethodStats({
                 </p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-xl font-bold text-purple-600">
+            <div className="text-right flex-shrink-0">
+              <p className="text-lg sm:text-xl font-bold text-purple-600 tabular-nums">
                 {formatCurrency(cardAmount)}
               </p>
             </div>

@@ -80,7 +80,7 @@ export function ProductDetailModal({
           return (
             <div className="space-y-3">
               <h4 className="font-semibold text-sm">Hình ảnh sản phẩm ({allImages.length})</h4>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                 {allImages.map((img: string, idx: number) => (
                   <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border bg-muted group">
                     <img
@@ -108,7 +108,7 @@ export function ProductDetailModal({
         {/* Thông tin chi tiết */}
         <div className="space-y-3">
           <h4 className="font-semibold text-sm">Thông tin chi tiết</h4>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {!product.isAggregated && (
               <div className="space-y-1">
                 <p className="text-sm text-muted-foreground">Chi nhánh</p>

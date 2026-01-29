@@ -141,13 +141,14 @@ export function ExportProductsButton({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant={variant} size={size} disabled={isExporting}>
+        <Button variant={variant} size={size} disabled={isExporting} className="flex-shrink-0">
           {isExporting ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <Download className="mr-2 h-4 w-4" />
           )}
-          Export
+          <span className="hidden sm:inline">Export</span>
+          <span className="sm:hidden">XLS</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
