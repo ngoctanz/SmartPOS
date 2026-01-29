@@ -687,18 +687,6 @@ export default function Page() {
         onChange={handleDateRangeChange}
         className="w-full sm:w-[160px]"
       />
-      {(isAdmin || isManager) && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleDeleteByMonth}
-          className="w-full sm:w-auto"
-        >
-          <Trash2 className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Xóa theo tháng</span>
-          <span className="sm:hidden">Xóa tháng</span>
-        </Button>
-      )}
     </div>
   );
 
@@ -716,11 +704,27 @@ export default function Page() {
         <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-primary">
           Quản lý hóa đơn
         </h1>
-        <Button onClick={() => router.push("/trang-quan-ly/hoa-don/tao-moi")} className="w-full sm:w-auto">
-          <Plus className="h-4 w-4 mr-2" />
-          <span className="hidden sm:inline">Tạo hóa đơn</span>
-          <span className="sm:hidden">Tạo mới</span>
-        </Button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          {(isAdmin || isManager) && (
+            <Button
+              variant="outline"
+              onClick={handleDeleteByMonth}
+              className="flex-1 sm:flex-none"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Xóa theo tháng</span>
+              <span className="sm:hidden">Xóa tháng</span>
+            </Button>
+          )}
+          <Button 
+            onClick={() => router.push("/trang-quan-ly/hoa-don/tao-moi")} 
+            className="flex-1 sm:flex-none"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            <span className="hidden sm:inline">Tạo hóa đơn</span>
+            <span className="sm:hidden">Tạo mới</span>
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
@@ -769,7 +773,7 @@ export default function Page() {
         onValueChange={setActiveTab}
         className="flex-1 flex flex-col"
       >
-        <TabsList className="w-full sm:w-auto">
+        <TabsList className="w-full sm:w-fit">
           <TabsTrigger value="all" className="gap-2 flex-1 sm:flex-none text-xs sm:text-sm">
             <span className="hidden sm:inline">Tất cả hóa đơn</span>
             <span className="sm:hidden">Tất cả</span>

@@ -248,10 +248,11 @@ export function CommonTable<TData, TValue>({
       )}
 
       {(filterCol || toolbarActions) && (
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full">
-            {toolbarActions}
-          </div>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full">
+          {/* Toolbar Actions (filters, etc.) */}
+          {toolbarActions}
+          
+          {/* Search Input */}
           {filterCol && (
             <Input
               placeholder={filterPlaceholder}
@@ -260,6 +261,8 @@ export function CommonTable<TData, TValue>({
               className="w-full sm:max-w-sm"
             />
           )}
+          
+          {/* Column Visibility */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="w-full sm:w-auto sm:ml-auto">

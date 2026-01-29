@@ -132,8 +132,9 @@ export function DateRangeFilter({
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button 
-          variant="outline" 
-          className={cn("justify-between font-normal", className)}
+          variant="outline"
+          size="lg"
+          className={cn("w-[180px] justify-between font-normal shadow-sm border", className)}
         >
           <span className="truncate">{getDisplayText()}</span>
           <Calendar className="ml-2 h-4 w-4 shrink-0 opacity-50" />
