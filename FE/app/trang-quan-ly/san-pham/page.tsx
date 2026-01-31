@@ -54,11 +54,14 @@ import Barcode from "react-barcode";
 import { ImportReceiptExcelModal } from "@/components/forms/import-receipt-excel-modal";
 import { ExportProductsButton } from "@/components/common/export-products-button";
 import { eventBus, Events } from "@/lib/data-events";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { cn } from "@/lib/utils";
 
 export default function Page() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const canEditProduct = isAdmin || user?.role === "manager";
+  const isMobile = useIsMobile();
 
   // Data state
   const [data, setData] = React.useState<IBranchProduct[]>([]);
@@ -831,18 +834,23 @@ export default function Page() {
 
       {/* Stats Cards */}
       {showStats && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className={cn(
+          "grid grid-cols-2 lg:grid-cols-3",
+          isMobile ? "gap-2" : "gap-3 sm:gap-4"
+        )}>
           <StatsCard
             title="Tổng mặt hàng"
             value={stats.totalItems}
             icon={Package}
             description="Số lượng mặt hàng đang quản lý"
+            compact={isMobile}
           />
           <StatsCard
             title="Tổng số lượng"
             value={stats.totalQuantity}
             icon={Boxes}
             description="Tổng số lượng sản phẩm tất cả các loại"
+            compact={isMobile}
           />
           <StatsCard
             title="Sắp hết hàng"
@@ -850,6 +858,7 @@ export default function Page() {
             icon={AlertTriangle}
             description="Sản phẩm dưới định mức tối thiểu"
             trend={stats.lowStockCount > 0 ? "critical" : "neutral"}
+            compact={isMobile}
           />
         </div>
       )}

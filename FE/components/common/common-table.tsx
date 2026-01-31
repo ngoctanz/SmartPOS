@@ -236,10 +236,10 @@ export function CommonTable<TData, TValue>({
   return (
     <div className="w-full space-y-4">
       {/* Bulk Actions Bar */}
-      {onBulkAction && (
+      {(onBulkAction || additionalBulkActions) && (
         <BulkActions
           selectedCount={selectedCount}
-          onAction={handleBulkAction}
+          onAction={onBulkAction ? handleBulkAction : undefined}
           onClearSelection={clearSelection}
           actionLabel={bulkActionLabel}
           actionIcon={bulkActionIcon}

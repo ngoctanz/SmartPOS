@@ -24,6 +24,7 @@ import { useAuth } from "@/hooks/useAuth";
 import importReceiptService, { CreateImportReceiptRequest } from "@/service/import-receipt.service";
 import branchService, { Branch } from "@/service/branch.service";
 import { ImportReceiptDetailTable } from "@/components/import-receipt/import-receipt-detail-table";
+import { ImportReceiptDetailMobile } from "@/components/import-receipt/import-receipt-detail-mobile";
 import { StatsCard } from "@/components/common/stats-card";
 import {
   Select,
@@ -37,6 +38,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFilteredTableData } from "@/hooks/useFilteredTableData";
 import { useStats } from "@/hooks/useStats";
 import { ErrorReceiptsTab } from "@/components/import-receipt/error-receipts-tab";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { cn } from "@/lib/utils";
 
 interface DateFilters {
   branchId?: string;
@@ -78,6 +81,7 @@ export default function Page() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const isManager = user?.role === "manager";
+  const isMobile = useIsMobile();
 
   // Use custom hooks - Backend will auto-inject branchId for staff via middleware
   const { 
@@ -470,12 +474,16 @@ export default function Page() {
 
         <TabsContent value="normal" className="flex-1 flex flex-col gap-4 mt-4">
           {/* Stats Cards */}
-          <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+          <div className={cn(
+            "grid grid-cols-2 lg:grid-cols-4",
+            isMobile ? "gap-2" : "gap-3 sm:gap-4"
+          )}>
             <StatsCard
               title="Tổng phiếu nhập"
               value={stats?.totalReceipts || 0}
               icon={FileText}
               description="Tổng số phiếu nhập hàng"
+              compact={isMobile}
             />
             <StatsCard
               title="Chờ xử lý"
@@ -483,6 +491,7 @@ export default function Page() {
               icon={Clock}
               description="Phiếu nhập đang chờ duyệt"
               trend="neutral"
+              compact={isMobile}
             />
             <StatsCard
               title="Hoàn thành"
@@ -490,12 +499,16 @@ export default function Page() {
               icon={CheckCircle}
               description="Phiếu nhập đã hoàn tất"
               trend="positive"
+              compact={isMobile}
             />
             <StatsCard
               title="Tổng giá trị nhập"
               value={formatSmartCurrency(stats?.totalValue || 0)}
               icon={DollarSign}
               description="Giá trị hàng đã nhập kho"
+              compact={isMobile}
+              showDetailedTooltip={true}
+              rawValue={stats?.totalValue || 0}
             />
           </div>
 
@@ -753,6 +766,11 @@ export default function Page() {
                     Vui lòng xem chi tiết trong file Excel gốc hoặc xuất dữ liệu để kiểm tra.
                   </p>
                 </div>
+              ) : isMobile ? (
+                <ImportReceiptDetailMobile 
+                  products={selectedItem.listProduct} 
+                  totalAmount={selectedItem.totalAmount}
+                />
               ) : (
                 <ImportReceiptDetailTable 
                   products={selectedItem.listProduct} 

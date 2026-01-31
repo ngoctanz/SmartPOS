@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import receiptService, { Receipt } from "@/service/receipt.service";
 import { ROUTES } from "@/configs/routes.config";
-import { MarkErrorDialog } from "@/components/receipt";
+import { MarkErrorDialog, ReceiptProductsList } from "@/components/receipt";
 import { formatCurrency } from "@/utils/format.utils";
 import { useSocket } from "@/hooks/useSocket";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -326,7 +326,7 @@ export default function ReceiptDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Products Table */}
+          {/* Products List */}
           <Card className="flex-1">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">
@@ -334,36 +334,7 @@ export default function ReceiptDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="text-left p-3 font-medium">STT</th>
-                      <th className="text-left p-3 font-medium">Sản phẩm</th>
-                      <th className="text-right p-3 font-medium">Đơn giá</th>
-                      <th className="text-center p-3 font-medium">SL</th>
-                      <th className="text-right p-3 font-medium">Thành tiền</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {receipt.listProduct.map((item, index) => (
-                      <tr key={index} className="border-t">
-                        <td className="p-3 text-muted-foreground">
-                          {index + 1}
-                        </td>
-                        <td className="p-3 font-medium">{item.productName}</td>
-                        <td className="p-3 text-right">
-                          {formatCurrency(item.salePrice)}
-                        </td>
-                        <td className="p-3 text-center">{item.quantity}</td>
-                        <td className="p-3 text-right font-semibold">
-                          {formatCurrency(item.salePrice * item.quantity)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ReceiptProductsList products={receipt.listProduct} />
             </CardContent>
           </Card>
         </div>

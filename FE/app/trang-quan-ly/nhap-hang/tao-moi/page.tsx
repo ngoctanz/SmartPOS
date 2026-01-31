@@ -19,11 +19,16 @@ import { useAuthContext } from "@/contexts/auth-context";
 import { ROUTES } from "@/configs/routes.config";
 import {
   ImportItemsTable,
+  ImportItemsMobile,
   ImportSummary,
+  ImportSummaryMobile,
   ConfirmDialog,
   ImportItem,
 } from "@/components/import-receipt";
 import { SmartProductInput } from "@/components/common/smart-product-input";
+import { SmartProductInputMobile } from "@/components/common/smart-product-input-mobile";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { cn } from "@/lib/utils";
 import {
   ProductFormModal,
   InventoryProductFormData,
@@ -45,6 +50,7 @@ export default function CreateImportReceiptPage() {
   const searchParams = useSearchParams();
   const { user } = useAuthContext();
   const isAdmin = user?.role === "admin";
+  const isMobile = useIsMobile();
 
   const [branches, setBranches] = React.useState<Branch[]>([]);
   const [selectedBranch, setSelectedBranch] = React.useState<string>("");
@@ -467,6 +473,9 @@ export default function CreateImportReceiptPage() {
   }, [isAdmin, selectedBranch, importItems, supplierName, note, router]);
 
   React.useEffect(() => {
+    // Disable keyboard shortcuts on mobile
+    if (isMobile) return;
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // F9 or Enter to submit
       if ((e.key === "F9" || e.key === "Enter") && importItems.length > 0) {
@@ -497,7 +506,7 @@ export default function CreateImportReceiptPage() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [importItems.length, showConfirmDialog, handleSubmitClick]);
+  }, [importItems.length, showConfirmDialog, handleSubmitClick, isMobile]);
 
   return (
     <div className="flex flex-col h-full p-4 pt-0">
@@ -512,56 +521,100 @@ export default function CreateImportReceiptPage() {
         </Button>
         <div>
           <h1 className="text-xl font-semibold">Tạo phiếu nhập hàng</h1>
-          <p className="text-sm text-muted-foreground">
-            Quét barcode hoặc tìm kiếm sản phẩm để thêm vào phiếu
-          </p>
+          {!isMobile && (
+            <p className="text-sm text-muted-foreground">
+              Quét barcode hoặc tìm kiếm sản phẩm để thêm vào phiếu
+            </p>
+          )}
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-0">
+      <div className={cn(
+        "flex gap-4 flex-1 min-h-0",
+        isMobile ? "flex-col" : "flex-col lg:flex-row"
+      )}>
         {/* Left Panel */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Search Section */}
-          <div className="bg-muted/50 rounded-lg p-4 mb-4">
-            <SmartProductInput
-              onProductSelect={handleProductSelect}
-              searchFn={handleSearch}
-              getByBarcodeFn={getProductByBarcode}
-              onBarcodeNotFound={handleBarcodeNotFound}
-              placeholder="Quét mã barcode hoặc nhập tên sản phẩm..."
-              autoFocus
-              disableAutoRefocus={true}
-            />
+          <div className="bg-muted/50 rounded-lg p-3 mb-3">
+            {isMobile ? (
+              <SmartProductInputMobile
+                onProductSelect={handleProductSelect}
+                searchFn={handleSearch}
+                getByBarcodeFn={getProductByBarcode}
+                onBarcodeNotFound={handleBarcodeNotFound}
+                placeholder="Quét mã barcode hoặc tìm kiếm..."
+              />
+            ) : (
+              <SmartProductInput
+                onProductSelect={handleProductSelect}
+                searchFn={handleSearch}
+                getByBarcodeFn={getProductByBarcode}
+                onBarcodeNotFound={handleBarcodeNotFound}
+                placeholder="Quét mã barcode hoặc nhập tên sản phẩm..."
+                autoFocus
+                disableAutoRefocus={true}
+              />
+            )}
           </div>
 
-          {/* Items Table */}
-          <ImportItemsTable
-            items={importItems}
-            onUpdateQuantity={updateQuantity}
-            onUpdatePrice={updateImportPrice}
-            onRemove={removeItem}
-            onClearAll={clearItems}
-          />
+          {/* Items Table/List */}
+          {isMobile ? (
+            <ImportItemsMobile
+              items={importItems}
+              onUpdateQuantity={updateQuantity}
+              onUpdatePrice={updateImportPrice}
+              onRemove={removeItem}
+              onClearAll={clearItems}
+            />
+          ) : (
+            <ImportItemsTable
+              items={importItems}
+              onUpdateQuantity={updateQuantity}
+              onUpdatePrice={updateImportPrice}
+              onRemove={removeItem}
+              onClearAll={clearItems}
+            />
+          )}
         </div>
 
         {/* Right Panel - Summary */}
-        <div className="lg:w-96 lg:flex-shrink-0">
-          <ImportSummary
-            items={importItems}
-            branches={branches}
-            selectedBranch={selectedBranch}
-            onBranchChange={setSelectedBranch}
-            supplierName={supplierName}
-            onSupplierChange={setSupplierName}
-            note={note}
-            onNoteChange={setNote}
-            isAdmin={isAdmin}
-            onSubmit={handleSubmitClick}
-            disabled={importItems.length === 0 || (isAdmin && !selectedBranch)}
-          />
-        </div>
+        {!isMobile && (
+          <div className="lg:w-96 lg:flex-shrink-0">
+            <ImportSummary
+              items={importItems}
+              branches={branches}
+              selectedBranch={selectedBranch}
+              onBranchChange={setSelectedBranch}
+              supplierName={supplierName}
+              onSupplierChange={setSupplierName}
+              note={note}
+              onNoteChange={setNote}
+              isAdmin={isAdmin}
+              onSubmit={handleSubmitClick}
+              disabled={importItems.length === 0 || (isAdmin && !selectedBranch)}
+            />
+          </div>
+        )}
       </div>
+
+      {/* Mobile Summary - Fixed Bottom */}
+      {isMobile && (
+        <ImportSummaryMobile
+          items={importItems}
+          branches={branches}
+          selectedBranch={selectedBranch}
+          onBranchChange={setSelectedBranch}
+          supplierName={supplierName}
+          onSupplierChange={setSupplierName}
+          note={note}
+          onNoteChange={setNote}
+          isAdmin={isAdmin}
+          onSubmit={handleSubmitClick}
+          disabled={importItems.length === 0 || (isAdmin && !selectedBranch)}
+        />
+      )}
 
       <ConfirmDialog
         open={showConfirmDialog}

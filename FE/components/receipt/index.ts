@@ -7,6 +7,7 @@ export { PrintBill, MultiplePrintBill, printStyles } from "./print-bill";
 export { MarkErrorDialog } from "./mark-error-dialog";
 export { ErrorReceiptList } from "./error-receipt-list";
 export { PaymentMethodStats } from "./payment-method-stats";
+export { ReceiptProductsList } from "./receipt-products-list";
 export {
   QRInlineDisplay,
   type QRPaymentInfo,

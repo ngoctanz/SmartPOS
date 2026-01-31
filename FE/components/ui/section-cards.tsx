@@ -1,3 +1,4 @@
+import * as React from "react";
 import {
   IconCurrencyDollar,
   IconFileInvoice,
@@ -5,6 +6,12 @@ import {
   IconShoppingCart,
 } from "@tabler/icons-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardSummary } from "@/service/dashboard.service";
 import {
@@ -14,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatSmartCurrency, formatNumber } from "@/utils/number.utils";
+import { formatSmartCurrency, formatNumber, formatDetailedCurrency } from "@/utils/number.utils";
 
 interface SectionCardsProps {
   stats?: DashboardSummary;
@@ -34,39 +41,71 @@ const periodLabels: Record<string, string> = {
 
 export function SectionCards({ stats, loading, period = "month", onPeriodChange }: SectionCardsProps) {
   const periodLabel = periodLabels[period] || "Tháng này";
+  
+  // State for mobile tooltips - one for each card
+  const [openTooltips, setOpenTooltips] = React.useState<Record<number, boolean>>({});
+
+  const toggleTooltip = (index: number) => {
+    setOpenTooltips(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
+
+  const closeTooltip = (index: number) => {
+    setOpenTooltips(prev => ({
+      ...prev,
+      [index]: false
+    }));
+  };
+
+  const openTooltip = (index: number) => {
+    setOpenTooltips(prev => ({
+      ...prev,
+      [index]: true
+    }));
+  };
 
   const cards = [
     {
       title: "Tổng doanh thu",
       value: formatSmartCurrency(stats?.revenue || 0),
+      rawValue: stats?.revenue || 0,
       subtitle: `Doanh thu ${periodLabel.toLowerCase()}`,
       icon: IconCurrencyDollar,
       iconBg: "bg-primary/10",
       iconColor: "text-primary",
+      showTooltip: true,
     },
     {
       title: "Số lượng hóa đơn",
       value: formatNumber(stats?.totalOrders || 0),
+      rawValue: stats?.totalOrders || 0,
       subtitle: `Hóa đơn ${periodLabel.toLowerCase()}`,
       icon: IconFileInvoice,
       iconBg: "bg-primary/10",
       iconColor: "text-primary",
+      showTooltip: false,
     },
     {
       title: "Chi phí nhập hàng",
       value: formatSmartCurrency(stats?.totalImportCost || 0),
+      rawValue: stats?.totalImportCost || 0,
       subtitle: `${formatNumber(stats?.totalImportReceipts || 0)} phiếu nhập ${periodLabel.toLowerCase()}`,
       icon: IconShoppingCart,
       iconBg: "bg-primary/10",
       iconColor: "text-primary",
+      showTooltip: true,
     },
     {
       title: "Tổng sản phẩm",
       value: formatNumber(stats?.totalProducts || 0),
+      rawValue: stats?.totalProducts || 0,
       subtitle: "Số lượng sản phẩm trong hệ thống",
       icon: IconPackage,
       iconBg: "bg-primary/10",
       iconColor: "text-primary",
+      showTooltip: false,
     },
   ];
 
@@ -118,28 +157,66 @@ export function SectionCards({ stats, loading, period = "month", onPeriodChange 
       </div>
 
       <div className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
-        {cards.map((card, index) => (
-          <Card key={index} className="@container/card">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground text-primary">
-                {card.title}
-              </CardTitle>
-              <div
-                className={`flex h-9 w-9 items-center justify-center rounded-lg ${card.iconBg}`}
-              >
-                <card.icon className={`h-5 w-5 ${card.iconColor}`} />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold tabular-nums @[250px]/card:text-3xl">
-                {card.value}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {card.subtitle}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
+        {cards.map((card, index) => {
+          const shouldShowTooltip = card.showTooltip && card.rawValue >= 1_000;
+          const isOpen = openTooltips[index] || false;
+          
+          const valueDisplay = (
+            <div className="text-2xl font-bold tabular-nums @[250px]/card:text-3xl">
+              {card.value}
+            </div>
+          );
+
+          return (
+            <Card key={index} className="@container/card">
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground text-primary">
+                  {card.title}
+                </CardTitle>
+                <div
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg ${card.iconBg}`}
+                >
+                  <card.icon className={`h-5 w-5 ${card.iconColor}`} />
+                </div>
+              </CardHeader>
+              <CardContent>
+                {shouldShowTooltip ? (
+                  <TooltipProvider>
+                    <Tooltip 
+                      delayDuration={200}
+                      open={isOpen}
+                      onOpenChange={(open) => open ? openTooltip(index) : closeTooltip(index)}
+                    >
+                      <TooltipTrigger asChild>
+                        <div 
+                          className="cursor-help active:scale-95 transition-transform"
+                          onClick={() => toggleTooltip(index)}
+                          onMouseEnter={() => openTooltip(index)}
+                          onMouseLeave={() => closeTooltip(index)}
+                        >
+                          {valueDisplay}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-xs">
+                        <div className="space-y-1">
+                          <p className="font-semibold">{formatDetailedCurrency(card.rawValue)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Chính xác: {formatNumber(card.rawValue)} đ
+                          </p>
+                        </div>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : (
+                  valueDisplay
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {card.subtitle}
+                </p>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

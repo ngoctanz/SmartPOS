@@ -52,8 +52,10 @@ import {
   ErrorReceiptList,
   MarkErrorDialog,
   PaymentMethodStats,
+  ReceiptProductsList,
 } from "@/components/receipt";
 import { formatCurrency } from "@/utils/format.utils";
+import { formatSmartCurrency } from "@/utils/number.utils";
 import { StatsCard } from "@/components/common/stats-card";
 import {
   Select,
@@ -71,6 +73,8 @@ import { useFilteredTableData } from "@/hooks/useFilteredTableData";
 import { useStats } from "@/hooks/useStats";
 import { useSocket } from "@/hooks/useSocket";
 import { printReceipt as printReceiptDirect } from "@/utils/print-direct";
+import { useIsMobile } from "@/hooks/useIsMobile";
+import { cn } from "@/lib/utils";
 
 interface DateFilters {
   branchId?: string;
@@ -85,6 +89,7 @@ export default function Page() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const isManager = user?.role === "manager";
+  const isMobile = useIsMobile();
 
   // Use custom hooks
   const {
@@ -728,12 +733,16 @@ export default function Page() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className={cn(
+        "grid grid-cols-2 lg:grid-cols-4",
+        isMobile ? "gap-2" : "gap-3 sm:gap-4"
+      )}>
         <StatsCard
           title="Tổng hóa đơn"
           value={stats?.totalReceipts || 0}
           icon={FileText}
           description="Tổng số hóa đơn bán hàng"
+          compact={isMobile}
         />
         <StatsCard
           title="Chờ xử lý"
@@ -741,6 +750,7 @@ export default function Page() {
           icon={Clock}
           description="Hóa đơn chờ thanh toán"
           trend="neutral"
+          compact={isMobile}
         />
         <StatsCard
           title="Hoàn thành"
@@ -748,12 +758,16 @@ export default function Page() {
           icon={CheckCircle}
           description="Hóa đơn đã hoàn tất"
           trend="positive"
+          compact={isMobile}
         />
         <StatsCard
           title="Tổng doanh thu"
-          value={formatCurrency(stats?.totalRevenue || 0)}
+          value={formatSmartCurrency(stats?.totalRevenue || 0)}
           icon={DollarSign}
           description="Doanh thu từ các đơn thành công"
+          showDetailedTooltip={true}
+          rawValue={stats?.totalRevenue || 0}
+          compact={isMobile}
         />
       </div>
 
@@ -798,7 +812,7 @@ export default function Page() {
             onPageChange={handlePageChange}
             onSearch={handleSearch}
             searchValue={searchTerm}
-            onBulkAction={handleBulkPrint}
+            onBulkAction={selectedRows.length === 1 ? handleBulkPrint : undefined}
             bulkActionLabel="In hóa đơn"
             bulkActionIcon="printer"
             onSelectionChange={setSelectedRows}
@@ -1036,34 +1050,7 @@ export default function Page() {
                 <h4 className="mb-2 font-medium text-sm">
                   Danh sách sản phẩm ({selectedItem.listProduct.length})
                 </h4>
-                <div className="border rounded-md max-h-[200px] overflow-y-auto">
-                  <table className="w-full text-xs">
-                    <thead className="bg-muted sticky top-0">
-                      <tr>
-                        <th className="p-2 text-left font-medium">Sản phẩm</th>
-                        <th className="p-2 text-center font-medium">SL</th>
-                        <th className="p-2 text-right font-medium">Đơn giá</th>
-                        <th className="p-2 text-right font-medium">
-                          Thành tiền
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedItem.listProduct.map((p, index) => (
-                        <tr key={index} className="border-b last:border-0">
-                          <td className="p-2">{p.productName}</td>
-                          <td className="p-2 text-center">{p.quantity}</td>
-                          <td className="p-2 text-right">
-                            {formatCurrency(p.salePrice)}
-                          </td>
-                          <td className="p-2 text-right font-medium">
-                            {formatCurrency(p.salePrice * p.quantity)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <ReceiptProductsList products={selectedItem.listProduct} />
               </div>
             </div>
           )}

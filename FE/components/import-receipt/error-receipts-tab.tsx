@@ -21,6 +21,8 @@ import importReceiptService from "@/service/import-receipt.service";
 import { Branch } from "@/service/branch.service";
 import { StatsCard } from "@/components/common/stats-card";
 import { ImportReceiptDetailTable } from "@/components/import-receipt/import-receipt-detail-table";
+import { ImportReceiptDetailMobile } from "@/components/import-receipt/import-receipt-detail-mobile";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import {
   Select,
   SelectContent,
@@ -64,6 +66,7 @@ const getErrorMarkedByName = (errorMarkedBy: ImportReceipt["errorMarkedBy"]): st
 
 export function ErrorReceiptsTab({ isAdmin, isManager = false, branches, userBranchId }: ErrorReceiptsTabProps) {
   const router = useRouter();
+  const isMobile = useIsMobile();
   
   // Admin hoặc Manager đều có quyền xóa
   const canDelete = isAdmin || isManager;
@@ -458,6 +461,11 @@ export function ErrorReceiptsTab({ isAdmin, isManager = false, branches, userBra
                     Vui lòng xem chi tiết trong file Excel gốc hoặc xuất dữ liệu để kiểm tra.
                   </p>
                 </div>
+              ) : isMobile ? (
+                <ImportReceiptDetailMobile 
+                  products={selectedItem.listProduct} 
+                  totalAmount={selectedItem.totalAmount}
+                />
               ) : (
                 <ImportReceiptDetailTable 
                   products={selectedItem.listProduct} 
