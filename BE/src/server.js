@@ -12,28 +12,39 @@ import { CONNECT_DB } from "./config/mongodb.js";
 import { socketService } from "./services/socketService.js";
 
 const app = express();
+
+// Trust proxy for Render load balancer (Fixes express-rate-limit ERR_ERL_UNEXPECTED_X_FORWARDED_FOR)
+app.set("trust proxy", 1);
+
 const httpServer = createServer(app);
 const port = process.env.APP_PORT;
 const host = process.env.APP_HOST;
-
-const allowedOrigins = [
-  "http://localhost:3000",
-  "https://noibo.lanchuyenhangsale.com",
-  "https://www.noibo.lanchuyenhangsale.com",
-  process.env.CLIENT_URL,
-].filter(Boolean);
 
 const START_SERVER = () => {
   app.use(
     cors({
       origin: function (origin, callback) {
-        // Allow requests with no origin (mobile apps, curl, etc.)
+        // Lấy client URL từ env và bỏ dấu / ở cuối nếu có
+        const clientUrl = process.env.CLIENT_URL?.replace(/\/$/, "");
+        
+        const allowedOrigins = [
+          "http://localhost:3000",
+          clientUrl
+        ].filter(Boolean);
+
+        // Cho phép không có origin (ví dụ: postman, curl)
         if (!origin) return callback(null, true);
 
-        if (allowedOrigins.includes(origin)) {
-          callback(null, true);
+        // Nới lỏng CORS: Cho phép nếu origin match với config, 
+        // HOẶC nếu đây là vercel domain (để hỗ trợ deploy demo dễ dàng)
+        if (
+          allowedOrigins.some((o) => origin.startsWith(o) || o.startsWith(origin)) || 
+          origin.includes("vercel.app")
+        ) {
+          callback(null, true); // Chấp nhận
         } else {
-          callback(new Error("Not allowed by CORS"));
+          // Trả về false thay vì throw Error để tránh lỗi HTTP 500
+          callback(null, false);
         }
       },
       credentials: true, // Allow cookies

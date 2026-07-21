@@ -131,14 +131,13 @@ export function PaymentSummary({
             onClick={() => {
               if (paymentMethod !== "transfer") {
                 onPaymentMethodChange("transfer");
-                // Reset customerPaid khi chuyển sang chuyển khoản
                 onCustomerPaidChange(null);
               }
             }}
-            disabled={isConfirmingQR}
+            disabled={true}
           >
             <Building2 className="h-4 w-4 mr-2" />
-            Chuyển khoản
+            Chuyển khoản (Tạm khóa)
           </Button>
         </div>
 

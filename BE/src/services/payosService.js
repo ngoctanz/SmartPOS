@@ -75,62 +75,21 @@ export const payosService = {
    * @param {Object} branchCredentials - Branch-specific PayOS credentials (optional)
    */
   async createPaymentLink(params, branchCredentials = null) {
-    const { orderCode, amount, description, returnUrl, cancelUrl, expiredAt } =
-      params;
-
-    try {
-      // Use branch-specific client or fallback to default
-      const client = getPayOSClient(branchCredentials);
-
-      // Use paymentRequests.create() in v2
-      const paymentLink = await client.paymentRequests.create({
-        orderCode,
+    const { orderCode, amount, description, returnUrl, cancelUrl, expiredAt } = params;
+    // Tạm thời tắt PayOS, trả về data mock
+    return {
+      success: true,
+      data: {
+        paymentLinkId: "dummy_link",
+        checkoutUrl: "",
+        qrCode: "",
+        accountNumber: "",
+        accountName: "",
+        bin: "",
         amount,
         description,
-        returnUrl,
-        cancelUrl,
-        expiredAt: expiredAt
-          ? Math.floor(expiredAt.getTime() / 1000)
-          : undefined,
-      });
-
-      // Log để debug response structure
-      console.log("PayOS Response:", JSON.stringify(paymentLink, null, 2));
-
-      // Extract bank info from PayOS response
-      const bin = paymentLink.bin || "";
-      const accountNumber = paymentLink.accountNumber || "";
-      const accountName = paymentLink.accountName || "";
-
-      // Generate VietQR URL for direct bank app scanning
-      // This QR can be scanned directly by any Vietnamese bank app
-      let qrCodeUrl = "";
-
-      if (bin && accountNumber) {
-        // VietQR format: https://img.vietqr.io/image/{BIN}-{ACCOUNT_NUMBER}-{TEMPLATE}.png?amount={AMOUNT}&addInfo={DESCRIPTION}&accountName={NAME}
-        qrCodeUrl = `https://img.vietqr.io/image/${bin}-${accountNumber}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(
-          description
-        )}&accountName=${encodeURIComponent(accountName)}`;
-      }
-
-      return {
-        success: true,
-        data: {
-          paymentLinkId: paymentLink.paymentLinkId,
-          checkoutUrl: paymentLink.checkoutUrl,
-          qrCode: qrCodeUrl,
-          // Save these to regenerate QR later
-          accountNumber,
-          accountName,
-          bin,
-          amount,
-          description,
-        },
-      };
-    } catch (error) {
-      console.error("PayOS createPaymentLink error:", error);
-      throw new Error(error.message || "Không thể tạo link thanh toán");
-    }
+      },
+    };
   },
 
   /**

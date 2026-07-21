@@ -49,7 +49,7 @@ MongoDB sẽ tự động chạy cùng backend và frontend, sử dụng cùng 1
    ***REMOVED***
    ```
 3. Hoặc điền thủ công:
-   - **Host:** `42.96.15.125`
+   - **Host:** `127.0.0.1`
    - **Port:** `27017`
    - **Authentication:** `Username / Password`
    - **Username:** `admin`
@@ -140,7 +140,7 @@ db.products.find()
 Truy cập VPS:
 
 ```bash
-ssh root@42.96.15.125 -p 26266
+ssh root@127.0.0.1 -p 26266
 ```
 
 Mở port MongoDB:
@@ -160,7 +160,7 @@ sudo iptables-save
 **Thông tin kết nối cho team:**
 
 ```
-IP Server: 42.96.15.125
+IP Server: 127.0.0.1
 Port: 27017
 Username: admin
 Password: admin@123
@@ -174,7 +174,7 @@ Connection String:
 
 ```
 Kết nối MongoDB SmartPOS:
-- Host: 42.96.15.125:27017
+- Host: 127.0.0.1:27017
 - User: admin
 - Pass: admin@123
 - DB: SmartPOS

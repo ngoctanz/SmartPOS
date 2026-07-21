@@ -35,8 +35,8 @@ export function LoginForm({
     resolver: zodResolver(loginSchema),
     mode: "onBlur",
     defaultValues: {
-      userName: "",
-      password: "",
+      userName: "admin",
+      password: "admin123",
     },
   });
 
@@ -148,13 +148,23 @@ export function LoginForm({
           </div>
         </form>
       </div>
-      <div className="text-center text-sm text-muted-foreground">
-        Chưa có tài khoản?{" "}
+      <div className="text-center text-sm text-muted-foreground flex flex-col gap-2 p-4 bg-muted/50 rounded-lg border">
+        <p className="font-medium text-foreground">
+          ✨ Trải nghiệm hệ thống Web Demo SmartPOS
+        </p>
+        <p>
+          Dự án được đóng góp và phát triển bởi <strong className="text-foreground">Ngọc Tân</strong>.
+        </p>
+        <p>
+          Để trao đổi chi tiết về dự án hoặc cơ hội hợp tác, vui lòng liên hệ:
+        </p>
         <a
-          href="#"
-          className="underline underline-offset-4 hover:text-primary font-medium"
+          href="https://ngoctanz.tech"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-1 mt-1 text-primary hover:text-primary/80 transition-colors font-semibold"
         >
-          Liên hệ quản trị viên
+          🌐 ngoctanz.tech
         </a>
       </div>
     </div>

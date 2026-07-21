@@ -585,8 +585,8 @@ export default function Page() {
             </div>
           </div>
 
-          {/* PayOS Credentials Section */}
-          <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+          {/* PayOS Credentials Section - Disabled for demo */}
+          {/* <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
             <div className="flex items-center gap-2">
               <h3 className="text-sm font-semibold text-foreground">
                 Cấu hình thanh toán PayOS
@@ -669,7 +669,7 @@ export default function Page() {
                 → Channels → Chọn kênh thanh toán → Xem API Keys
               </p>
             )}
-          </div>
+          </div> */}
         </div>
       </DetailModal>
 

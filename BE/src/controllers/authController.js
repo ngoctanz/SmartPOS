@@ -6,11 +6,13 @@ const login = async (req, res, next) => {
   try {
     const result = await authService.login(req.body);
 
+    const isSecure = req.secure || req.headers["x-forwarded-proto"] === "https";
+
     // Set Access Token in Cookie
     res.cookie("access_token", result.access_token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+      secure: isSecure,
+      sameSite: isSecure ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       path: "/",
     });
